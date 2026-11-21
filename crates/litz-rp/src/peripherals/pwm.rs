@@ -158,11 +158,11 @@ impl Pwm {
             reg::EN => {
                 // Inferred: writing EN is an alias for the per-slice CSR
                 // enable bits; reading it reports the aggregate.
-                for index in 0..SLICES {
+                for (index, slice) in self.slices.iter_mut().enumerate() {
                     if value & (1 << index) != 0 {
-                        self.slices[index].csr |= csr::EN;
+                        slice.csr |= csr::EN;
                     } else {
-                        self.slices[index].csr &= !csr::EN;
+                        slice.csr &= !csr::EN;
                     }
                 }
             }

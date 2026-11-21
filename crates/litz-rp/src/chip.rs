@@ -445,8 +445,8 @@ impl Chip for Rp2040 {
             cpu.r[14],
             cpu.xpsr
         );
-        for index in 0..13 {
-            text.push_str(&format!("r{index:<2}={:#010x} ", cpu.r[index]));
+        for (index, value) in cpu.r[..13].iter().enumerate() {
+            text.push_str(&format!("r{index:<2}={value:#010x} "));
             if index % 4 == 3 {
                 text.push('\n');
             }
