@@ -488,7 +488,7 @@ impl HostChip {
         let now = self.now_ns();
         let mut board = self.board.borrow_mut();
         board.advance_to(now);
-        for record in bytes.chunks_exact(12) {
+        for record in bytes.as_chunks::<12>().0 {
             let pin = u32::from_le_bytes(record[0..4].try_into().expect("four bytes")) as u8;
             let level = match u32::from_le_bytes(record[4..8].try_into().expect("four bytes")) {
                 0 => Level::Low,

@@ -88,8 +88,8 @@ impl fmt::Debug for Seeded {
 impl Seeded {
     fn new(key: [u8; 32]) -> Self {
         let mut words = [0u32; 8];
-        for (index, chunk) in key.chunks_exact(4).enumerate() {
-            words[index] = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        for (index, chunk) in key.as_chunks::<4>().0.iter().enumerate() {
+            words[index] = u32::from_le_bytes(*chunk);
         }
         Self {
             state: Mutex::new(Seed {

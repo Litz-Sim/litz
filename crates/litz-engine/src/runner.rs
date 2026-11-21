@@ -1097,16 +1097,17 @@ fn decode_png(path: &Path) -> Result<(u32, u32, Vec<[u8; 4]>), String> {
         .next_frame(&mut buffer)
         .map_err(|e| format!("{}: {e}", path.display()))?;
     let pixels = match info.color_type {
-        png::ColorType::Rgba => buffer
-            .chunks_exact(4)
-            .map(|p| [p[0], p[1], p[2], p[3]])
-            .collect(),
+        png::ColorType::Rgba => buffer.as_chunks::<4>().0.to_vec(),
         png::ColorType::Rgb => buffer
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|p| [p[0], p[1], p[2], 255])
             .collect(),
         png::ColorType::GrayscaleAlpha => buffer
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|p| [p[0], p[0], p[0], p[1]])
             .collect(),
         png::ColorType::Grayscale => buffer.iter().map(|p| [*p, *p, *p, 255]).collect(),

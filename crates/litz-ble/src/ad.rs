@@ -126,8 +126,8 @@ pub fn services16(data: &[u8]) -> Vec<u16> {
     let mut uuids = Vec::new();
     for structure in decode(data) {
         if matches!(structure.kind, AD_UUID16_INCOMPLETE | AD_UUID16_COMPLETE) {
-            for pair in structure.data.chunks_exact(2) {
-                uuids.push(u16::from_le_bytes([pair[0], pair[1]]));
+            for pair in structure.data.as_chunks::<2>().0 {
+                uuids.push(u16::from_le_bytes(*pair));
             }
         }
     }
