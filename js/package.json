@@ -1,5 +1,5 @@
 {
-  "name": "litz",
+  "name": "@litz-sim/litz",
   "version": "0.1.0",
   "description": "Deterministic electronics and firmware simulator in WebAssembly",
   "keywords": [
@@ -44,5 +44,8 @@
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.js",
     "prepublishOnly": "node scripts/build.mjs && node --test test/*.test.js"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

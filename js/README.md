@@ -5,14 +5,14 @@ A deterministic electronics and firmware simulator in one WebAssembly module. It
 The module has no imports and no host bindings: it is linear memory plus integers, loaded with `WebAssembly.instantiate` and driven through this package's small JavaScript API. No DOM, no worker requirements, no network.
 
 ```sh
-npm install litz
+npm install @litz-sim/litz
 ```
 
 ## Quick start
 
 ```js
 import { readFile } from "node:fs/promises";
-import { loadLitz } from "litz";
+import { loadLitz } from "@litz-sim/litz";
 
 const litz = await loadLitz();
 
@@ -134,7 +134,7 @@ Bundlers that cannot copy arbitrary assets should read the file themselves and p
 Every failing call throws `LitzError` with the reason the module gave, so a bad diagram reports the parse error and a bad pin reports the pin.
 
 ```js
-import { LitzError } from "litz";
+import { LitzError } from "@litz-sim/litz";
 try {
   litz.createSession({ diagram, app });
 } catch (error) {

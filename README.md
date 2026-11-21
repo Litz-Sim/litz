@@ -88,7 +88,7 @@ The page boots the **Blink** demo on its own; the **Button** demo lights the LED
 
 The workbench beside it (`web/workbench/`) is the editor: `litz catalog --json` feeds its part picker, it places and wires parts on a grid, validates ids and pins client-side, saves a `.litz` project, and imports and exports `diagram.json`. `cargo run -p litz-cli -- serve web/workbench` serves it on its own.
 
-`js/` packages the same module for a host that wants no page at all: an ES module with no dependencies and no DOM code, packaged for npm as `litz`. It loads the wasm once, opens sessions, and exposes the console, part state, the display, probes and decoders.
+`js/` packages the same module for a host that wants no page at all: an ES module with no dependencies and no DOM code, packaged for npm as `@litz-sim/litz`. It loads the wasm once, opens sessions, and exposes the console, part state, the display, probes and decoders.
 
 ```sh
 cd js && npm run build && npm test   # build the module, run the package's tests
