@@ -1,0 +1,45 @@
+[part]
+id = "litz-7segment"
+name = "7-segment display"
+version = "1.0.0"
+description = "Single-digit seven-segment display"
+license = "MIT"
+
+# The eight segment anodes and the common terminal they share. Whether the
+# common is ground or a supply rail is decided by the wiring, not the part, so
+# every contact is passive.
+[pins.a]
+kind = "passive"
+
+[pins.b]
+kind = "passive"
+
+[pins.c]
+kind = "passive"
+
+[pins.d]
+kind = "passive"
+
+[pins.e]
+kind = "passive"
+
+[pins.f]
+kind = "passive"
+
+[pins.g]
+kind = "passive"
+
+[pins.dp]
+kind = "passive"
+
+[pins.com]
+kind = "passive"
+
+[attrs.color]
+type = "enum"
+values = ["red", "green", "blue", "yellow"]
+default = "red"
+
+[simulation]
+backend = "builtin"
+engine = "segments"

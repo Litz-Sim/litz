@@ -1,0 +1,25 @@
+[part]
+id = "litz-ky-040"
+name = "KY-040 rotary encoder"
+version = "1.0.0"
+description = "Quadrature rotary encoder module with a push switch"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.CLK]
+kind = "digital-out"
+
+[pins.DT]
+kind = "digital-out"
+
+[pins.SW]
+kind = "digital-out"
+
+[simulation]
+backend = "builtin"
+engine = "rotary-encoder"

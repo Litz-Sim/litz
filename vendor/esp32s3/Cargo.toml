@@ -1,0 +1,15 @@
+[package]
+name = "esp32s3"
+version = "0.4.0"
+edition = "2021"
+license = "MIT"
+description = "ESP32-S3 SoC emulation (memory map, cache MMU, peripherals) on the xtensa-lx7 core"
+
+[dependencies]
+emu-core = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+esp-periph = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+esp-soc = { path = "../esp-soc" }
+xtensa-lx7 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+
+[features]
+cache-inline = ["xtensa-lx7/wasm-cache-inline"]

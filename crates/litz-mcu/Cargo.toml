@@ -1,0 +1,12 @@
+[package]
+name = "litz-mcu"
+description = "Generic microcontroller scaffolding for Litz: memory maps, interrupt controllers, clock domains and CPU cores."
+keywords = ["simulator", "emulator", "microcontroller", "embedded"]
+categories = ["emulators", "embedded", "no-std"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+litz-core = { version = "0.0.1", path = "../litz-core" }

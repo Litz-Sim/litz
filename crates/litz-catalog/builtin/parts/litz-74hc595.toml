@@ -1,0 +1,71 @@
+[part]
+id = "litz-74hc595"
+name = "74HC595"
+version = "1.0.0"
+description = "8-bit serial-in, parallel-out shift register with output latch"
+license = "MIT"
+
+[pins.DS]
+kind = "digital-in"
+number = 14
+label = "serial data"
+
+[pins.SHCP]
+kind = "digital-in"
+number = 11
+label = "shift clock"
+
+[pins.STCP]
+kind = "digital-in"
+number = 12
+label = "storage clock"
+
+[pins.OE]
+kind = "digital-in"
+number = 13
+label = "output enable, active low"
+
+[pins.MR]
+kind = "digital-in"
+number = 10
+label = "master reset, active low"
+
+[pins.Q0]
+kind = "digital-out"
+number = 15
+
+[pins.Q1]
+kind = "digital-out"
+number = 1
+
+[pins.Q2]
+kind = "digital-out"
+number = 2
+
+[pins.Q3]
+kind = "digital-out"
+number = 3
+
+[pins.Q4]
+kind = "digital-out"
+number = 4
+
+[pins.Q5]
+kind = "digital-out"
+number = 5
+
+[pins.Q6]
+kind = "digital-out"
+number = 6
+
+[pins.Q7]
+kind = "digital-out"
+number = 7
+
+# The reference guest under crates/litz-part-74hc595. `parts::build` loads the
+# module from beside this manifest; the builtin catalog carries the same bytes
+# compiled into the binary.
+[simulation]
+backend = "wasm"
+module = "74hc595.wasm"
+abi = "litz-part-1"

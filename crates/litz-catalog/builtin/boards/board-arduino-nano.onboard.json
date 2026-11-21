@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "chip", "type": "$chip", "attrs": {} },
+    { "id": "led_l", "type": "litz-led", "attrs": { "color": "orange" } },
+    { "id": "r_l", "type": "litz-resistor", "attrs": { "value": "1000" } },
+    { "id": "led_pwr", "type": "litz-led", "attrs": { "color": "green" } },
+    { "id": "r_pwr", "type": "litz-resistor", "attrs": { "value": "1000" } }
+  ],
+  "connections": [
+    ["chip:D13", "r_l:1", "", []],
+    ["r_l:2", "led_l:A", "", []],
+    ["led_l:C", "$gnd", "", []],
+    ["$v5", "r_pwr:1", "", []],
+    ["r_pwr:2", "led_pwr:A", "", []],
+    ["led_pwr:C", "$gnd", "", []]
+  ]
+}

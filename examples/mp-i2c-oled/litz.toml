@@ -1,0 +1,16 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "../../build/micropython/ESP32_GENERIC_C3-20260824-v1.29.0.bin"
+rom = "build/micropython/esp32c3_rev3_rom.elf"
+runtime = "micropython"
+script = "main.py"
+flash_size = "4MB"
+
+# A single `write_to` to an absent address fails, so the marker after the
+# command and pixel writes proves the SSD1306 acknowledged them.
+[[test]]
+name = "the SSD1306 answers at 0x3c and takes commands"
+timeout = "20s"
+expect = ["litz: oled", "litz: found 0x3c", "litz: oled ok"]

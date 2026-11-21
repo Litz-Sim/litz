@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Litz</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="toolbar">
+      <div class="brand">
+        <span class="mark">Litz</span>
+        <span class="sub">ESP32-C3</span>
+      </div>
+
+      <div class="controls">
+        <button id="run" type="button" disabled>Pause</button>
+        <button id="reset" type="button" disabled>Reset</button>
+        <button id="waveform" type="button" disabled title="Download the recorded nets as a VCD">VCD</button>
+        <label class="speed" for="demo">Demo
+          <select id="demo">
+            <option value="blinky" selected>Blink</option>
+            <option value="button">Button</option>
+            <option value="switch">Switch</option>
+            <option value="pot">Potentiometer</option>
+          </select>
+        </label>
+        <label class="speed" for="speed">Speed
+          <select id="speed">
+            <option value="100000">100k</option>
+            <option value="400000" selected>400k</option>
+            <option value="1600000">1.6M</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="status" role="status" aria-live="off">
+        <span class="stat"><span class="k">sim</span><span id="sim-time" class="v">0 ms</span></span>
+        <span class="stat"><span class="k">steps/s</span><span id="steps-rate" class="v">0</span></span>
+        <span class="stat"><span class="k">conflicts</span><span id="conflicts" class="v">0</span></span>
+        <span id="conflict-text" class="conflict-text"></span>
+      </div>
+    </header>
+
+    <section id="notice" class="notice" hidden>
+      <strong id="notice-title"></strong>
+      <pre id="notice-body"></pre>
+    </section>
+
+    <main class="panes">
+      <section class="pane">
+        <div class="pane-head">
+          <h2>Schematic</h2>
+          <span id="schematic-note" class="hint"></span>
+        </div>
+        <div id="schematic" class="schematic">
+          <div class="empty">Loading wasm and demo files&hellip;</div>
+        </div>
+      </section>
+
+      <section class="pane">
+        <div class="pane-head">
+          <h2>Serial monitor</h2>
+          <span class="hint">Enter sends the line to UART0 RX</span>
+          <button id="serial-clear" type="button" class="small">Clear</button>
+        </div>
+        <pre id="serial" class="serial-out" aria-live="polite"></pre>
+        <form id="serial-form" class="serial-in" autocomplete="off">
+          <input id="serial-input" type="text" placeholder="type a line and press Enter"
+                 aria-label="Serial input" />
+          <button type="submit" class="small">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <section id="loader" class="loader" hidden>
+      <div class="loader-head">
+        <h2>Load your own circuit</h2>
+        <p id="loader-note" class="hint"></p>
+      </div>
+      <div class="fields">
+        <label>diagram.json
+          <input id="f-diagram" type="file" accept=".json,application/json">
+        </label>
+        <label>application image (.bin)
+          <input id="f-app" type="file" accept=".bin,application/octet-stream">
+        </label>
+        <label>mask ROM (.elf, optional)
+          <input id="f-rom" type="file" accept=".elf,application/octet-stream">
+        </label>
+        <label>bootloader (.bin, optional)
+          <input id="f-boot" type="file" accept=".bin,application/octet-stream">
+        </label>
+        <label>partition table (.bin, optional)
+          <input id="f-ptable" type="file" accept=".bin,application/octet-stream">
+        </label>
+      </div>
+      <div class="loader-actions">
+        <button id="start" type="button" disabled>Start session</button>
+        <span id="loader-status" class="hint">Choose diagram.json and an application image.</span>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

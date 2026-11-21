@@ -1,0 +1,9151 @@
+[
+  {
+    "attrs": [],
+    "description": "ATmega328P at 16 MHz, 32 KiB flash, Nano header (D0-D13, A0-A7)",
+    "id": "board-arduino-nano",
+    "kind": "board",
+    "name": "Arduino Nano",
+    "pins": [
+      {
+        "kind": "digital-io",
+        "name": "D0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D11"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A7"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "VIN"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "ATmega328P at 16 MHz, 32 KiB flash, Pro Mini header, no USB",
+    "id": "board-arduino-pro-mini",
+    "kind": "board",
+    "name": "Arduino Pro Mini",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "RAW"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D11"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A7"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "ATmega328P at 16 MHz, 32 KiB flash, Arduino R3 header",
+    "id": "board-arduino-uno",
+    "kind": "board",
+    "name": "Arduino Uno",
+    "pins": [
+      {
+        "kind": "digital-io",
+        "name": "D0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D11"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "D13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "A5"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "VIN"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Espressif ESP32-C3-DevKitM-1 development board",
+    "id": "board-esp32-c3-devkitm-1",
+    "kind": "board",
+    "name": "ESP32-C3-DevKitM-1",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO18"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO19"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO20"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO21"
+      },
+      {
+        "kind": "digital-io",
+        "name": "TX"
+      },
+      {
+        "kind": "digital-io",
+        "name": "RX"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Espressif ESP32-C6-DevKitC-1 (RV32IMAC, Wi-Fi 6 + Thread)",
+    "id": "board-esp32-c6-devkitc-1",
+    "kind": "board",
+    "name": "ESP32-C6-DevKitC-1",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO11"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO14"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO15"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO18"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO19"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO20"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO21"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO22"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO23"
+      },
+      {
+        "kind": "digital-io",
+        "name": "TX"
+      },
+      {
+        "kind": "digital-io",
+        "name": "RX"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO16"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO17"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Espressif ESP32-C6-DevKitM-1 (RV32IMAC, ESP32-C6-MINI-1, 4 MiB flash)",
+    "id": "board-esp32-c6-devkitm-1",
+    "kind": "board",
+    "name": "ESP32-C6-DevKitM-1",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO14"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO15"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO18"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO19"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO20"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO21"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO22"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO23"
+      },
+      {
+        "kind": "digital-io",
+        "name": "TX"
+      },
+      {
+        "kind": "digital-io",
+        "name": "RX"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Espressif ESP32-DevKitC V4 (Xtensa LX6, two cores)",
+    "id": "board-esp32-devkit-c-v4",
+    "kind": "board",
+    "name": "ESP32-DevKitC V4",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO18"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO19"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO21"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO22"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO23"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO25"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO26"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO27"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO32"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO33"
+      },
+      {
+        "kind": "digital-io",
+        "name": "TX"
+      },
+      {
+        "kind": "digital-io",
+        "name": "RX"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Espressif ESP32-P4-Function-EV (dual RV32IMAFC, no radio)",
+    "id": "board-esp32-p4-function-ev",
+    "kind": "board",
+    "name": "ESP32-P4-Function-EV",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO11"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO14"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO15"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO16"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO17"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO18"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO19"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO20"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Espressif ESP32-S3-DevKitC-1 (Xtensa LX7, 2 MiB PSRAM)",
+    "id": "board-esp32-s3-devkitc-1",
+    "kind": "board",
+    "name": "ESP32-S3-DevKitC-1",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO11"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO14"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO15"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO16"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO17"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO18"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO19"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO20"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO21"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO35"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO36"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO37"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO38"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO39"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO40"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO41"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO42"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO45"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO46"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO47"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO48"
+      },
+      {
+        "kind": "digital-io",
+        "name": "TX"
+      },
+      {
+        "kind": "digital-io",
+        "name": "RX"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO43"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO44"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Espressif ESP32-S3-DevKitC-1-N16R8 (Xtensa LX7, 16 MiB flash, 8 MiB PSRAM)",
+    "id": "board-esp32-s3-devkitc-1-n16r8",
+    "kind": "board",
+    "name": "ESP32-S3-DevKitC-1-N16R8",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO11"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO14"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO15"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO16"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO17"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO18"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO19"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO20"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO21"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO35"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO36"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO37"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO38"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO39"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO40"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO41"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO42"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO45"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO46"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO47"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO48"
+      },
+      {
+        "kind": "digital-io",
+        "name": "TX"
+      },
+      {
+        "kind": "digital-io",
+        "name": "RX"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Espressif ESP32-S31 Function CoreBoard",
+    "id": "board-esp32-s31-coreboard",
+    "kind": "board",
+    "name": "ESP32-S31 Function CoreBoard",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "power",
+        "name": "5V"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO11"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO14"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO15"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO16"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO17"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO18"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO19"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO20"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Reference board whose MCU is a wasm component (crates/litz-chip-rv32)",
+    "id": "board-litz-rv32",
+    "kind": "board",
+    "name": "Litz RV32 reference",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO20"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPIO21"
+      },
+      {
+        "kind": "digital-io",
+        "name": "RX"
+      },
+      {
+        "kind": "digital-io",
+        "name": "TX"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "RP2040 at 125 MHz, 2 MiB QSPI flash, 264 KiB SRAM, Pico header",
+    "id": "board-raspberry-pi-pico",
+    "kind": "board",
+    "name": "Raspberry Pi Pico",
+    "pins": [
+      {
+        "kind": "digital-io",
+        "name": "GP0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP1"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP8"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP9"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP10"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP11"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP12"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP13"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP14"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP15"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP16"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP17"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP18"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP19"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP20"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP21"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP22"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP26"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP27"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP28"
+      },
+      {
+        "kind": "power",
+        "name": "ADC_VREF"
+      },
+      {
+        "kind": "ground",
+        "name": "AGND"
+      },
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "3V3_EN"
+      },
+      {
+        "kind": "power",
+        "name": "VSYS"
+      },
+      {
+        "kind": "power",
+        "name": "VBUS"
+      },
+      {
+        "kind": "digital-io",
+        "name": "RUN"
+      },
+      {
+        "kind": "digital-io",
+        "name": "SWCLK"
+      },
+      {
+        "kind": "digital-io",
+        "name": "SWDIO"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GP25"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "256-byte I2C serial EEPROM with 8-byte write pages",
+    "id": "litz-24c02",
+    "kind": "part",
+    "name": "24C02",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A2"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Decade counter with ten decoded outputs",
+    "id": "litz-4017",
+    "kind": "part",
+    "name": "CD4017",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CLK"
+      },
+      {
+        "kind": "digital-in",
+        "name": "CLKINH"
+      },
+      {
+        "kind": "digital-out",
+        "name": "CO"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q3"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q4"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q5"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q6"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q7"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q8"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q9"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RST"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "8-channel analog multiplexer",
+    "id": "litz-4051",
+    "kind": "part",
+    "name": "CD4051",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "digital-in",
+        "name": "C"
+      },
+      {
+        "kind": "digital-in",
+        "name": "INH"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "passive",
+        "name": "VEE"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      },
+      {
+        "kind": "digital-io",
+        "name": "X"
+      },
+      {
+        "kind": "digital-io",
+        "name": "X0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "X1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "X2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "X3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "X4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "X5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "X6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "X7"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "8-bit serial-in, parallel-out shift register with latch",
+    "id": "litz-4094",
+    "kind": "part",
+    "name": "CD4094",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CLK"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DATA"
+      },
+      {
+        "kind": "digital-in",
+        "name": "OE"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q3"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q4"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q5"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q6"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q7"
+      },
+      {
+        "kind": "digital-out",
+        "name": "QS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "STROBE"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Quad 2-input NAND gate",
+    "id": "litz-74hc00",
+    "kind": "part",
+    "name": "74HC00",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "1A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "1B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "3Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "4Y"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Quad 2-input NOR gate",
+    "id": "litz-74hc02",
+    "kind": "part",
+    "name": "74HC02",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "1A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "1B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "3Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "4Y"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Hex inverter",
+    "id": "litz-74hc04",
+    "kind": "part",
+    "name": "74HC04",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "1A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "3Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "4Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "5A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "5Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "6A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "6Y"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Quad 2-input AND gate",
+    "id": "litz-74hc08",
+    "kind": "part",
+    "name": "74HC08",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "1A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "1B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "3Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "4Y"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "3-to-8 line decoder with active-low outputs",
+    "id": "litz-74hc138",
+    "kind": "part",
+    "name": "74HC138",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E3"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y3"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y4"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y5"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y6"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y7"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Dual 2-to-4 line decoder with active-low outputs",
+    "id": "litz-74hc139",
+    "kind": "part",
+    "name": "74HC139",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "1A0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "1A1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "1E"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2A0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2A1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2E"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y3"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Hex inverter with Schmitt-trigger inputs",
+    "id": "litz-74hc14",
+    "kind": "part",
+    "name": "74HC14",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "1A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "3Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "4Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "5A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "5Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "6A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "6Y"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "8-bit serial-in, parallel-out shift register",
+    "id": "litz-74hc164",
+    "kind": "part",
+    "name": "74HC164",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "digital-in",
+        "name": "CLK"
+      },
+      {
+        "kind": "digital-in",
+        "name": "CLR"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q3"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q4"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q5"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q6"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q7"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "8-bit parallel-in, serial-out shift register",
+    "id": "litz-74hc165",
+    "kind": "part",
+    "name": "74HC165",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CE"
+      },
+      {
+        "kind": "digital-in",
+        "name": "CP"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D4"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D5"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D6"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D7"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DS"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "PL"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q7"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q7_N"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "8-bit parallel-in, serial-out shift register",
+    "id": "litz-74hc166",
+    "kind": "part",
+    "name": "74HC166",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CE"
+      },
+      {
+        "kind": "digital-in",
+        "name": "CP"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D4"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D5"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D6"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D7"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DS"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "PL"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q7"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q7_N"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "3-to-8 line decoder with active-high outputs",
+    "id": "litz-74hc238",
+    "kind": "part",
+    "name": "74HC238",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E3"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y3"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y4"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y5"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y6"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y7"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Quad 2-input OR gate",
+    "id": "litz-74hc32",
+    "kind": "part",
+    "name": "74HC32",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "1A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "1B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "3Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "4Y"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "16-channel analog multiplexer",
+    "id": "litz-74hc4067",
+    "kind": "part",
+    "name": "74HC4067 multiplexer",
+    "pins": [
+      {
+        "kind": "analog-io",
+        "name": "COM"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I0"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I1"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I10"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I11"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I12"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I13"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I14"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I15"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I2"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I3"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I4"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I5"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I6"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I7"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I8"
+      },
+      {
+        "kind": "analog-io",
+        "name": "I9"
+      },
+      {
+        "kind": "digital-in",
+        "name": "S0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "S1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "S2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "S3"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Octal transparent D latch",
+    "id": "litz-74hc573",
+    "kind": "part",
+    "name": "74HC573",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "D0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D4"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D5"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D6"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D7"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "LE"
+      },
+      {
+        "kind": "digital-in",
+        "name": "OE"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q3"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q4"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q5"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q6"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q7"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "8-bit serial-in, parallel-out shift register with output latch",
+    "id": "litz-74hc595",
+    "kind": "part",
+    "name": "74HC595",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "DS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "MR"
+      },
+      {
+        "kind": "digital-in",
+        "name": "OE"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q3"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q4"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q5"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q6"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Q7"
+      },
+      {
+        "kind": "digital-in",
+        "name": "SHCP"
+      },
+      {
+        "kind": "digital-in",
+        "name": "STCP"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Quad 2-input XOR gate",
+    "id": "litz-74hc86",
+    "kind": "part",
+    "name": "74HC86",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "1A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "1B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "2B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "3B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "3Y"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "4B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "4Y"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "red",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "red",
+          "green",
+          "blue",
+          "yellow"
+        ]
+      }
+    ],
+    "description": "Single-digit seven-segment display",
+    "id": "litz-7segment",
+    "kind": "part",
+    "name": "7-segment display",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "a"
+      },
+      {
+        "kind": "passive",
+        "name": "b"
+      },
+      {
+        "kind": "passive",
+        "name": "c"
+      },
+      {
+        "kind": "passive",
+        "name": "com"
+      },
+      {
+        "kind": "passive",
+        "name": "d"
+      },
+      {
+        "kind": "passive",
+        "name": "dp"
+      },
+      {
+        "kind": "passive",
+        "name": "e"
+      },
+      {
+        "kind": "passive",
+        "name": "f"
+      },
+      {
+        "kind": "passive",
+        "name": "g"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "red",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "red",
+          "green",
+          "blue",
+          "yellow"
+        ]
+      }
+    ],
+    "description": "Four-digit multiplexed seven-segment display",
+    "id": "litz-7segment-4digit",
+    "kind": "part",
+    "name": "4-digit 7-segment display",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "digital-in",
+        "name": "C"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DIG1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DIG2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DIG3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DIG4"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DP"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E"
+      },
+      {
+        "kind": "digital-in",
+        "name": "F"
+      },
+      {
+        "kind": "digital-in",
+        "name": "G"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "STEP/DIR stepper driver with microstep selection",
+    "id": "litz-a4988",
+    "kind": "part",
+    "name": "A4988 stepper driver",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "1A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "1B"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2A"
+      },
+      {
+        "kind": "digital-out",
+        "name": "2B"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DIR"
+      },
+      {
+        "kind": "digital-in",
+        "name": "ENABLE"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "MS1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "MS2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "MS3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RESET"
+      },
+      {
+        "kind": "digital-in",
+        "name": "SLEEP"
+      },
+      {
+        "kind": "digital-in",
+        "name": "STEP"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "power",
+        "name": "VMOT"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.0,
+        "name": "a0",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "a1",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "a2",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "a3",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Four-channel 12-bit I2C ADC",
+    "id": "litz-ads1015",
+    "kind": "part",
+    "name": "ADS1015 ADC",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "ADDR"
+      },
+      {
+        "kind": "digital-out",
+        "name": "ALRT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.0,
+        "name": "a0",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "a1",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "a2",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "a3",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Four-channel 16-bit I2C ADC",
+    "id": "litz-ads1115",
+    "kind": "part",
+    "name": "ADS1115 ADC",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "ADDR"
+      },
+      {
+        "kind": "digital-out",
+        "name": "ALRT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.0,
+        "name": "x",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "y",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 1.0,
+        "name": "z",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Three-axis digital accelerometer",
+    "id": "litz-adxl345",
+    "kind": "part",
+    "name": "ADXL345",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CS"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "INT1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "INT2"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "digital-in",
+        "name": "SDO"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Two-axis analog joystick with push button",
+    "id": "litz-analog-joystick",
+    "kind": "part",
+    "name": "Analog joystick",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "analog-out",
+        "name": "HORZ"
+      },
+      {
+        "kind": "digital-out",
+        "name": "SEL"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "analog-out",
+        "name": "VERT"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Two-input AND gate",
+    "id": "litz-and",
+    "kind": "part",
+    "name": "AND gate",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 500,
+        "name": "blue",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 1000,
+        "name": "clear",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 1000,
+        "name": "green",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 0,
+        "name": "proximity",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 2000,
+        "name": "red",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Proximity, ambient-light and RGB sensor",
+    "id": "litz-apds9960",
+    "kind": "part",
+    "name": "APDS9960",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "INT"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 1,
+        "name": "address",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 15,
+        "name": "channel",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": "0011223344556677",
+        "name": "extended_address",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "ieee802154",
+        "name": "network",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": 43981,
+        "name": "pan",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 0,
+        "name": "power",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "2.4 GHz IEEE 802.15.4 transceiver on a pin-level SPI bus",
+    "id": "litz-at86rf233",
+    "kind": "part",
+    "name": "AT86RF233",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "IRQ"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "MISO"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "MOSI"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RSTN"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "SCK"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "SELN"
+      },
+      {
+        "kind": "digital-in",
+        "name": "SLPTR"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "AA",
+        "name": "type",
+        "type": "enum",
+        "values": [
+          "AA",
+          "9V",
+          "coin"
+        ]
+      },
+      {
+        "default": 1.5,
+        "name": "voltage",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Battery cell or pack",
+    "id": "litz-battery",
+    "kind": "part",
+    "name": "Battery",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "+"
+      },
+      {
+        "kind": "ground",
+        "name": "-"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 500.0,
+        "name": "lux",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Ambient-light sensor",
+    "id": "litz-bh1750",
+    "kind": "part",
+    "name": "BH1750",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "ADDR"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 100.0,
+        "name": "beta",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": "npn",
+        "name": "polarity",
+        "type": "enum",
+        "values": [
+          "npn",
+          "pnp"
+        ]
+      },
+      {
+        "default": 0.7,
+        "name": "vbe",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Generic bipolar junction transistor, NPN or PNP",
+    "id": "litz-bjt",
+    "kind": "part",
+    "name": "BJT",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "B"
+      },
+      {
+        "kind": "passive",
+        "name": "C"
+      },
+      {
+        "kind": "passive",
+        "name": "E"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "",
+        "name": "address",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "",
+        "name": "adv",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "litz",
+        "name": "name",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "",
+        "name": "rsp",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": -60,
+        "name": "rssi",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": "",
+        "name": "services",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "A scannable Bluetooth LE advertiser the circuit puts in range",
+    "id": "litz-ble-beacon",
+    "kind": "part",
+    "name": "Bluetooth beacon",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 50.0,
+        "name": "humidity",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 101325.0,
+        "name": "pressure",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 25.0,
+        "name": "temperature",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Temperature, pressure and humidity sensor",
+    "id": "litz-bme280",
+    "kind": "part",
+    "name": "BME280",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 100000.0,
+        "name": "gas",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 50.0,
+        "name": "humidity",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 101325.0,
+        "name": "pressure",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 25.0,
+        "name": "temperature",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Temperature, pressure, humidity and gas sensor",
+    "id": "litz-bme680",
+    "kind": "part",
+    "name": "BME680",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CS"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "digital-in",
+        "name": "SDO"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Bosch BMP280 barometric pressure and temperature sensor",
+    "id": "litz-bmp280",
+    "kind": "part",
+    "name": "BMP280",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CSB"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "digital-in",
+        "name": "SDO"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Non-inverting buffer",
+    "id": "litz-buffer",
+    "kind": "part",
+    "name": "Buffer",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "active",
+        "name": "buzzerType",
+        "type": "enum",
+        "values": [
+          "active",
+          "passive"
+        ]
+      }
+    ],
+    "description": "12 mm through-hole buzzer",
+    "id": "litz-buzzer",
+    "kind": "part",
+    "name": "Buzzer",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "100n",
+        "name": "value",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "Two-terminal capacitor",
+    "id": "litz-capacitor",
+    "kind": "part",
+    "name": "Capacitor",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "10u",
+        "name": "value",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "Polarised electrolytic capacitor",
+    "id": "litz-capacitor-electrolytic",
+    "kind": "part",
+    "name": "Electrolytic capacitor",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "10k",
+        "name": "frequency",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "Free-running digital clock signal",
+    "id": "litz-clock-generator",
+    "kind": "part",
+    "name": "Clock generator",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "CLK"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Brushed DC motor with direction inputs and a PWM speed input",
+    "id": "litz-dc-motor",
+    "kind": "part",
+    "name": "DC motor",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "IN1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "PWM"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 50.0,
+        "name": "humidity",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 25.0,
+        "name": "temperature",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Temperature and humidity sensor on the single-wire protocol",
+    "id": "litz-dht22",
+    "kind": "part",
+    "name": "DHT22",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "nc",
+        "name": "NC"
+      },
+      {
+        "kind": "digital-io",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.7,
+        "name": "vf",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Generic silicon diode",
+    "id": "litz-diode",
+    "kind": "part",
+    "name": "Diode",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A"
+      },
+      {
+        "kind": "passive",
+        "name": "C"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.9,
+        "name": "vf",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "1N4007 1 A rectifier diode",
+    "id": "litz-diode-1n4007",
+    "kind": "part",
+    "name": "1N4007 diode",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A"
+      },
+      {
+        "kind": "passive",
+        "name": "C"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.72,
+        "name": "vf",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "1N4148 small-signal switching diode",
+    "id": "litz-diode-1n4148",
+    "kind": "part",
+    "name": "1N4148 diode",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A"
+      },
+      {
+        "kind": "passive",
+        "name": "C"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Four electrical switches in one package",
+    "id": "litz-dip-switch-4",
+    "kind": "part",
+    "name": "DIP switch 4",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1a"
+      },
+      {
+        "kind": "passive",
+        "name": "1b"
+      },
+      {
+        "kind": "passive",
+        "name": "2a"
+      },
+      {
+        "kind": "passive",
+        "name": "2b"
+      },
+      {
+        "kind": "passive",
+        "name": "3a"
+      },
+      {
+        "kind": "passive",
+        "name": "3b"
+      },
+      {
+        "kind": "passive",
+        "name": "4a"
+      },
+      {
+        "kind": "passive",
+        "name": "4b"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Eight-position DIP switch",
+    "id": "litz-dip-switch-8",
+    "kind": "part",
+    "name": "DIP switch 8",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1a"
+      },
+      {
+        "kind": "passive",
+        "name": "1b"
+      },
+      {
+        "kind": "passive",
+        "name": "2a"
+      },
+      {
+        "kind": "passive",
+        "name": "2b"
+      },
+      {
+        "kind": "passive",
+        "name": "3a"
+      },
+      {
+        "kind": "passive",
+        "name": "3b"
+      },
+      {
+        "kind": "passive",
+        "name": "4a"
+      },
+      {
+        "kind": "passive",
+        "name": "4b"
+      },
+      {
+        "kind": "passive",
+        "name": "5a"
+      },
+      {
+        "kind": "passive",
+        "name": "5b"
+      },
+      {
+        "kind": "passive",
+        "name": "6a"
+      },
+      {
+        "kind": "passive",
+        "name": "6b"
+      },
+      {
+        "kind": "passive",
+        "name": "7a"
+      },
+      {
+        "kind": "passive",
+        "name": "7b"
+      },
+      {
+        "kind": "passive",
+        "name": "8a"
+      },
+      {
+        "kind": "passive",
+        "name": "8b"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "2024-01-01T00:00:00",
+        "name": "time",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": 1,
+        "name": "weekday",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "DS1307 I2C real-time clock with 56 bytes of SRAM",
+    "id": "litz-ds1307",
+    "kind": "part",
+    "name": "DS1307 RTC",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "digital-out",
+        "name": "SQW"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "2800000000000001",
+        "name": "deviceID",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": 25.0,
+        "name": "temperature",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Digital temperature sensor on the 1-Wire bus",
+    "id": "litz-ds18b20",
+    "kind": "part",
+    "name": "DS18B20",
+    "pins": [
+      {
+        "kind": "digital-io",
+        "name": "DQ"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 25.0,
+        "name": "temperature",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": "2024-01-01T00:00:00",
+        "name": "time",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": 1,
+        "name": "weekday",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "DS3231 high-precision I2C real-time clock",
+    "id": "litz-ds3231",
+    "kind": "part",
+    "name": "DS3231 RTC",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "32K"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "digital-out",
+        "name": "SQW"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "1.54",
+        "name": "size",
+        "type": "enum",
+        "values": [
+          "1.54",
+          "2.13"
+        ]
+      }
+    ],
+    "description": "1-bit SPI e-paper panel, 200x200",
+    "id": "litz-epaper-1in54",
+    "kind": "part",
+    "name": "E-paper 1.54",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "BUSY"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "CLK"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "CS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DC"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "DIN"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RST"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "2.13",
+        "name": "size",
+        "type": "enum",
+        "values": [
+          "1.54",
+          "2.13"
+        ]
+      }
+    ],
+    "description": "1-bit SPI e-paper panel, 122x250",
+    "id": "litz-epaper-2in13",
+    "kind": "part",
+    "name": "E-paper 2.13",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "BUSY"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "CLK"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "CS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DC"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "DIN"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RST"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "R307-style fingerprint sensor on UART",
+    "id": "litz-fingerprint",
+    "kind": "part",
+    "name": "Fingerprint sensor",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "uart-rx",
+        "name": "RX"
+      },
+      {
+        "kind": "uart-tx",
+        "name": "TX"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 500,
+        "name": "intensity",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 500,
+        "name": "threshold",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Flame sensor with analog and threshold outputs",
+    "id": "litz-flame-sensor",
+    "kind": "part",
+    "name": "Flame sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 300,
+        "name": "bend",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 3.3,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Resistive bend sensor reported as an analog voltage",
+    "id": "litz-flex-sensor",
+    "kind": "part",
+    "name": "Flex sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 300,
+        "name": "force",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 3.3,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Force-sensitive resistor reported as an analog voltage",
+    "id": "litz-force-sensor",
+    "kind": "part",
+    "name": "Force sensor FSR",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "500mA",
+        "name": "rating",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "Cartridge fuse, a conductor until it is blown",
+    "id": "litz-fuse",
+    "kind": "part",
+    "name": "Fuse",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 400,
+        "name": "ppm",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 4.4,
+        "name": "threshold",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "MQ-2 gas sensor with analog and threshold outputs",
+    "id": "litz-gas-sensor",
+    "kind": "part",
+    "name": "Gas sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AOUT"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DOUT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 47.6062,
+        "name": "latitude",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": -122.3321,
+        "name": "longitude",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.5,
+        "name": "speed",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "u-blox NEO-6M GPS, NMEA at 9600 baud",
+    "id": "litz-gps-neo6m",
+    "kind": "part",
+    "name": "GPS NEO-6M",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "uart-rx",
+        "name": "RX"
+      },
+      {
+        "kind": "uart-tx",
+        "name": "TX"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": false,
+        "name": "magnetic",
+        "type": "bool",
+        "values": []
+      }
+    ],
+    "description": "Unipolar Hall-effect switch with an open-collector output",
+    "id": "litz-hall-sensor",
+    "kind": "part",
+    "name": "Hall sensor A3144",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 100.0,
+        "name": "distance",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Ultrasonic distance sensor",
+    "id": "litz-hc-sr04",
+    "kind": "part",
+    "name": "HC-SR04",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "ECHO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "TRIG"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 72,
+        "name": "bpm",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Pulse sensor with digital beat and analog waveform",
+    "id": "litz-heart-beat-sensor",
+    "kind": "part",
+    "name": "Heartbeat sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AOUT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 5000.0,
+        "name": "capacity",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": "5kg",
+        "name": "type",
+        "type": "enum",
+        "values": [
+          "5kg",
+          "50kg"
+        ]
+      },
+      {
+        "default": 0.0,
+        "name": "weight",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "24-bit load-cell amplifier",
+    "id": "litz-hx711",
+    "kind": "part",
+    "name": "HX711",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A+"
+      },
+      {
+        "kind": "passive",
+        "name": "A-"
+      },
+      {
+        "kind": "passive",
+        "name": "B+"
+      },
+      {
+        "kind": "passive",
+        "name": "B-"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DT"
+      },
+      {
+        "kind": "passive",
+        "name": "E+"
+      },
+      {
+        "kind": "passive",
+        "name": "E-"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "SCK"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "240x320 RGB565 SPI display",
+    "id": "litz-ili9341",
+    "kind": "part",
+    "name": "ILI9341 TFT",
+    "pins": [
+      {
+        "kind": "spi-cs",
+        "name": "CS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DC"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "passive",
+        "name": "LED"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "MISO"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "MOSI"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RESET"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "SCK"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 5.0,
+        "name": "busVoltage",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 100.0,
+        "name": "currentMilliamps",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 10.0,
+        "name": "shuntMillivolts",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Current and power monitor",
+    "id": "litz-ina219",
+    "kind": "part",
+    "name": "INA219",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "analog-in",
+        "name": "VIN+"
+      },
+      {
+        "kind": "analog-in",
+        "name": "VIN-"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "10mH",
+        "name": "value",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "Two-terminal inductor",
+    "id": "litz-inductor",
+    "kind": "part",
+    "name": "Inductor",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": true,
+        "name": "infrared",
+        "type": "bool",
+        "values": []
+      },
+      {
+        "default": 940,
+        "name": "wavelength",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Infrared emitting diode, driven like an ordinary LED",
+    "id": "litz-ir-emitting-diode",
+    "kind": "part",
+    "name": "IR emitting diode",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "ground",
+        "name": "C"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0,
+        "name": "address",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 12,
+        "name": "command",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "38 kHz infrared receiver, NEC decoding",
+    "id": "litz-ir-receiver",
+    "kind": "part",
+    "name": "IR receiver",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "DAT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Two-pole double-throw relay",
+    "id": "litz-ks2e-m-dc5",
+    "kind": "part",
+    "name": "DPDT relay",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "COIL1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "COIL2"
+      },
+      {
+        "kind": "passive",
+        "name": "NC1"
+      },
+      {
+        "kind": "passive",
+        "name": "NC2"
+      },
+      {
+        "kind": "passive",
+        "name": "NO1"
+      },
+      {
+        "kind": "passive",
+        "name": "NO2"
+      },
+      {
+        "kind": "passive",
+        "name": "P1"
+      },
+      {
+        "kind": "passive",
+        "name": "P2"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Quadrature rotary encoder module with a push switch",
+    "id": "litz-ky-040",
+    "kind": "part",
+    "name": "KY-040 rotary encoder",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "CLK"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "SW"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Dual H-bridge motor driver, one channel modelled",
+    "id": "litz-l293d",
+    "kind": "part",
+    "name": "L293D",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "EN"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT2"
+      },
+      {
+        "kind": "power",
+        "name": "VCC1"
+      },
+      {
+        "kind": "power",
+        "name": "VCC2"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "green",
+        "name": "background",
+        "type": "enum",
+        "values": [
+          "green",
+          "blue"
+        ]
+      },
+      {
+        "default": "black",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "black",
+          "white",
+          "blue"
+        ]
+      },
+      {
+        "default": "full",
+        "name": "pins",
+        "type": "enum",
+        "values": [
+          "full",
+          "i2c"
+        ]
+      },
+      {
+        "default": "A00",
+        "name": "variant",
+        "type": "enum",
+        "values": [
+          "A00",
+          "A02"
+        ]
+      }
+    ],
+    "description": "16x2 character LCD, parallel 4-bit HD44780",
+    "id": "litz-lcd1602",
+    "kind": "part",
+    "name": "LCD 1602",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D4"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D5"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D6"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D7"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E"
+      },
+      {
+        "kind": "ground",
+        "name": "K"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RW"
+      },
+      {
+        "kind": "passive",
+        "name": "V0"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "black",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "black",
+          "white",
+          "blue"
+        ]
+      }
+    ],
+    "description": "16x2 character LCD with a PCF8574 I2C backpack",
+    "id": "litz-lcd1602-i2c",
+    "kind": "part",
+    "name": "LCD 1602 I2C",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "green",
+        "name": "background",
+        "type": "enum",
+        "values": [
+          "green",
+          "blue"
+        ]
+      },
+      {
+        "default": "black",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "black",
+          "white",
+          "blue"
+        ]
+      },
+      {
+        "default": "A00",
+        "name": "variant",
+        "type": "enum",
+        "values": [
+          "A00",
+          "A02"
+        ]
+      }
+    ],
+    "description": "20x4 character LCD, parallel 4-bit HD44780",
+    "id": "litz-lcd2004",
+    "kind": "part",
+    "name": "LCD 2004",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D4"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D5"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D6"
+      },
+      {
+        "kind": "digital-in",
+        "name": "D7"
+      },
+      {
+        "kind": "digital-in",
+        "name": "E"
+      },
+      {
+        "kind": "ground",
+        "name": "K"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RW"
+      },
+      {
+        "kind": "passive",
+        "name": "V0"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "black",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "black",
+          "white",
+          "blue"
+        ]
+      }
+    ],
+    "description": "20x4 character LCD with a PCF8574 I2C backpack",
+    "id": "litz-lcd2004-i2c",
+    "kind": "part",
+    "name": "LCD 2004 I2C",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "red",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "red",
+          "green",
+          "blue",
+          "yellow",
+          "white",
+          "orange"
+        ]
+      },
+      {
+        "default": "",
+        "name": "label",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "5 mm through-hole LED",
+    "id": "litz-led",
+    "kind": "part",
+    "name": "LED",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "ground",
+        "name": "C"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Ten-segment LED bar graph with a common cathode",
+    "id": "litz-led-bar-graph",
+    "kind": "part",
+    "name": "LED bar graph",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A10"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A4"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A5"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A6"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A7"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A8"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A9"
+      },
+      {
+        "kind": "passive",
+        "name": "C"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 8,
+        "name": "cols",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 8,
+        "name": "rows",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Addressable RGB LED matrix on one data line",
+    "id": "litz-led-matrix",
+    "kind": "part",
+    "name": "WS2812 LED matrix",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "DIN"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DOUT"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 12,
+        "name": "pixels",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "WS2812 addressable LED ring",
+    "id": "litz-led-ring",
+    "kind": "part",
+    "name": "NeoPixel ring",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "DIN"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DOUT"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 8,
+        "name": "pixels",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Addressable RGB LED strip on one data line",
+    "id": "litz-led-strip",
+    "kind": "part",
+    "name": "WS2812 LED strip",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "DIN"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DOUT"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 1.65,
+        "name": "threshold",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "value",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 3.3,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Dual comparator module used for sound and light thresholds",
+    "id": "litz-lm393",
+    "kind": "part",
+    "name": "LM393 comparator module",
+    "pins": [
+      {
+        "kind": "analog-in",
+        "name": "+"
+      },
+      {
+        "kind": "analog-in",
+        "name": "-"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 25.0,
+        "name": "temperature",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "I2C temperature sensor with set points",
+    "id": "litz-lm75",
+    "kind": "part",
+    "name": "LM75",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A2"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Four-channel bidirectional logic-level translator",
+    "id": "litz-logic-level-converter",
+    "kind": "part",
+    "name": "Logic level converter",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "HV"
+      },
+      {
+        "kind": "digital-io",
+        "name": "HV1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "HV2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "HV3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "HV4"
+      },
+      {
+        "kind": "power",
+        "name": "LV"
+      },
+      {
+        "kind": "digital-io",
+        "name": "LV1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "LV2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "LV3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "LV4"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 1,
+        "name": "chain",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": "red",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "red",
+          "green",
+          "blue",
+          "yellow"
+        ]
+      },
+      {
+        "default": "parola",
+        "name": "layout",
+        "type": "enum",
+        "values": [
+          "parola",
+          "fc16"
+        ]
+      }
+    ],
+    "description": "8x8 LED dot matrix with a MAX7219 controller on SPI",
+    "id": "litz-max7219-matrix",
+    "kind": "part",
+    "name": "MAX7219 8x8 matrix",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CLK"
+      },
+      {
+        "kind": "digital-in",
+        "name": "CS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DIN"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DOUT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "red",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "red",
+          "green",
+          "blue",
+          "yellow"
+        ]
+      }
+    ],
+    "description": "Single MAX7219-driven 8x8 LED matrix on DIN/CLK/LOAD pins",
+    "id": "litz-max7219-single",
+    "kind": "part",
+    "name": "MAX7219 8x8 matrix (pin level)",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CLK"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DIN"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DOUT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "LOAD"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "16-bit I2C I/O expander",
+    "id": "litz-mcp23017",
+    "kind": "part",
+    "name": "MCP23017",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A2"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPA0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPA1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPA2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPA3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPA4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPA5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPA6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPA7"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPB0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPB1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPB2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPB3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPB4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPB5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPB6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "GPB7"
+      },
+      {
+        "kind": "digital-out",
+        "name": "INTA"
+      },
+      {
+        "kind": "digital-out",
+        "name": "INTB"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RESET"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.0,
+        "name": "v0",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "v1",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "v2",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "v3",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "v4",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "v5",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "v6",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "v7",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 3.3,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "8-channel 10-bit SPI analog-to-digital converter",
+    "id": "litz-mcp3008",
+    "kind": "part",
+    "name": "MCP3008",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "AGND"
+      },
+      {
+        "kind": "analog-in",
+        "name": "CH0"
+      },
+      {
+        "kind": "analog-in",
+        "name": "CH1"
+      },
+      {
+        "kind": "analog-in",
+        "name": "CH2"
+      },
+      {
+        "kind": "analog-in",
+        "name": "CH3"
+      },
+      {
+        "kind": "analog-in",
+        "name": "CH4"
+      },
+      {
+        "kind": "analog-in",
+        "name": "CH5"
+      },
+      {
+        "kind": "analog-in",
+        "name": "CH6"
+      },
+      {
+        "kind": "analog-in",
+        "name": "CH7"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "CLK"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "CS"
+      },
+      {
+        "kind": "ground",
+        "name": "DGND"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "DIN"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "DOUT"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "analog-in",
+        "name": "VREF"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0,
+        "name": "value",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "12-bit I2C digital-to-analog converter",
+    "id": "litz-mcp4725",
+    "kind": "part",
+    "name": "MCP4725 DAC",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "analog-out",
+        "name": "VOUT"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "4",
+        "name": "columns",
+        "type": "enum",
+        "values": [
+          "3",
+          "4"
+        ]
+      }
+    ],
+    "description": "4x4 membrane keypad",
+    "id": "litz-membrane-keypad",
+    "kind": "part",
+    "name": "Membrane keypad",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "C1"
+      },
+      {
+        "kind": "passive",
+        "name": "C2"
+      },
+      {
+        "kind": "passive",
+        "name": "C3"
+      },
+      {
+        "kind": "passive",
+        "name": "C4"
+      },
+      {
+        "kind": "passive",
+        "name": "R1"
+      },
+      {
+        "kind": "passive",
+        "name": "R2"
+      },
+      {
+        "kind": "passive",
+        "name": "R3"
+      },
+      {
+        "kind": "passive",
+        "name": "R4"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "",
+        "name": "image",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "SPI microSD card with a byte image",
+    "id": "litz-microsd-card",
+    "kind": "part",
+    "name": "microSD card",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "CD"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "CS"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "DI"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "SCK"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 22.0,
+        "name": "ambient",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 25.0,
+        "name": "object",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Infrared thermometer",
+    "id": "litz-mlx90614",
+    "kind": "part",
+    "name": "MLX90614",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "n",
+        "name": "channel",
+        "type": "enum",
+        "values": [
+          "n",
+          "p"
+        ]
+      },
+      {
+        "default": 2.0,
+        "name": "vth",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Generic enhancement-mode MOSFET, N or P channel",
+    "id": "litz-mosfet",
+    "kind": "part",
+    "name": "MOSFET",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "D"
+      },
+      {
+        "kind": "passive",
+        "name": "G"
+      },
+      {
+        "kind": "passive",
+        "name": "S"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.0,
+        "name": "ax",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "ay",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 1.0,
+        "name": "az",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "gx",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "gy",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "gz",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Six-axis accelerometer and gyroscope",
+    "id": "litz-mpu6050",
+    "kind": "part",
+    "name": "MPU6050",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "AD0"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "INT"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-io",
+        "name": "XCL"
+      },
+      {
+        "kind": "digital-io",
+        "name": "XDA"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Two-input NAND gate",
+    "id": "litz-nand",
+    "kind": "part",
+    "name": "NAND gate",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 1,
+        "name": "pixels",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "WS2812 addressable RGB LED",
+    "id": "litz-neopixel",
+    "kind": "part",
+    "name": "NeoPixel",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "DIN"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DOUT"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 8,
+        "name": "cols",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 8,
+        "name": "rows",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "WS2812 addressable RGB matrix",
+    "id": "litz-neopixel-matrix",
+    "kind": "part",
+    "name": "NeoPixel matrix",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "DIN"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DOUT"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      },
+      {
+        "kind": "ground",
+        "name": "VSS"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "blue",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "blue",
+          "white",
+          "red"
+        ]
+      }
+    ],
+    "description": "84x48 monochrome PCD8544 LCD on SPI",
+    "id": "litz-nokia-5110-screen",
+    "kind": "part",
+    "name": "Nokia 5110 screen",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "BL"
+      },
+      {
+        "kind": "digital-in",
+        "name": "CE"
+      },
+      {
+        "kind": "digital-in",
+        "name": "CLK"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DC"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DIN"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RST"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Two-input NOR gate",
+    "id": "litz-nor",
+    "kind": "part",
+    "name": "NOR gate",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Inverter",
+    "id": "litz-not",
+    "kind": "part",
+    "name": "NOT gate",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "e7e7e7e7e7",
+        "name": "address",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": 76,
+        "name": "channel",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": "nrf24",
+        "name": "network",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": 32,
+        "name": "payload_size",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": "1M",
+        "name": "rate",
+        "type": "enum",
+        "values": [
+          "1M",
+          "2M"
+        ]
+      }
+    ],
+    "description": "2.4 GHz packet transceiver on a pin-level SPI bus",
+    "id": "litz-nrf24l01",
+    "kind": "part",
+    "name": "nRF24L01+",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CE"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "CSN"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "IRQ"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "MISO"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "MOSI"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "SCK"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 25.0,
+        "name": "temperature",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "NTC thermistor module with analog and digital outputs",
+    "id": "litz-ntc-temperature-sensor",
+    "kind": "part",
+    "name": "NTC temperature sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 100000.0,
+        "name": "gain",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Generic operational amplifier",
+    "id": "litz-opamp",
+    "kind": "part",
+    "name": "Op-amp",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "+"
+      },
+      {
+        "kind": "passive",
+        "name": "-"
+      },
+      {
+        "kind": "passive",
+        "name": "OUT"
+      },
+      {
+        "kind": "power",
+        "name": "V+"
+      },
+      {
+        "kind": "ground",
+        "name": "V-"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.5,
+        "name": "ctr",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": "4N25",
+        "name": "variant",
+        "type": "enum",
+        "values": [
+          "4N25",
+          "PC817"
+        ]
+      }
+    ],
+    "description": "LED and phototransistor optocoupler",
+    "id": "litz-optocoupler",
+    "kind": "part",
+    "name": "Optocoupler",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A"
+      },
+      {
+        "kind": "passive",
+        "name": "C"
+      },
+      {
+        "kind": "passive",
+        "name": "E"
+      },
+      {
+        "kind": "passive",
+        "name": "K"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Two-input OR gate",
+    "id": "litz-or",
+    "kind": "part",
+    "name": "OR gate",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 50,
+        "name": "frequency",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "16-channel 12-bit PWM driver",
+    "id": "litz-pca9685",
+    "kind": "part",
+    "name": "PCA9685 PWM driver",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "OE"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM10"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM11"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM12"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM13"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM14"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM15"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM3"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM4"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM5"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM6"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM7"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM8"
+      },
+      {
+        "kind": "digital-out",
+        "name": "PWM9"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "8-bit I2C port expander with quasi-bidirectional pins",
+    "id": "litz-pcf8574",
+    "kind": "part",
+    "name": "PCF8574",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "INT"
+      },
+      {
+        "kind": "digital-io",
+        "name": "P0"
+      },
+      {
+        "kind": "digital-io",
+        "name": "P1"
+      },
+      {
+        "kind": "digital-io",
+        "name": "P2"
+      },
+      {
+        "kind": "digital-io",
+        "name": "P3"
+      },
+      {
+        "kind": "digital-io",
+        "name": "P4"
+      },
+      {
+        "kind": "digital-io",
+        "name": "P5"
+      },
+      {
+        "kind": "digital-io",
+        "name": "P6"
+      },
+      {
+        "kind": "digital-io",
+        "name": "P7"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.0,
+        "name": "ain0",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "ain1",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "ain2",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "ain3",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 3.3,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Four-channel 8-bit ADC with one 8-bit DAC",
+    "id": "litz-pcf8591",
+    "kind": "part",
+    "name": "PCF8591 ADC/DAC",
+    "pins": [
+      {
+        "kind": "analog-in",
+        "name": "AIN0"
+      },
+      {
+        "kind": "analog-in",
+        "name": "AIN1"
+      },
+      {
+        "kind": "analog-in",
+        "name": "AIN2"
+      },
+      {
+        "kind": "analog-in",
+        "name": "AIN3"
+      },
+      {
+        "kind": "analog-out",
+        "name": "AOUT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 500,
+        "name": "light",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 0.7,
+        "name": "vf",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Photodiode with a light-dependent reverse current",
+    "id": "litz-photodiode",
+    "kind": "part",
+    "name": "Photodiode",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A"
+      },
+      {
+        "kind": "passive",
+        "name": "C"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 500,
+        "name": "light",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Light-dependent resistor module with analog and digital outputs",
+    "id": "litz-photoresistor-sensor",
+    "kind": "part",
+    "name": "Photoresistor sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Passive-infrared motion detector",
+    "id": "litz-pir-motion-sensor",
+    "kind": "part",
+    "name": "PIR motion sensor",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 1000,
+        "name": "interval",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 4.0,
+        "name": "pm1",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 9.0,
+        "name": "pm10",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 7.0,
+        "name": "pm25",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Plantower PMS5003: a 32-byte PM1.0/PM2.5/PM10 frame on UART once a measurement interval",
+    "id": "litz-pms5003",
+    "kind": "part",
+    "name": "PMS5003 particulate sensor",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "uart-rx",
+        "name": "RX"
+      },
+      {
+        "kind": "uart-tx",
+        "name": "TX"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "50",
+        "name": "value",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "10 kΩ linear rotary potentiometer",
+    "id": "litz-potentiometer",
+    "kind": "part",
+    "name": "Potentiometer",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "analog-out",
+        "name": "2"
+      },
+      {
+        "kind": "passive",
+        "name": "3"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 5.0,
+        "name": "voltage",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Ideal DC bench supply",
+    "id": "litz-power-supply",
+    "kind": "part",
+    "name": "Power supply",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "+"
+      },
+      {
+        "kind": "ground",
+        "name": "-"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "green",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "green",
+          "blue",
+          "red",
+          "yellow",
+          "white",
+          "black"
+        ]
+      },
+      {
+        "default": false,
+        "name": "xray",
+        "type": "bool",
+        "values": []
+      }
+    ],
+    "description": "12 mm momentary tactile switch",
+    "id": "litz-pushbutton",
+    "kind": "part",
+    "name": "Pushbutton",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1.l"
+      },
+      {
+        "kind": "passive",
+        "name": "1.r"
+      },
+      {
+        "kind": "passive",
+        "name": "2.l"
+      },
+      {
+        "kind": "passive",
+        "name": "2.r"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "black",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "green",
+          "blue",
+          "red",
+          "yellow",
+          "white",
+          "black"
+        ]
+      }
+    ],
+    "description": "6 mm momentary tactile switch",
+    "id": "litz-pushbutton-6mm",
+    "kind": "part",
+    "name": "Pushbutton 6mm",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1.l"
+      },
+      {
+        "kind": "passive",
+        "name": "1.r"
+      },
+      {
+        "kind": "passive",
+        "name": "2.l"
+      },
+      {
+        "kind": "passive",
+        "name": "2.r"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "black",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "green",
+          "blue",
+          "red",
+          "yellow",
+          "white",
+          "black"
+        ]
+      }
+    ],
+    "description": "Push-on, push-off latching switch",
+    "id": "litz-pushbutton-latching",
+    "kind": "part",
+    "name": "Pushbutton latching",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1.l"
+      },
+      {
+        "kind": "passive",
+        "name": "1.r"
+      },
+      {
+        "kind": "passive",
+        "name": "2.l"
+      },
+      {
+        "kind": "passive",
+        "name": "2.r"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "green",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "green",
+          "blue",
+          "red",
+          "yellow",
+          "white",
+          "black"
+        ]
+      }
+    ],
+    "description": "Momentary tactile switch, conducting only while held",
+    "id": "litz-pushbutton-momentary",
+    "kind": "part",
+    "name": "Pushbutton momentary",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1.l"
+      },
+      {
+        "kind": "passive",
+        "name": "1.r"
+      },
+      {
+        "kind": "passive",
+        "name": "2.l"
+      },
+      {
+        "kind": "passive",
+        "name": "2.r"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.0,
+        "name": "x",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0.0,
+        "name": "y",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 50.0,
+        "name": "z",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Three-axis magnetometer",
+    "id": "litz-qmc5883l",
+    "kind": "part",
+    "name": "QMC5883L",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "DRDY"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": true,
+        "name": "activeLow",
+        "type": "bool",
+        "values": []
+      },
+      {
+        "default": 500,
+        "name": "threshold",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0,
+        "name": "value",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 5.0,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Resistive rain-detection plate with analog and active-low outputs",
+    "id": "litz-rain-sensor",
+    "kind": "part",
+    "name": "Rain sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Magnetically operated normally-open contact",
+    "id": "litz-reed-switch",
+    "kind": "part",
+    "name": "Reed switch",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Single-pole double-throw relay",
+    "id": "litz-relay",
+    "kind": "part",
+    "name": "Relay",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "COM"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN"
+      },
+      {
+        "kind": "passive",
+        "name": "NC"
+      },
+      {
+        "kind": "passive",
+        "name": "NO"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "npn",
+        "name": "transistor",
+        "type": "enum",
+        "values": [
+          "npn",
+          "pnp"
+        ]
+      }
+    ],
+    "description": "Single-pole double-throw relay module with a driver transistor",
+    "id": "litz-relay-module",
+    "kind": "part",
+    "name": "Relay module",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "COM"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN"
+      },
+      {
+        "kind": "passive",
+        "name": "NC"
+      },
+      {
+        "kind": "passive",
+        "name": "NO"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "220",
+        "name": "value",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "Through-hole resistor, 1/4 W",
+    "id": "litz-resistor",
+    "kind": "part",
+    "name": "Resistor",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "MFRC522 13.56 MHz RFID reader on SPI",
+    "id": "litz-rfid-rc522",
+    "kind": "part",
+    "name": "RFID RC522",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "IRQ"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "MISO"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "MOSI"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RST"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "SCK"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Three-die red/green/blue LED with a common cathode",
+    "id": "litz-rgb-led",
+    "kind": "part",
+    "name": "RGB LED",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "passive",
+        "name": "COM"
+      },
+      {
+        "kind": "digital-in",
+        "name": "G"
+      },
+      {
+        "kind": "digital-in",
+        "name": "R"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "8x8 RGBA8888 framebuffer display on I2C",
+    "id": "litz-rgb-panel",
+    "kind": "part",
+    "name": "RGB panel",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Quadrature rotary encoder with push switch",
+    "id": "litz-rotary-encoder",
+    "kind": "part",
+    "name": "Rotary encoder",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "CLK"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "SW"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Hobby servo, 180 degree",
+    "id": "litz-servo",
+    "kind": "part",
+    "name": "Servo",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "GND"
+      },
+      {
+        "kind": "passive",
+        "name": "PWM"
+      },
+      {
+        "kind": "passive",
+        "name": "V+"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 400,
+        "name": "eco2",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 0,
+        "name": "tvoc",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Indoor air-quality sensor (eCO2 and TVOC)",
+    "id": "litz-sgp30",
+    "kind": "part",
+    "name": "SGP30",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "128x64 monochrome I2C OLED display",
+    "id": "litz-sh1106",
+    "kind": "part",
+    "name": "SH1106 OLED",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 50.0,
+        "name": "humidity",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 25.0,
+        "name": "temperature",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Temperature and humidity sensor",
+    "id": "litz-sht31",
+    "kind": "part",
+    "name": "SHT31",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VDD"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "3.3",
+        "name": "amplitude",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "50",
+        "name": "duty",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "1k",
+        "name": "frequency",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": null,
+        "name": "offset",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "0",
+        "name": "phase",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "square",
+        "name": "wave",
+        "type": "enum",
+        "values": [
+          "square",
+          "sine",
+          "triangle",
+          "sawtooth"
+        ]
+      }
+    ],
+    "description": "Free-running function generator with a digital and an analog view",
+    "id": "litz-signal-generator",
+    "kind": "part",
+    "name": "Signal generator",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-io",
+        "name": "OUT"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "30",
+        "name": "travelLength",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "0",
+        "name": "value",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "Linear slide potentiometer",
+    "id": "litz-slide-potentiometer",
+    "kind": "part",
+    "name": "Slide potentiometer",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "analog-out",
+        "name": "2"
+      },
+      {
+        "kind": "passive",
+        "name": "3"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "black",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "black",
+          "white"
+        ]
+      }
+    ],
+    "description": "SPDT slide switch",
+    "id": "litz-slide-switch",
+    "kind": "part",
+    "name": "Slide switch",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      },
+      {
+        "kind": "passive",
+        "name": "3"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": false,
+        "name": "activeLow",
+        "type": "bool",
+        "values": []
+      },
+      {
+        "default": 500,
+        "name": "threshold",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 300,
+        "name": "value",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 5.0,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Resistive soil-moisture probe with analog and threshold outputs",
+    "id": "litz-soil-moisture-sensor",
+    "kind": "part",
+    "name": "Soil moisture sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": false,
+        "name": "activeLow",
+        "type": "bool",
+        "values": []
+      },
+      {
+        "default": 500,
+        "name": "threshold",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 300,
+        "name": "value",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 5.0,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Electret microphone module with analog envelope and threshold outputs",
+    "id": "litz-sound-sensor",
+    "kind": "part",
+    "name": "Sound sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "128x64 monochrome I2C OLED display",
+    "id": "litz-ssd1306",
+    "kind": "part",
+    "name": "SSD1306 OLED",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "160x128 RGB565 SPI display",
+    "id": "litz-st7735",
+    "kind": "part",
+    "name": "ST7735 TFT",
+    "pins": [
+      {
+        "kind": "spi-cs",
+        "name": "CS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "DC"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "passive",
+        "name": "LED"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "MISO"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "MOSI"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RESET"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "SCK"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "",
+        "name": "arrow",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "steps",
+        "name": "display",
+        "type": "enum",
+        "values": [
+          "steps",
+          "angle",
+          "none"
+        ]
+      },
+      {
+        "default": "1:1",
+        "name": "gearRatio",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "23",
+        "name": "size",
+        "type": "enum",
+        "values": [
+          "8",
+          "11",
+          "14",
+          "17",
+          "23",
+          "34"
+        ]
+      }
+    ],
+    "description": "Bipolar stepper motor, four coil terminals",
+    "id": "litz-stepper-motor",
+    "kind": "part",
+    "name": "Stepper motor",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A+"
+      },
+      {
+        "kind": "passive",
+        "name": "A-"
+      },
+      {
+        "kind": "passive",
+        "name": "B+"
+      },
+      {
+        "kind": "passive",
+        "name": "B-"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 125.0,
+        "name": "bandwidth",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 868.0,
+        "name": "frequency",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": "lora",
+        "name": "network",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": 14,
+        "name": "power",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 7,
+        "name": "sf",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Sub-GHz LoRa transceiver on a pin-level SPI bus",
+    "id": "litz-sx1276",
+    "kind": "part",
+    "name": "SX1276",
+    "pins": [
+      {
+        "kind": "digital-out",
+        "name": "DIO0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DIO1"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "MISO"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "MOSI"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "NSS"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RESET"
+      },
+      {
+        "kind": "spi-sck",
+        "name": "SCK"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "8-channel I2C multiplexer",
+    "id": "litz-tca9548a",
+    "kind": "part",
+    "name": "TCA9548A",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A0"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "A2"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "RESET"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "white",
+        "name": "line",
+        "type": "enum",
+        "values": [
+          "white",
+          "black"
+        ]
+      },
+      {
+        "default": 800,
+        "name": "reflectance",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Infrared reflective line sensor with analog and active-low digital outputs",
+    "id": "litz-tcrt5000",
+    "kind": "part",
+    "name": "TCRT5000 reflective sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 500,
+        "name": "blue",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 1000,
+        "name": "clear",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 1000,
+        "name": "green",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": 2000,
+        "name": "red",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "RGBC colour sensor with a white LED",
+    "id": "litz-tcs34725",
+    "kind": "part",
+    "name": "TCS34725",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "INT"
+      },
+      {
+        "kind": "digital-in",
+        "name": "LED"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Ball-in-cage tilt switch",
+    "id": "litz-tilt-switch",
+    "kind": "part",
+    "name": "Tilt switch",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "red",
+        "name": "color",
+        "type": "enum",
+        "values": [
+          "red",
+          "green",
+          "blue"
+        ]
+      },
+      {
+        "default": "colon",
+        "name": "type",
+        "type": "enum",
+        "values": [
+          "colon",
+          "dp"
+        ]
+      }
+    ],
+    "description": "Four-digit seven-segment module with the TM1637 two-wire protocol",
+    "id": "litz-tm1637-7segment",
+    "kind": "part",
+    "name": "TM1637 4-digit display",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "CLK"
+      },
+      {
+        "kind": "digital-io",
+        "name": "DIO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 25.0,
+        "name": "temperature",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "12-bit I2C temperature sensor",
+    "id": "litz-tmp102",
+    "kind": "part",
+    "name": "TMP102",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "ADD0"
+      },
+      {
+        "kind": "digital-out",
+        "name": "ALERT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Red, yellow and green lamp module",
+    "id": "litz-traffic-light",
+    "kind": "part",
+    "name": "Traffic light module",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "G"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "R"
+      },
+      {
+        "kind": "digital-in",
+        "name": "Y"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "50",
+        "name": "value",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "Single-turn trimmer potentiometer",
+    "id": "litz-trimmer-potentiometer",
+    "kind": "part",
+    "name": "Trimmer potentiometer",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "analog-out",
+        "name": "2"
+      },
+      {
+        "kind": "passive",
+        "name": "3"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 500.0,
+        "name": "lux",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Two-channel ambient-light sensor",
+    "id": "litz-tsl2561",
+    "kind": "part",
+    "name": "TSL2561",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "INT"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Seven-channel Darlington driver array",
+    "id": "litz-uln2003",
+    "kind": "part",
+    "name": "ULN2003",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "COM"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN1"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN2"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN3"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN4"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN5"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN6"
+      },
+      {
+        "kind": "digital-in",
+        "name": "IN7"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT1"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT2"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT3"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT4"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT5"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT6"
+      },
+      {
+        "kind": "digital-out",
+        "name": "OUT7"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 500.0,
+        "name": "lux",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "High-accuracy ambient-light sensor",
+    "id": "litz-veml7700",
+    "kind": "part",
+    "name": "VEML7700",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Two-terminal vibration motor",
+    "id": "litz-vibration-motor",
+    "kind": "part",
+    "name": "Vibration motor",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "1"
+      },
+      {
+        "kind": "passive",
+        "name": "2"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": false,
+        "name": "activeLow",
+        "type": "bool",
+        "values": []
+      },
+      {
+        "default": 500,
+        "name": "threshold",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0,
+        "name": "value",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 5.0,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Spring-contact vibration module with analog and threshold outputs",
+    "id": "litz-vibration-sensor",
+    "kind": "part",
+    "name": "Vibration sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "digital-out",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 100,
+        "name": "distance",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Time-of-flight distance sensor",
+    "id": "litz-vl53l0x",
+    "kind": "part",
+    "name": "VL53L0X",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-in",
+        "name": "XSHUT"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 100,
+        "name": "distance",
+        "type": "int",
+        "values": []
+      }
+    ],
+    "description": "Time-of-flight distance sensor with 16-bit register addressing",
+    "id": "litz-vl53l1x",
+    "kind": "part",
+    "name": "VL53L1X",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "GPIO1"
+      },
+      {
+        "kind": "i2c-scl",
+        "name": "SCL"
+      },
+      {
+        "kind": "i2c-sda",
+        "name": "SDA"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-in",
+        "name": "XSHUT"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": "7805",
+        "name": "variant",
+        "type": "enum",
+        "values": [
+          "7805",
+          "7812",
+          "7905",
+          "LM317"
+        ]
+      },
+      {
+        "default": 5.0,
+        "name": "voltage",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Three-terminal linear voltage regulator",
+    "id": "litz-voltage-regulator",
+    "kind": "part",
+    "name": "Voltage regulator",
+    "pins": [
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VI"
+      },
+      {
+        "kind": "power",
+        "name": "VO"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "4 MiB SPI NOR flash",
+    "id": "litz-w25q32",
+    "kind": "part",
+    "name": "W25Q32",
+    "pins": [
+      {
+        "kind": "spi-sck",
+        "name": "CLK"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "CS"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "DI"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "DO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-in",
+        "name": "HOLD"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-in",
+        "name": "WP"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": false,
+        "name": "activeLow",
+        "type": "bool",
+        "values": []
+      },
+      {
+        "default": 500,
+        "name": "threshold",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 0,
+        "name": "value",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 5.0,
+        "name": "vref",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Resistive water-level strip with an analog output",
+    "id": "litz-water-level-sensor",
+    "kind": "part",
+    "name": "Water level sensor",
+    "pins": [
+      {
+        "kind": "analog-out",
+        "name": "AO"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 6,
+        "name": "channel",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": "7",
+        "name": "echo",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "hello from litz\n",
+        "name": "http",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "",
+        "name": "https",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": 1883,
+        "name": "mqtt",
+        "type": "int",
+        "values": []
+      },
+      {
+        "default": "",
+        "name": "nearby",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "",
+        "name": "psk",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "litz",
+        "name": "ssid",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "",
+        "name": "udp_echo",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "",
+        "name": "ws",
+        "type": "string",
+        "values": []
+      },
+      {
+        "default": "",
+        "name": "wss",
+        "type": "string",
+        "values": []
+      }
+    ],
+    "description": "Access point with a deterministic TCP/UDP network behind it",
+    "id": "litz-wifi-router",
+    "kind": "part",
+    "name": "Wi-Fi router",
+    "pins": [
+      {
+        "kind": "power",
+        "name": "3V3"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Two-input XNOR gate",
+    "id": "litz-xnor",
+    "kind": "part",
+    "name": "XNOR gate",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "Two-input XOR gate",
+    "id": "litz-xor",
+    "kind": "part",
+    "name": "XOR gate",
+    "pins": [
+      {
+        "kind": "digital-in",
+        "name": "A"
+      },
+      {
+        "kind": "digital-in",
+        "name": "B"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      },
+      {
+        "kind": "digital-out",
+        "name": "Y"
+      }
+    ]
+  },
+  {
+    "attrs": [],
+    "description": "12-bit resistive touch controller on SPI, the companion chip on common TFT modules",
+    "id": "litz-xpt2046",
+    "kind": "part",
+    "name": "XPT2046 touch controller",
+    "pins": [
+      {
+        "kind": "spi-sck",
+        "name": "CLK"
+      },
+      {
+        "kind": "spi-cs",
+        "name": "CS"
+      },
+      {
+        "kind": "spi-mosi",
+        "name": "DIN"
+      },
+      {
+        "kind": "spi-miso",
+        "name": "DOUT"
+      },
+      {
+        "kind": "ground",
+        "name": "GND"
+      },
+      {
+        "kind": "digital-out",
+        "name": "IRQ"
+      },
+      {
+        "kind": "power",
+        "name": "VCC"
+      }
+    ]
+  },
+  {
+    "attrs": [
+      {
+        "default": 0.7,
+        "name": "vf",
+        "type": "float",
+        "values": []
+      },
+      {
+        "default": 5.1,
+        "name": "vz",
+        "type": "float",
+        "values": []
+      }
+    ],
+    "description": "Zener diode with a breakdown voltage",
+    "id": "litz-zener",
+    "kind": "part",
+    "name": "Zener diode",
+    "pins": [
+      {
+        "kind": "passive",
+        "name": "A"
+      },
+      {
+        "kind": "passive",
+        "name": "C"
+      }
+    ]
+  }
+]

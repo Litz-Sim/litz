@@ -1,0 +1,17 @@
+/target
+/build
+examples/*/firmware/*
+!examples/blinky/firmware/blinky.bin
+!examples/button/firmware/button.bin
+!examples/pot/firmware/pot.bin
+!examples/echo/firmware/echo.bin
+!examples/pico-blink/firmware/pico-blink.bin
+!examples/pico-c-systick/firmware/pico-c-systick.bin
+!examples/pico-c-i2c/firmware/pico-c-i2c.bin
+!examples/uno-blink/firmware/uno-blink.hex
+web/litz_wasm.wasm
+web/workbench/litz_wasm.wasm
+web/demo/*.bin
+web/demo/*/*.bin
+js/litz_wasm.wasm
+.DS_Store

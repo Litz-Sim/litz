@@ -1,0 +1,58 @@
+[part]
+id = "litz-4017"
+name = "CD4017"
+version = "1.0.0"
+description = "Decade counter with ten decoded outputs"
+license = "MIT"
+
+[pins.CLK]
+kind = "digital-in"
+
+[pins.RST]
+kind = "digital-in"
+
+[pins.CLKINH]
+kind = "digital-in"
+
+[pins.Q0]
+kind = "digital-out"
+
+[pins.Q1]
+kind = "digital-out"
+
+[pins.Q2]
+kind = "digital-out"
+
+[pins.Q3]
+kind = "digital-out"
+
+[pins.Q4]
+kind = "digital-out"
+
+[pins.Q5]
+kind = "digital-out"
+
+[pins.Q6]
+kind = "digital-out"
+
+[pins.Q7]
+kind = "digital-out"
+
+[pins.Q8]
+kind = "digital-out"
+
+[pins.Q9]
+kind = "digital-out"
+
+[pins.CO]
+kind = "digital-out"
+
+[pins.VDD]
+kind = "power"
+
+[pins.VSS]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "4017"

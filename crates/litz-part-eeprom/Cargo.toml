@@ -1,0 +1,15 @@
+[package]
+name = "litz-part-eeprom"
+description = "Reference Litz part: a 24C02 I2C serial EEPROM as a WebAssembly component."
+keywords = ["simulator", "components", "eeprom", "i2c", "wasm"]
+categories = ["emulators", "wasm"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+litz-part-sdk = { version = "0.0.1", path = "../litz-part-sdk" }

@@ -1,0 +1,24 @@
+version = 1
+
+[[entry]]
+type = "board-raspberry-pi-pico"
+version = "1.0.0"
+sha256 = "c94a2421c17e1d6f4a46a186b01ff150724963fd625ba8673d484e541178277d"
+
+[[entry]]
+type = "litz-led"
+version = "1.0.0"
+sha256 = "a8d86cc557a28cc146c22c549704ca24825cc01053c6445f1511cdfc8396ecad"
+
+[[entry]]
+type = "litz-lm75"
+version = "1.0.0"
+sha256 = "f6e74acd92eb8bd4559939576ed499f5a8412060f4bb46b2072643414debe4c6"
+
+[[entry]]
+type = "litz-resistor"
+version = "1.0.0"
+sha256 = "a0fd26342420c3740d19e88a74dc9c3be946d7f57c714deac416a853388dce35"
+
+[firmware]
+sha256 = "7605fd63a194e6e4cd921c8d9f91e13c0023199caf07bfb0ab8bd0e96dafae2b"

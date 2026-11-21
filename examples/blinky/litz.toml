@@ -1,0 +1,15 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/blinky.bin"
+flash_size = "4MB"
+
+# The image is generated, not downloaded: `cargo run -p litz-fixture -- blinky
+# examples/blinky/firmware/blinky.bin` rebuilds it from source. It needs no
+# ESP-IDF toolchain and no mask ROM, so this example runs on a clean checkout.
+[[test]]
+name = "the LED on GPIO8 blinks"
+timeout = "2s"
+expect_state = "led1:on"
+expect = "litz: blinky"

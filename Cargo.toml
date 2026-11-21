@@ -1,0 +1,42 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["redelectricity"]
+
+# The wasm module is downloaded by every visitor of the browser simulator, so
+# the release profile is tuned for it: one codegen unit and thin LTO give the
+# optimiser the whole crate graph, and abort-on-panic drops the unwinding
+# tables that only matter to a host that catches panics (none does).
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+# The native ESP32 BLE controller needs a host-installed GATT table and
+# address-based connections to the circuit's beacons. Upstream `esp-soc` at
+# `d043ff1` keeps both fixed to its one virtual peer; `vendor/esp-soc` carries
+# that one change and nothing else. Delete the patch when upstream has
+# `Ble::set_peer_gatt` and `LE_CREATE_CONNECTION` accepts a nearby address.
+[patch."https://github.com/mikroverk/esp32sim"]
+esp-soc = { path = "vendor/esp-soc" }
+# The chips' SoC buses are the only place that can hand the station link an
+# air tap or route a peripheral the upstream crate does not model. The
+# vendored copies at `d043ff1` add those seams and nothing else; see each
+# crate's PATCH.md.
+esp32 = { path = "vendor/esp32" }
+esp32c3 = { path = "vendor/esp32c3" }
+esp32c6 = { path = "vendor/esp32c6" }
+esp32s3 = { path = "vendor/esp32s3" }
+esp32s31 = { path = "vendor/esp32s31" }
+
+# rustls asks for the clock on every target, including `wasm32-unknown-unknown`
+# where its only clock imports JavaScript. The simulator instantiates with an
+# empty import object, so `vendor/rustls-pki-types` answers the call with the
+# epoch; both TLS ends install a fixed `TimeProvider` and never read it.
+[patch.crates-io]
+rustls-pki-types = { path = "vendor/rustls-pki-types" }

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "esp",   "type": "board-esp32-c3-devkitm-1", "attrs": {} },
+    { "id": "oled1", "type": "litz-ssd1306", "attrs": {} }
+  ],
+  "connections": [
+    ["esp:3V3", "oled1:VCC", "red", []],
+    ["esp:GND.1", "oled1:GND", "black", []],
+    ["esp:GPIO4", "oled1:SDA", "blue", []],
+    ["esp:GPIO5", "oled1:SCL", "yellow", []],
+    ["esp:TX", "$serialMonitor:RX", "", []]
+  ]
+}

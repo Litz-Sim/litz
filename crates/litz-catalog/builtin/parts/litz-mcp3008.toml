@@ -1,0 +1,120 @@
+[part]
+id = "litz-mcp3008"
+name = "MCP3008"
+version = "1.0.0"
+description = "8-channel 10-bit SPI analog-to-digital converter"
+license = "MIT"
+
+[pins.VDD]
+kind = "power"
+number = 16
+
+[pins.DGND]
+kind = "ground"
+number = 9
+
+[pins.AGND]
+kind = "ground"
+number = 14
+
+[pins.VREF]
+kind = "analog-in"
+number = 15
+label = "conversion reference"
+
+[pins.CLK]
+kind = "spi-sck"
+number = 13
+label = "SPI clock"
+
+[pins.DOUT]
+kind = "spi-miso"
+number = 12
+label = "data from the ADC"
+
+[pins.DIN]
+kind = "spi-mosi"
+number = 11
+label = "data to the ADC"
+
+[pins.CS]
+kind = "spi-cs"
+number = 10
+label = "chip select, active low"
+
+[pins.CH0]
+kind = "analog-in"
+number = 1
+
+[pins.CH1]
+kind = "analog-in"
+number = 2
+
+[pins.CH2]
+kind = "analog-in"
+number = 3
+
+[pins.CH3]
+kind = "analog-in"
+number = 4
+
+[pins.CH4]
+kind = "analog-in"
+number = 5
+
+[pins.CH5]
+kind = "analog-in"
+number = 6
+
+[pins.CH6]
+kind = "analog-in"
+number = 7
+
+[pins.CH7]
+kind = "analog-in"
+number = 8
+
+# Voltage on each single-ended input, in volts. A conversion is rounded to the
+# nearest of the 1024 codes the reference allows.
+[attrs.v0]
+type = "float"
+default = 0.0
+
+[attrs.v1]
+type = "float"
+default = 0.0
+
+[attrs.v2]
+type = "float"
+default = 0.0
+
+[attrs.v3]
+type = "float"
+default = 0.0
+
+[attrs.v4]
+type = "float"
+default = 0.0
+
+[attrs.v5]
+type = "float"
+default = 0.0
+
+[attrs.v6]
+type = "float"
+default = 0.0
+
+[attrs.v7]
+type = "float"
+default = 0.0
+
+[attrs.vref]
+type = "float"
+default = 3.3
+
+[buses.spi0]
+cs = "CS"
+
+[simulation]
+backend = "builtin"
+engine = "mcp3008"

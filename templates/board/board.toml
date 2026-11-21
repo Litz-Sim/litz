@@ -1,0 +1,75 @@
+# Litz board manifest.
+#
+# The MCU is a WebAssembly component rather than a backend compiled into the
+# runner (docs/formats.md §3.1). `simulator/build.sh` writes the module named
+# by the simulator table below, next to this file.
+
+[board]
+id = "{{id}}"
+name = "{{name}}"
+version = "0.1.0"
+flash_size = "4MB"
+psram = false
+schematic = "{{id}}.onboard.json"
+
+[board.simulator]
+kind = "wasm"
+module = "{{id}}.wasm"
+abi = "litz-mcu-2"
+
+[[pins]]
+name = "3V3"
+fixed = "3v3"
+label = "3.3 V rail"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+repeat = 2
+
+[[pins]]
+name = "GPIO0"
+gpio = 0
+
+[[pins]]
+name = "GPIO1"
+gpio = 1
+
+[[pins]]
+name = "GPIO2"
+gpio = 2
+
+[[pins]]
+name = "GPIO3"
+gpio = 3
+
+[[pins]]
+name = "GPIO4"
+gpio = 4
+
+[[pins]]
+name = "GPIO5"
+gpio = 5
+
+[[pins]]
+name = "GPIO6"
+gpio = 6
+
+[[pins]]
+name = "GPIO7"
+gpio = 7
+
+# Console aliases, wired the way every diagram here wires them. The guest's
+# console is a host channel rather than a pad, so these carry no traffic; they
+# exist so a diagram written for a real board still validates.
+[[pins]]
+name = "RX"
+gpio = 4
+functions = ["uart"]
+label = "UART0 RX"
+
+[[pins]]
+name = "TX"
+gpio = 5
+functions = ["uart"]
+label = "UART0 TX"

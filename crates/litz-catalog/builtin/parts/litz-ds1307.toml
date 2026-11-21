@@ -1,0 +1,41 @@
+[part]
+id = "litz-ds1307"
+name = "DS1307 RTC"
+version = "1.0.0"
+description = "DS1307 I2C real-time clock with 56 bytes of SRAM"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+label = "I2C data"
+
+[pins.SCL]
+kind = "i2c-scl"
+label = "I2C clock"
+
+[pins.SQW]
+kind = "digital-out"
+label = "square wave output"
+
+# Start time, written into the BCD registers when the diagram flattens.
+[attrs.time]
+type = "string"
+default = "2024-01-01T00:00:00"
+
+# Day of week, 1 through 7.
+[attrs.weekday]
+type = "int"
+default = 1
+
+[buses.i2c0]
+address = 0x68
+
+[simulation]
+backend = "builtin"
+engine = "ds1307"

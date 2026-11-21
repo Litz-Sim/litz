@@ -1,0 +1,26 @@
+[part]
+id = "litz-heart-beat-sensor"
+name = "Heartbeat sensor"
+version = "1.0.0"
+description = "Pulse sensor with digital beat and analog waveform"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.OUT]
+kind = "digital-out"
+
+[pins.AOUT]
+kind = "analog-out"
+
+[attrs.bpm]
+type = "int"
+default = 72
+
+[simulation]
+backend = "builtin"
+engine = "heart-beat-sensor"

@@ -1,0 +1,50 @@
+[part]
+id = "litz-24c02"
+name = "24C02"
+version = "1.0.0"
+description = "256-byte I2C serial EEPROM with 8-byte write pages"
+license = "MIT"
+
+[pins.A0]
+kind = "digital-in"
+number = 1
+label = "address select, low for 0x50"
+
+[pins.A1]
+kind = "digital-in"
+number = 2
+label = "address select, low for 0x50"
+
+[pins.A2]
+kind = "digital-in"
+number = 3
+label = "address select, low for 0x50"
+
+[pins.GND]
+kind = "ground"
+number = 4
+
+[pins.SCL]
+kind = "i2c-scl"
+number = 6
+label = "I2C clock"
+
+[pins.SDA]
+kind = "i2c-sda"
+number = 5
+label = "I2C data"
+
+[pins.VCC]
+kind = "power"
+number = 8
+label = "supply"
+
+# The reference guest under crates/litz-part-eeprom. The builtin catalog
+# carries the same bytes compiled into the binary.
+[buses.i2c0]
+address = 0x50
+
+[simulation]
+backend = "wasm"
+module = "24c02.wasm"
+abi = "litz-part-2"

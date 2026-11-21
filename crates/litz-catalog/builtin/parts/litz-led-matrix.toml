@@ -1,0 +1,30 @@
+[part]
+id = "litz-led-matrix"
+name = "WS2812 LED matrix"
+version = "1.0.0"
+description = "Addressable RGB LED matrix on one data line"
+license = "MIT"
+
+[pins.VDD]
+kind = "power"
+
+[pins.VSS]
+kind = "ground"
+
+[pins.DIN]
+kind = "digital-in"
+
+[pins.DOUT]
+kind = "digital-out"
+
+[attrs.rows]
+type = "int"
+default = 8
+
+[attrs.cols]
+type = "int"
+default = 8
+
+[simulation]
+backend = "builtin"
+engine = "neopixel"

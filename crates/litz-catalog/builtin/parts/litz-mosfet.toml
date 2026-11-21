@@ -1,0 +1,32 @@
+[part]
+id = "litz-mosfet"
+name = "MOSFET"
+version = "1.0.0"
+description = "Generic enhancement-mode MOSFET, N or P channel"
+license = "MIT"
+
+[pins.D]
+kind = "passive"
+label = "drain"
+
+[pins.G]
+kind = "passive"
+label = "gate"
+
+[pins.S]
+kind = "passive"
+label = "source"
+
+[attrs.channel]
+type = "enum"
+values = ["n", "p"]
+default = "n"
+
+# Gate threshold voltage.
+[attrs.vth]
+type = "float"
+default = 2.0
+
+[simulation]
+backend = "builtin"
+engine = "mosfet"

@@ -1,0 +1,27 @@
+[part]
+id = "litz-battery"
+name = "Battery"
+version = "1.0.0"
+description = "Battery cell or pack"
+license = "MIT"
+
+[pins."+"]
+kind = "power"
+label = "positive terminal"
+
+[pins."-"]
+kind = "ground"
+label = "negative terminal"
+
+[attrs.type]
+type = "enum"
+values = ["AA", "9V", "coin"]
+default = "AA"
+
+[attrs.voltage]
+type = "float"
+default = 1.5
+
+[simulation]
+backend = "builtin"
+engine = "battery"

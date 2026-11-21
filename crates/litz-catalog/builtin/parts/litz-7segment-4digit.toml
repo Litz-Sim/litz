@@ -1,0 +1,56 @@
+[part]
+id = "litz-7segment-4digit"
+name = "4-digit 7-segment display"
+version = "1.0.0"
+description = "Four-digit multiplexed seven-segment display"
+license = "MIT"
+
+[pins.DIG1]
+kind = "digital-in"
+label = "digit 1 common"
+
+[pins.DIG2]
+kind = "digital-in"
+label = "digit 2 common"
+
+[pins.DIG3]
+kind = "digital-in"
+label = "digit 3 common"
+
+[pins.DIG4]
+kind = "digital-in"
+label = "digit 4 common"
+
+[pins.A]
+kind = "digital-in"
+
+[pins.B]
+kind = "digital-in"
+
+[pins.C]
+kind = "digital-in"
+
+[pins.D]
+kind = "digital-in"
+
+[pins.E]
+kind = "digital-in"
+
+[pins.F]
+kind = "digital-in"
+
+[pins.G]
+kind = "digital-in"
+
+[pins.DP]
+kind = "digital-in"
+label = "decimal point"
+
+[attrs.color]
+type = "enum"
+values = ["red", "green", "blue", "yellow"]
+default = "red"
+
+[simulation]
+backend = "builtin"
+engine = "segments-4digit"

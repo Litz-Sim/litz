@@ -1,0 +1,27 @@
+[part]
+id = "litz-photodiode"
+name = "Photodiode"
+version = "1.0.0"
+description = "Photodiode with a light-dependent reverse current"
+license = "MIT"
+
+[pins.A]
+kind = "passive"
+label = "anode"
+
+[pins.C]
+kind = "passive"
+label = "cathode"
+
+[attrs.vf]
+type = "float"
+default = 0.7
+
+# Light falling on the junction, in permille of full scale.
+[attrs.light]
+type = "int"
+default = 500
+
+[simulation]
+backend = "builtin"
+engine = "diode"

@@ -1,0 +1,19 @@
+version = 1
+
+[[entry]]
+type = "board-arduino-uno"
+version = "1.0.0"
+sha256 = "e2c088d4c02c11375e90e6b7ca8ccdf47e38ee78e6896e17c4ecf0b225d9b291"
+
+[[entry]]
+type = "litz-led"
+version = "1.0.0"
+sha256 = "a8d86cc557a28cc146c22c549704ca24825cc01053c6445f1511cdfc8396ecad"
+
+[[entry]]
+type = "litz-resistor"
+version = "1.0.0"
+sha256 = "a0fd26342420c3740d19e88a74dc9c3be946d7f57c714deac416a853388dce35"
+
+[firmware]
+sha256 = "f97464a4399abe8450cbd1d8538de4dd4be87b3ce2b1249ae3096c16ff0b8730"

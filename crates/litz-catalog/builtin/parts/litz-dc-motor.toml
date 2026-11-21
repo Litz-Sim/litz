@@ -1,0 +1,19 @@
+[part]
+id = "litz-dc-motor"
+name = "DC motor"
+version = "1.0.0"
+description = "Brushed DC motor with direction inputs and a PWM speed input"
+license = "MIT"
+
+[pins.IN1]
+kind = "digital-in"
+
+[pins.IN2]
+kind = "digital-in"
+
+[pins.PWM]
+kind = "digital-in"
+
+[simulation]
+backend = "builtin"
+engine = "dc-motor"

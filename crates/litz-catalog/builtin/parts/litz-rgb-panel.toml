@@ -1,0 +1,34 @@
+[part]
+id = "litz-rgb-panel"
+name = "RGB panel"
+version = "1.0.0"
+description = "8x8 RGBA8888 framebuffer display on I2C"
+license = "MIT"
+
+[pins.GND]
+kind = "ground"
+number = 1
+
+[pins.SCL]
+kind = "i2c-scl"
+number = 2
+label = "I2C clock"
+
+[pins.SDA]
+kind = "i2c-sda"
+number = 3
+label = "I2C data"
+
+[pins.VCC]
+kind = "power"
+number = 4
+label = "supply"
+
+# The reference framebuffer guest under crates/litz-part-display.
+[buses.i2c0]
+address = 0x3c
+
+[simulation]
+backend = "wasm"
+module = "display.wasm"
+abi = "litz-part-2"

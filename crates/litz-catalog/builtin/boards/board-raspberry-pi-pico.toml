@@ -1,0 +1,197 @@
+[board]
+id = "board-raspberry-pi-pico"
+name = "Raspberry Pi Pico"
+version = "1.0.0"
+description = "RP2040 at 125 MHz, 2 MiB QSPI flash, 264 KiB SRAM, Pico header"
+chip = "rp2040"
+flash_size = "2MB"
+psram = false
+schematic = "board-raspberry-pi-pico.onboard.json"
+
+[[pins]]
+name = "GP0"
+gpio = 0
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP1"
+gpio = 1
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+repeat = 8
+
+[[pins]]
+name = "GP2"
+gpio = 2
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP3"
+gpio = 3
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP4"
+gpio = 4
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP5"
+gpio = 5
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP6"
+gpio = 6
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP7"
+gpio = 7
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP8"
+gpio = 8
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP9"
+gpio = 9
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP10"
+gpio = 10
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP11"
+gpio = 11
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP12"
+gpio = 12
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP13"
+gpio = 13
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP14"
+gpio = 14
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP15"
+gpio = 15
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP16"
+gpio = 16
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP17"
+gpio = 17
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP18"
+gpio = 18
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP19"
+gpio = 19
+functions = ["i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP20"
+gpio = 20
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP21"
+gpio = 21
+functions = ["uart", "i2c", "spi", "pwm"]
+
+[[pins]]
+name = "GP22"
+gpio = 22
+functions = ["pwm"]
+
+[[pins]]
+name = "GP26"
+gpio = 26
+functions = ["adc", "i2c", "pwm"]
+label = "ADC0"
+
+[[pins]]
+name = "GP27"
+gpio = 27
+functions = ["adc", "i2c", "pwm"]
+label = "ADC1"
+
+[[pins]]
+name = "GP28"
+gpio = 28
+functions = ["adc", "pwm"]
+label = "ADC2"
+
+[[pins]]
+name = "ADC_VREF"
+fixed = "3v3"
+label = "ADC reference"
+
+[[pins]]
+name = "AGND"
+fixed = "gnd"
+label = "Analog ground"
+
+[[pins]]
+name = "3V3"
+fixed = "3v3"
+label = "3.3 V from the on-board regulator"
+
+[[pins]]
+name = "3V3_EN"
+gpio = 37
+label = "Regulator enable"
+
+[[pins]]
+name = "VSYS"
+fixed = "5v"
+label = "Supply input, 1.8-5.5 V"
+
+[[pins]]
+name = "VBUS"
+fixed = "5v"
+label = "USB 5 V"
+
+[[pins]]
+name = "RUN"
+gpio = 38
+label = "Reset"
+
+[[pins]]
+name = "SWCLK"
+gpio = 39
+label = "Debug clock"
+
+[[pins]]
+name = "SWDIO"
+gpio = 40
+label = "Debug data"
+
+[[pins]]
+name = "GP25"
+gpio = 25
+label = "On-board LED"

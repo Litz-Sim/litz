@@ -1,0 +1,69 @@
+[part]
+id = "litz-nrf24l01"
+name = "nRF24L01+"
+version = "1.0.0"
+description = "2.4 GHz packet transceiver on a pin-level SPI bus"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 2
+
+[pins.GND]
+kind = "ground"
+number = 1
+
+[pins.SCK]
+kind = "spi-sck"
+number = 5
+label = "SPI clock"
+
+[pins.MOSI]
+kind = "spi-mosi"
+number = 6
+label = "SPI data in"
+
+[pins.MISO]
+kind = "spi-miso"
+number = 7
+label = "SPI data out"
+
+[pins.CSN]
+kind = "spi-cs"
+number = 4
+label = "chip select, active low"
+
+[pins.CE]
+kind = "digital-in"
+number = 3
+label = "chip enable; a rising edge starts TX"
+
+[pins.IRQ]
+kind = "digital-out"
+number = 8
+label = "interrupt, active low"
+
+[attrs.network]
+type = "string"
+default = "nrf24"
+
+[attrs.channel]
+type = "int"
+default = 76
+
+[attrs.rate]
+type = "enum"
+values = ["1M", "2M"]
+default = "1M"
+
+[attrs.address]
+type = "string"
+default = "e7e7e7e7e7"
+
+[attrs.payload_size]
+type = "int"
+default = 32
+
+[simulation]
+backend = "builtin"
+engine = "nrf24l01"

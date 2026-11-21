@@ -1,0 +1,25 @@
+version = 1
+
+[[entry]]
+type = "board-esp32-c3-devkitm-1"
+version = "1.0.0"
+sha256 = "1900594cf77ece9fdaa1112cac01024e9658ab2a47817682df9b1a7024964054"
+
+[[entry]]
+type = "litz-bmp280"
+version = "1.0.0"
+sha256 = "d6777b632ada29492cc8cbab03ffe817e2c2824b6bea3577c649c7a3a2e7ded3"
+
+[[entry]]
+type = "litz-led"
+version = "1.0.0"
+sha256 = "a8d86cc557a28cc146c22c549704ca24825cc01053c6445f1511cdfc8396ecad"
+
+[[entry]]
+type = "litz-resistor"
+version = "1.0.0"
+sha256 = "a0fd26342420c3740d19e88a74dc9c3be946d7f57c714deac416a853388dce35"
+
+[firmware]
+sha256 = "bf72ed9eb88ad3a8f49d02c3d371f9ea34c90a8a303aeb9e324d8efd4a2a655a"
+rom_sha256 = "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c"

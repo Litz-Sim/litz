@@ -1,0 +1,190 @@
+[board]
+id = "board-esp32-s3-devkitc-1"
+name = "ESP32-S3-DevKitC-1"
+version = "1.0.0"
+description = "Espressif ESP32-S3-DevKitC-1 (Xtensa LX7, 2 MiB PSRAM)"
+chip = "esp32s3"
+flash_size = "8MB"
+psram = true
+schematic = "onboard-devkit.json"
+
+[[pins]]
+name = "3V3"
+fixed = "3v3"
+label = "3.3 V rail"
+
+[[pins]]
+name = "5V"
+fixed = "5v"
+label = "USB 5 V rail"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+repeat = 3
+
+[[pins]]
+name = "GPIO0"
+gpio = 0
+functions = ["boot"]
+
+[[pins]]
+name = "GPIO1"
+gpio = 1
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO2"
+gpio = 2
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO3"
+gpio = 3
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO4"
+gpio = 4
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO5"
+gpio = 5
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO6"
+gpio = 6
+
+[[pins]]
+name = "GPIO7"
+gpio = 7
+
+[[pins]]
+name = "GPIO8"
+gpio = 8
+
+[[pins]]
+name = "GPIO9"
+gpio = 9
+
+[[pins]]
+name = "GPIO10"
+gpio = 10
+
+[[pins]]
+name = "GPIO11"
+gpio = 11
+
+[[pins]]
+name = "GPIO12"
+gpio = 12
+
+[[pins]]
+name = "GPIO13"
+gpio = 13
+
+[[pins]]
+name = "GPIO14"
+gpio = 14
+
+[[pins]]
+name = "GPIO15"
+gpio = 15
+
+[[pins]]
+name = "GPIO16"
+gpio = 16
+
+[[pins]]
+name = "GPIO17"
+gpio = 17
+
+[[pins]]
+name = "GPIO18"
+gpio = 18
+
+[[pins]]
+name = "GPIO19"
+gpio = 19
+functions = ["usb-d-"]
+
+[[pins]]
+name = "GPIO20"
+gpio = 20
+functions = ["usb-d+"]
+
+[[pins]]
+name = "GPIO21"
+gpio = 21
+
+[[pins]]
+name = "GPIO35"
+gpio = 35
+
+[[pins]]
+name = "GPIO36"
+gpio = 36
+
+[[pins]]
+name = "GPIO37"
+gpio = 37
+
+[[pins]]
+name = "GPIO38"
+gpio = 38
+
+[[pins]]
+name = "GPIO39"
+gpio = 39
+
+[[pins]]
+name = "GPIO40"
+gpio = 40
+
+[[pins]]
+name = "GPIO41"
+gpio = 41
+
+[[pins]]
+name = "GPIO42"
+gpio = 42
+
+[[pins]]
+name = "GPIO45"
+gpio = 45
+
+[[pins]]
+name = "GPIO46"
+gpio = 46
+
+[[pins]]
+name = "GPIO47"
+gpio = 47
+
+[[pins]]
+name = "GPIO48"
+gpio = 48
+
+[[pins]]
+name = "TX"
+gpio = 43
+functions = ["uart"]
+label = "UART0 TX"
+
+[[pins]]
+name = "RX"
+gpio = 44
+functions = ["uart"]
+label = "UART0 RX"
+
+[[pins]]
+name = "GPIO43"
+gpio = 43
+functions = ["uart"]
+
+[[pins]]
+name = "GPIO44"
+gpio = 44
+functions = ["uart"]

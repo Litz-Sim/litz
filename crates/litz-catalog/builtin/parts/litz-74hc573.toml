@@ -1,0 +1,70 @@
+[part]
+id = "litz-74hc573"
+name = "74HC573"
+version = "1.0.0"
+description = "Octal transparent D latch"
+license = "MIT"
+
+[pins.D0]
+kind = "digital-in"
+
+[pins.Q0]
+kind = "digital-out"
+
+[pins.D1]
+kind = "digital-in"
+
+[pins.Q1]
+kind = "digital-out"
+
+[pins.D2]
+kind = "digital-in"
+
+[pins.Q2]
+kind = "digital-out"
+
+[pins.D3]
+kind = "digital-in"
+
+[pins.Q3]
+kind = "digital-out"
+
+[pins.D4]
+kind = "digital-in"
+
+[pins.Q4]
+kind = "digital-out"
+
+[pins.D5]
+kind = "digital-in"
+
+[pins.Q5]
+kind = "digital-out"
+
+[pins.D6]
+kind = "digital-in"
+
+[pins.Q6]
+kind = "digital-out"
+
+[pins.D7]
+kind = "digital-in"
+
+[pins.Q7]
+kind = "digital-out"
+
+[pins.LE]
+kind = "digital-in"
+
+[pins.OE]
+kind = "digital-in"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "74hc573"

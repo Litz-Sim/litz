@@ -1,0 +1,45 @@
+[part]
+id = "litz-l293d"
+name = "L293D"
+version = "1.0.0"
+description = "Dual H-bridge motor driver, one channel modelled"
+license = "MIT"
+
+[pins.IN1]
+kind = "digital-in"
+number = 7
+
+[pins.IN2]
+kind = "digital-in"
+number = 2
+
+[pins.EN]
+kind = "digital-in"
+number = 1
+label = "channel enable / PWM"
+
+[pins.OUT1]
+kind = "digital-out"
+number = 3
+
+[pins.OUT2]
+kind = "digital-out"
+number = 6
+
+[pins.VCC1]
+kind = "power"
+number = 16
+label = "logic supply"
+
+[pins.VCC2]
+kind = "power"
+number = 8
+label = "motor supply"
+
+[pins.GND]
+kind = "ground"
+number = 4
+
+[simulation]
+backend = "builtin"
+engine = "l293d"

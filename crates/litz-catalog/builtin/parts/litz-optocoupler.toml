@@ -1,0 +1,36 @@
+[part]
+id = "litz-optocoupler"
+name = "Optocoupler"
+version = "1.0.0"
+description = "LED and phototransistor optocoupler"
+license = "MIT"
+
+[pins.A]
+kind = "passive"
+label = "LED anode"
+
+[pins.K]
+kind = "passive"
+label = "LED cathode"
+
+[pins.C]
+kind = "passive"
+label = "phototransistor collector"
+
+[pins.E]
+kind = "passive"
+label = "phototransistor emitter"
+
+[attrs.variant]
+type = "enum"
+values = ["4N25", "PC817"]
+default = "4N25"
+
+# Current transfer ratio.
+[attrs.ctr]
+type = "float"
+default = 0.5
+
+[simulation]
+backend = "builtin"
+engine = "analog"

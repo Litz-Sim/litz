@@ -1,0 +1,21 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "../../build/micropython/ESP32_GENERIC_C3-20260824-v1.29.0.bin"
+rom = "build/micropython/esp32c3_rev3_rom.elf"
+runtime = "micropython"
+script = "main.py"
+flash_size = "4MB"
+
+# UART0 is the console the runner writes `serial` input to. The script reads it
+# with machine.UART and writes every byte back; the marker is printed only for
+# the received line.
+[[test]]
+name = "bytes written to UART0 come back"
+timeout = "10s"
+expect = ["litz: uart echo", "litz: echo ready", "litz: got hello"]
+
+[[test.input]]
+at = "1s"
+serial = "hello"

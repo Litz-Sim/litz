@@ -1,0 +1,25 @@
+[part]
+id = "litz-slide-switch"
+name = "Slide switch"
+version = "1.0.0"
+description = "SPDT slide switch"
+license = "MIT"
+
+# The common pole is pin 2; the wiper rests on 1 or 3.
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "passive"
+
+[pins."3"]
+kind = "passive"
+
+[attrs.color]
+type = "enum"
+values = ["black", "white"]
+default = "black"
+
+[simulation]
+backend = "builtin"
+engine = "slide-switch"

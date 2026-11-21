@@ -1,0 +1,58 @@
+[part]
+id = "litz-dip-switch-8"
+name = "DIP switch 8"
+version = "1.0.0"
+description = "Eight-position DIP switch"
+license = "MIT"
+
+[pins."1a"]
+kind = "passive"
+
+[pins."1b"]
+kind = "passive"
+
+[pins."2a"]
+kind = "passive"
+
+[pins."2b"]
+kind = "passive"
+
+[pins."3a"]
+kind = "passive"
+
+[pins."3b"]
+kind = "passive"
+
+[pins."4a"]
+kind = "passive"
+
+[pins."4b"]
+kind = "passive"
+
+[pins."5a"]
+kind = "passive"
+
+[pins."5b"]
+kind = "passive"
+
+[pins."6a"]
+kind = "passive"
+
+[pins."6b"]
+kind = "passive"
+
+[pins."7a"]
+kind = "passive"
+
+[pins."7b"]
+kind = "passive"
+
+[pins."8a"]
+kind = "passive"
+
+[pins."8b"]
+kind = "passive"
+
+[simulation]
+backend = "builtin"
+engine = "dip-switch-8"

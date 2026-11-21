@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "esp",  "type": "board-esp32-c3-devkitm-1", "attrs": {} },
+    { "id": "bmp1", "type": "litz-bmp280", "attrs": {} }
+  ],
+  "connections": [
+    ["esp:3V3", "bmp1:VCC", "red", []],
+    ["esp:GND.1", "bmp1:GND", "black", []],
+    ["esp:3V3", "bmp1:CSB", "red", []],
+    ["esp:GND.1", "bmp1:SDO", "black", []],
+    ["esp:GPIO4", "bmp1:SDA", "blue", []],
+    ["esp:GPIO5", "bmp1:SCL", "yellow", []],
+    ["esp:TX", "$serialMonitor:RX", "", []]
+  ]
+}

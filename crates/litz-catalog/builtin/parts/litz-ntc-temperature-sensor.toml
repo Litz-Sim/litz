@@ -1,0 +1,33 @@
+[part]
+id = "litz-ntc-temperature-sensor"
+name = "NTC temperature sensor"
+version = "1.0.0"
+description = "NTC thermistor module with analog and digital outputs"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 1
+
+[pins.GND]
+kind = "ground"
+number = 2
+
+[pins.AO]
+kind = "analog-out"
+number = 3
+label = "temperature as a voltage"
+
+[pins.DO]
+kind = "digital-out"
+number = 4
+label = "comparator output"
+
+# Starting temperature in Celsius. A host control spans -20..100 °C.
+[attrs.temperature]
+type = "float"
+default = 25.0
+
+[simulation]
+backend = "builtin"
+engine = "ntc-temperature-sensor"

@@ -1,0 +1,43 @@
+[part]
+id = "litz-lm393"
+name = "LM393 comparator module"
+version = "1.0.0"
+description = "Dual comparator module used for sound and light thresholds"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins."+"]
+kind = "analog-in"
+label = "non-inverting input"
+
+[pins."-"]
+kind = "analog-in"
+label = "inverting input"
+
+[pins.OUT]
+kind = "digital-out"
+label = "high while + is above -"
+
+# Reference voltage on the inverting input when the pin is left floating.
+[attrs.threshold]
+type = "float"
+default = 1.65
+
+# Voltage on the non-inverting input when the pin is left floating (Inferred:
+# the pin-level model has no analog input reading, so the manifest supplies it).
+[attrs.value]
+type = "float"
+default = 0.0
+
+[attrs.vref]
+type = "float"
+default = 3.3
+
+[simulation]
+backend = "builtin"
+engine = "lm393"

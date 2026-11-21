@@ -1,0 +1,32 @@
+[part]
+id = "litz-pushbutton"
+name = "Pushbutton"
+version = "1.0.0"
+description = "12 mm momentary tactile switch"
+license = "MIT"
+
+# Two contacts, each with a left and a right leg, as the physical part has.
+[pins."1.l"]
+kind = "passive"
+
+[pins."1.r"]
+kind = "passive"
+
+[pins."2.l"]
+kind = "passive"
+
+[pins."2.r"]
+kind = "passive"
+
+[attrs.color]
+type = "enum"
+values = ["green", "blue", "red", "yellow", "white", "black"]
+default = "green"
+
+[attrs.xray]
+type = "bool"
+default = false
+
+[simulation]
+backend = "builtin"
+engine = "pushbutton"

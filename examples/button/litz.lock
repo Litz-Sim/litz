@@ -1,0 +1,24 @@
+version = 1
+
+[[entry]]
+type = "board-esp32-c3-devkitm-1"
+version = "1.0.0"
+sha256 = "1900594cf77ece9fdaa1112cac01024e9658ab2a47817682df9b1a7024964054"
+
+[[entry]]
+type = "litz-led"
+version = "1.0.0"
+sha256 = "a8d86cc557a28cc146c22c549704ca24825cc01053c6445f1511cdfc8396ecad"
+
+[[entry]]
+type = "litz-pushbutton"
+version = "1.0.0"
+sha256 = "d832103d4d227b1b7e170515ef009d8bacc9e940c7b2dabb831e7e8b931e04fc"
+
+[[entry]]
+type = "litz-resistor"
+version = "1.0.0"
+sha256 = "a0fd26342420c3740d19e88a74dc9c3be946d7f57c714deac416a853388dce35"
+
+[firmware]
+sha256 = "9b9aebcdd04304754063df708b8d4a2d3f4ea1117449efa6074be2d7a8f575b1"

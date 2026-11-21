@@ -1,0 +1,27 @@
+[package]
+name = "litz-board"
+description = "Board runtime for Litz: flatten a diagram, resolve nets, and drive parts from pin levels."
+keywords = ["simulator", "netlist", "electronics", "embedded"]
+categories = ["emulators", "embedded"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+litz-analog = { version = "0.0.1", path = "../litz-analog" }
+litz-ble = { version = "0.0.1", path = "../litz-ble" }
+litz-catalog = { version = "0.0.1", path = "../litz-catalog" }
+litz-core = { version = "0.0.1", path = "../litz-core" }
+litz-diagram = { version = "0.0.1", path = "../litz-diagram" }
+litz-ieee802154 = { version = "0.0.1", path = "../litz-ieee802154" }
+litz-net = { version = "0.0.1", path = "../litz-net" }
+litz-radio = { version = "0.0.1", path = "../litz-radio" }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+
+# Wasm parts need wasmtime, which does not build for wasm32-unknown-unknown.
+# The native runtime gets the backend; the browser crate is itself a wasm
+# module and cannot load a second component, so it keeps the builtin engines.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+litz-part-wasm = { version = "0.0.1", path = "../litz-part-wasm" }

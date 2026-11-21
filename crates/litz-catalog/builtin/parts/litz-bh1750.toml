@@ -1,0 +1,32 @@
+[part]
+id = "litz-bh1750"
+name = "BH1750"
+version = "1.0.0"
+description = "Ambient-light sensor"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.ADDR]
+kind = "digital-in"
+
+[attrs.lux]
+type = "float"
+default = 500.0
+
+[buses.i2c0]
+address = 0x23
+
+[simulation]
+backend = "builtin"
+engine = "bh1750"

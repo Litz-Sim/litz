@@ -1,0 +1,17 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "../../build/micropython/ESP32_GENERIC_C3-20260824-v1.29.0.bin"
+rom = "build/micropython/esp32c3_rev3_rom.elf"
+runtime = "micropython"
+script = "main.py"
+flash_size = "4MB"
+
+# Each lamp has to be lit at some point and the transcript has to name the
+# phase, so the test follows the cycle rather than only the first state.
+[[test]]
+name = "the three lamps run a timed cycle"
+timeout = "20s"
+expect = ["litz: traffic", "litz: red", "litz: amber", "litz: green", "litz: done"]
+expect_state = ["red1:on", "amber1:on", "green1:on"]

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "pico", "type": "board-raspberry-pi-pico", "attrs": {} },
+    { "id": "lm75", "type": "litz-lm75", "attrs": { "temperature": 25.0 } },
+    { "id": "r1",   "type": "litz-resistor", "attrs": { "value": "330" } },
+    { "id": "led1", "type": "litz-led", "attrs": { "color": "green" } }
+  ],
+  "connections": [
+    ["pico:3V3", "lm75:VCC", "red", []],
+    ["pico:GND.1", "lm75:GND", "black", []],
+    ["pico:GND.1", "lm75:A0", "black", []],
+    ["pico:GND.1", "lm75:A1", "black", []],
+    ["pico:GND.1", "lm75:A2", "black", []],
+    ["pico:GP4", "lm75:SDA", "blue", []],
+    ["pico:GP5", "lm75:SCL", "yellow", []],
+    ["pico:GP15", "r1:1", "green", []],
+    ["r1:2", "led1:A", "green", []],
+    ["led1:C", "pico:GND.2", "black", []],
+    ["pico:GP0", "$serialMonitor:RX", "", []]
+  ]
+}

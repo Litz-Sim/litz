@@ -1,0 +1,22 @@
+[part]
+id = "litz-diode-1n4007"
+name = "1N4007 diode"
+version = "1.0.0"
+description = "1N4007 1 A rectifier diode"
+license = "MIT"
+
+[pins.A]
+kind = "passive"
+label = "anode"
+
+[pins.C]
+kind = "passive"
+label = "cathode"
+
+[attrs.vf]
+type = "float"
+default = 0.9
+
+[simulation]
+backend = "builtin"
+engine = "diode"

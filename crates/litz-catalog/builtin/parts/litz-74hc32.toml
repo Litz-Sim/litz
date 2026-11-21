@@ -1,0 +1,52 @@
+[part]
+id = "litz-74hc32"
+name = "74HC32"
+version = "1.0.0"
+description = "Quad 2-input OR gate"
+license = "MIT"
+
+[pins."1A"]
+kind = "digital-in"
+
+[pins."1B"]
+kind = "digital-in"
+
+[pins."1Y"]
+kind = "digital-out"
+
+[pins."2A"]
+kind = "digital-in"
+
+[pins."2B"]
+kind = "digital-in"
+
+[pins."2Y"]
+kind = "digital-out"
+
+[pins."3A"]
+kind = "digital-in"
+
+[pins."3B"]
+kind = "digital-in"
+
+[pins."3Y"]
+kind = "digital-out"
+
+[pins."4A"]
+kind = "digital-in"
+
+[pins."4B"]
+kind = "digital-in"
+
+[pins."4Y"]
+kind = "digital-out"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "gate"

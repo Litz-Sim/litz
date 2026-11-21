@@ -1,0 +1,12 @@
+[package]
+name = "litz-analog"
+description = "Deterministic modified-nodal-analysis solver for Litz: DC operating point and backward-Euler transient in pure Rust."
+keywords = ["simulator", "spice", "circuit", "electronics", "analysis"]
+categories = ["emulators", "simulation"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+thiserror = "2.0.21"

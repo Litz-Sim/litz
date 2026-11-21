@@ -1,0 +1,35 @@
+[part]
+id = "litz-water-level-sensor"
+name = "Water level sensor"
+version = "1.0.0"
+description = "Resistive water-level strip with an analog output"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.AO]
+kind = "analog-out"
+
+[attrs.value]
+type = "float"
+default = 0
+
+[attrs.threshold]
+type = "float"
+default = 500
+
+[attrs.activeLow]
+type = "bool"
+default = false
+
+[attrs.vref]
+type = "float"
+default = 5.0
+
+[simulation]
+backend = "builtin"
+engine = "analog-sensor"

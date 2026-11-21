@@ -1,0 +1,45 @@
+[part]
+id = "litz-max7219-matrix"
+name = "MAX7219 8x8 matrix"
+version = "1.0.0"
+description = "8x8 LED dot matrix with a MAX7219 controller on SPI"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.DIN]
+kind = "digital-in"
+
+[pins.CS]
+kind = "digital-in"
+
+[pins.CLK]
+kind = "digital-in"
+
+[pins.DOUT]
+kind = "digital-out"
+
+[attrs.chain]
+type = "int"
+default = 1
+
+[attrs.color]
+type = "enum"
+values = ["red", "green", "blue", "yellow"]
+default = "red"
+
+[attrs.layout]
+type = "enum"
+values = ["parola", "fc16"]
+default = "parola"
+
+[buses.spi0]
+cs = "CS"
+
+[simulation]
+backend = "builtin"
+engine = "max7219"

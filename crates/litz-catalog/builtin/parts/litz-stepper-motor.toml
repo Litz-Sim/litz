@@ -1,0 +1,40 @@
+[part]
+id = "litz-stepper-motor"
+name = "Stepper motor"
+version = "1.0.0"
+description = "Bipolar stepper motor, four coil terminals"
+license = "MIT"
+
+[pins."A-"]
+kind = "passive"
+
+[pins."A+"]
+kind = "passive"
+
+[pins."B+"]
+kind = "passive"
+
+[pins."B-"]
+kind = "passive"
+
+[attrs.gearRatio]
+type = "string"
+default = "1:1"
+
+[attrs.display]
+type = "enum"
+values = ["steps", "angle", "none"]
+default = "steps"
+
+[attrs.size]
+type = "enum"
+values = ["8", "11", "14", "17", "23", "34"]
+default = "23"
+
+[attrs.arrow]
+type = "string"
+default = ""
+
+[simulation]
+backend = "builtin"
+engine = "stepper-motor"

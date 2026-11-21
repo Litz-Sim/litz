@@ -1,0 +1,42 @@
+[part]
+id = "litz-epaper-2in13"
+name = "E-paper 2.13"
+version = "1.0.0"
+description = "1-bit SPI e-paper panel, 122x250"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.DIN]
+kind = "spi-mosi"
+
+[pins.CLK]
+kind = "spi-sck"
+
+[pins.CS]
+kind = "spi-cs"
+
+[pins.DC]
+kind = "digital-in"
+
+[pins.RST]
+kind = "digital-in"
+
+[pins.BUSY]
+kind = "digital-out"
+
+[attrs.size]
+type = "enum"
+values = ["1.54", "2.13"]
+default = "2.13"
+
+[buses.spi0]
+cs = "CS"
+
+[simulation]
+backend = "builtin"
+engine = "epaper"

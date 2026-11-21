@@ -1,0 +1,22 @@
+[part]
+id = "litz-traffic-light"
+name = "Traffic light module"
+version = "1.0.0"
+description = "Red, yellow and green lamp module"
+license = "MIT"
+
+[pins.R]
+kind = "digital-in"
+
+[pins.Y]
+kind = "digital-in"
+
+[pins.G]
+kind = "digital-in"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "traffic-light"

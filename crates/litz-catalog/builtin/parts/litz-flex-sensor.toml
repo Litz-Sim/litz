@@ -1,0 +1,29 @@
+[part]
+id = "litz-flex-sensor"
+name = "Flex sensor"
+version = "1.0.0"
+description = "Resistive bend sensor reported as an analog voltage"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.AO]
+kind = "analog-out"
+label = "bend as a fraction of vref"
+
+# Bend, 0 through 1000 permille of the sensor's range.
+[attrs.bend]
+type = "int"
+default = 300
+
+[attrs.vref]
+type = "float"
+default = 3.3
+
+[simulation]
+backend = "builtin"
+engine = "flex-sensor"

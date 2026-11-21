@@ -1,0 +1,15 @@
+[package]
+name = "litz-chip-rv32"
+description = "A reference Litz chip: RV32IMC as a WebAssembly component, enough of the ESP32-C3 memory map to run the repository's own firmware."
+keywords = ["simulator", "emulator", "riscv", "wasm"]
+categories = ["emulators", "wasm"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.61.1"

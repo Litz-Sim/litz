@@ -1,0 +1,49 @@
+[part]
+id = "litz-signal-generator"
+name = "Signal generator"
+version = "1.0.0"
+description = "Free-running function generator with a digital and an analog view"
+license = "MIT"
+
+[pins.OUT]
+kind = "digital-io"
+label = "signal output"
+
+[pins.GND]
+kind = "ground"
+label = "reference"
+
+[attrs.wave]
+type = "enum"
+values = ["square", "sine", "triangle", "sawtooth"]
+default = "square"
+
+[attrs.frequency]
+type = "string"
+default = "1k"
+# Decimal with an optional k/K/m/M multiplier and an optional hz suffix,
+# for example "2.5Hz", "1k" or "10kHz". Clamped to 1 Hz through 1 MHz.
+
+[attrs.duty]
+type = "string"
+default = "50"
+# High fraction of a square wave, as a percentage clamped to 1 through 99.
+
+[attrs.amplitude]
+type = "string"
+default = "3.3"
+# Peak-to-peak volts.
+
+[attrs.offset]
+type = "string"
+# Mid-point volts. Left without a default so the engine centres the wave at
+# half the amplitude, which tracks an amplitude the diagram overrides.
+
+[attrs.phase]
+type = "string"
+default = "0"
+# Starting phase in degrees, 0 through 360.
+
+[simulation]
+backend = "builtin"
+engine = "signal-generator"

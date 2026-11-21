@@ -1,0 +1,35 @@
+[part]
+id = "litz-sgp30"
+name = "SGP30"
+version = "1.0.0"
+description = "Indoor air-quality sensor (eCO2 and TVOC)"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+# Equivalent CO2 in ppm.
+[attrs.eco2]
+type = "int"
+default = 400
+
+# Total volatile organic compounds in ppb.
+[attrs.tvoc]
+type = "int"
+default = 0
+
+[buses.i2c0]
+address = 0x58
+
+[simulation]
+backend = "builtin"
+engine = "sgp30"

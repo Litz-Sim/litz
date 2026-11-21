@@ -1,0 +1,33 @@
+[part]
+id = "litz-hc-sr04"
+name = "HC-SR04"
+version = "1.0.0"
+description = "Ultrasonic distance sensor"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 1
+
+[pins.TRIG]
+kind = "digital-in"
+number = 2
+label = "trigger pulse"
+
+[pins.ECHO]
+kind = "digital-out"
+number = 3
+label = "echo pulse, 58 us per cm"
+
+[pins.GND]
+kind = "ground"
+number = 4
+
+# Centimetres. A host control spans 2..400 cm.
+[attrs.distance]
+type = "float"
+default = 100.0
+
+[simulation]
+backend = "builtin"
+engine = "hc-sr04"

@@ -1,0 +1,34 @@
+[part]
+id = "litz-opamp"
+name = "Op-amp"
+version = "1.0.0"
+description = "Generic operational amplifier"
+license = "MIT"
+
+[pins."+"]
+kind = "passive"
+label = "non-inverting input"
+
+[pins."-"]
+kind = "passive"
+label = "inverting input"
+
+[pins.OUT]
+kind = "passive"
+label = "output"
+
+[pins."V+"]
+kind = "power"
+label = "positive supply"
+
+[pins."V-"]
+kind = "ground"
+label = "negative supply"
+
+[attrs.gain]
+type = "float"
+default = 100000.0
+
+[simulation]
+backend = "builtin"
+engine = "opamp"

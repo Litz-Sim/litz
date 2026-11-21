@@ -1,0 +1,23 @@
+[part]
+id = "litz-diode"
+name = "Diode"
+version = "1.0.0"
+description = "Generic silicon diode"
+license = "MIT"
+
+[pins.A]
+kind = "passive"
+label = "anode"
+
+[pins.C]
+kind = "passive"
+label = "cathode"
+
+# Forward drop at the rated current, in volts.
+[attrs.vf]
+type = "float"
+default = 0.7
+
+[simulation]
+backend = "builtin"
+engine = "diode"

@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "chip", "type": "$chip", "attrs": {} },
+    { "id": "led_user", "type": "litz-led", "attrs": { "color": "green" } },
+    { "id": "r_user", "type": "litz-resistor", "attrs": { "value": "470" } },
+    { "id": "led_pwr", "type": "litz-led", "attrs": { "color": "green" } },
+    { "id": "r_pwr", "type": "litz-resistor", "attrs": { "value": "1000" } }
+  ],
+  "connections": [
+    ["chip:GP25", "r_user:1", "", []],
+    ["r_user:2", "led_user:A", "", []],
+    ["led_user:C", "$gnd", "", []],
+    ["$v3", "r_pwr:1", "", []],
+    ["r_pwr:2", "led_pwr:A", "", []],
+    ["led_pwr:C", "$gnd", "", []]
+  ]
+}

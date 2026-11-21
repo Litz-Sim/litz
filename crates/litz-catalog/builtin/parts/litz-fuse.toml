@@ -1,0 +1,20 @@
+[part]
+id = "litz-fuse"
+name = "Fuse"
+version = "1.0.0"
+description = "Cartridge fuse, a conductor until it is blown"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "passive"
+
+[attrs.rating]
+type = "string"
+default = "500mA"
+
+[simulation]
+backend = "builtin"
+engine = "fuse"

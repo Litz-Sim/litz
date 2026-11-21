@@ -1,0 +1,22 @@
+[part]
+id = "litz-resistor"
+name = "Resistor"
+version = "1.0.0"
+description = "Through-hole resistor, 1/4 W"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+number = 1
+
+[pins."2"]
+kind = "passive"
+number = 2
+
+[attrs.value]
+type = "string"
+default = "220"
+
+[simulation]
+backend = "builtin"
+engine = "resistor"

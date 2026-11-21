@@ -1,0 +1,42 @@
+[part]
+id = "litz-nokia-5110-screen"
+name = "Nokia 5110 screen"
+version = "1.0.0"
+description = "84x48 monochrome PCD8544 LCD on SPI"
+license = "MIT"
+
+[pins.RST]
+kind = "digital-in"
+
+[pins.CE]
+kind = "digital-in"
+
+[pins.DC]
+kind = "digital-in"
+
+[pins.DIN]
+kind = "digital-in"
+
+[pins.CLK]
+kind = "digital-in"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.BL]
+kind = "digital-in"
+
+[attrs.color]
+type = "enum"
+values = ["blue", "white", "red"]
+default = "blue"
+
+[buses.spi0]
+cs = "CE"
+
+[simulation]
+backend = "builtin"
+engine = "pcd8544"

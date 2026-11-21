@@ -1,0 +1,52 @@
+[part]
+id = "litz-74hc164"
+name = "74HC164"
+version = "1.0.0"
+description = "8-bit serial-in, parallel-out shift register"
+license = "MIT"
+
+[pins.A]
+kind = "digital-in"
+
+[pins.B]
+kind = "digital-in"
+
+[pins.CLK]
+kind = "digital-in"
+
+[pins.CLR]
+kind = "digital-in"
+
+[pins.Q0]
+kind = "digital-out"
+
+[pins.Q1]
+kind = "digital-out"
+
+[pins.Q2]
+kind = "digital-out"
+
+[pins.Q3]
+kind = "digital-out"
+
+[pins.Q4]
+kind = "digital-out"
+
+[pins.Q5]
+kind = "digital-out"
+
+[pins.Q6]
+kind = "digital-out"
+
+[pins.Q7]
+kind = "digital-out"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "74hc164"

@@ -1,0 +1,16 @@
+[package]
+name = "litz-part-runaway"
+description = "Test fixture: a Litz part whose call never returns, for the fuel sandbox."
+keywords = ["simulator", "components", "test", "wasm"]
+categories = ["emulators", "wasm"]
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+litz-part-sdk = { version = "0.0.1", path = "../litz-part-sdk" }

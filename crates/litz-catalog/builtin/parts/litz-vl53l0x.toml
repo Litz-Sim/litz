@@ -1,0 +1,35 @@
+[part]
+id = "litz-vl53l0x"
+name = "VL53L0X"
+version = "1.0.0"
+description = "Time-of-flight distance sensor"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.XSHUT]
+kind = "digital-in"
+
+[pins.GPIO1]
+kind = "digital-out"
+
+[attrs.distance]
+type = "int"
+default = 100
+
+[buses.i2c0]
+address = 0x29
+
+[simulation]
+backend = "builtin"
+engine = "vl53l0x"

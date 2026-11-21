@@ -1,0 +1,47 @@
+[part]
+id = "litz-tca9548a"
+name = "TCA9548A"
+version = "1.0.0"
+description = "8-channel I2C multiplexer"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+label = "upstream I2C data"
+
+[pins.SCL]
+kind = "i2c-scl"
+label = "upstream I2C clock"
+
+[pins.A0]
+kind = "digital-in"
+label = "address select bit 0"
+
+[pins.A1]
+kind = "digital-in"
+label = "address select bit 1"
+
+[pins.A2]
+kind = "digital-in"
+label = "address select bit 2"
+
+[pins.RESET]
+kind = "digital-in"
+label = "reset, active low"
+
+# The eight downstream SCL/SD pairs are not modelled: writing the control
+# register records the channel mask, but transactions are not routed through
+# the multiplexer to devices behind it.
+
+[buses.i2c0]
+address = 0x70
+
+[simulation]
+backend = "builtin"
+engine = "tca9548a"

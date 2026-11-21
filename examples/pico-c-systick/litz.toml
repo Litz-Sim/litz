@@ -1,0 +1,15 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/pico-c-systick.bin"
+flash_size = "2MB"
+
+# A SysTick handler written in C, compiled by arm-none-eabi-gcc -mcpu=
+# cortex-m0plus. `build.sh` regenerates the image; the binary is committed, so
+# the test itself needs no ARM toolchain.
+[[test]]
+name = "the SysTick handler lights GP15 and prints its count"
+timeout = "100ms"
+expect_state = "led1:on"
+expect = "tick 16"

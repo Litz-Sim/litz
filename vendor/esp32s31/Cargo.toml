@@ -1,0 +1,12 @@
+[package]
+name = "esp32s31"
+version = "0.4.0"
+edition = "2021"
+license = "MIT"
+description = "ESP32-S31 on esp_soc::Machine: dual-hart, DeviceSet peripherals, ROM and Flash-MMU app boot"
+
+[dependencies]
+emu-core = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+esp-periph = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+esp-soc = { path = "../esp-soc" }
+riscv-rv32 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }

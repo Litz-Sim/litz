@@ -1,0 +1,47 @@
+[part]
+id = "litz-ble-beacon"
+name = "Bluetooth beacon"
+version = "1.0.0"
+description = "A scannable Bluetooth LE advertiser the circuit puts in range"
+license = "MIT"
+
+[pins."3V3"]
+kind = "power"
+number = 1
+label = "supply"
+
+[pins.GND]
+kind = "ground"
+number = 2
+
+[attrs.name]
+type = "string"
+default = "litz"
+
+# Printed most significant octet first. Empty derives a random-static address
+# from the advertising data, so the same circuit reports the same address.
+[attrs.address]
+type = "string"
+default = ""
+
+[attrs.rssi]
+type = "int"
+default = -60
+
+[attrs.services]
+type = "string"
+default = ""
+
+# Advertising data and scan response as hex. `adv` replaces the data the name
+# and services build, so it and `name` are exclusive.
+[attrs.adv]
+type = "string"
+default = ""
+
+[attrs.rsp]
+type = "string"
+default = ""
+
+[simulation]
+backend = "builtin"
+engine = "ble-beacon"

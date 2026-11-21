@@ -1,0 +1,43 @@
+[part]
+id = "litz-rfid-rc522"
+name = "RFID RC522"
+version = "1.0.0"
+description = "MFRC522 13.56 MHz RFID reader on SPI"
+license = "MIT"
+
+[pins.SDA]
+kind = "spi-cs"
+label = "chip select"
+
+[pins.SCK]
+kind = "spi-sck"
+label = "SPI clock"
+
+[pins.MOSI]
+kind = "spi-mosi"
+label = "SPI data in"
+
+[pins.MISO]
+kind = "spi-miso"
+label = "SPI data out"
+
+[pins.RST]
+kind = "digital-in"
+label = "reset, active low"
+
+[pins.IRQ]
+kind = "digital-out"
+label = "interrupt"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[buses.spi0]
+cs = "SDA"
+
+[simulation]
+backend = "builtin"
+engine = "rfid-rc522"

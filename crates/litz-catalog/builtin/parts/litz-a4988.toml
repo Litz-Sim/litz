@@ -1,0 +1,59 @@
+[part]
+id = "litz-a4988"
+name = "A4988 stepper driver"
+version = "1.0.0"
+description = "STEP/DIR stepper driver with microstep selection"
+license = "MIT"
+
+[pins.ENABLE]
+kind = "digital-in"
+label = "active low"
+
+[pins.MS1]
+kind = "digital-in"
+
+[pins.MS2]
+kind = "digital-in"
+
+[pins.MS3]
+kind = "digital-in"
+
+[pins.RESET]
+kind = "digital-in"
+label = "active low"
+
+[pins.SLEEP]
+kind = "digital-in"
+label = "active low"
+
+[pins.STEP]
+kind = "digital-in"
+
+[pins.DIR]
+kind = "digital-in"
+
+[pins.GND]
+kind = "ground"
+
+[pins.VDD]
+kind = "power"
+
+[pins."1B"]
+kind = "digital-out"
+
+[pins."1A"]
+kind = "digital-out"
+
+[pins."2A"]
+kind = "digital-out"
+
+[pins."2B"]
+kind = "digital-out"
+
+[pins.VMOT]
+kind = "power"
+label = "motor supply"
+
+[simulation]
+backend = "builtin"
+engine = "a4988"

@@ -1,0 +1,80 @@
+[part]
+id = "litz-74hc139"
+name = "74HC139"
+version = "1.0.0"
+description = "Dual 2-to-4 line decoder with active-low outputs"
+license = "MIT"
+
+[pins.1E]
+kind = "digital-in"
+number = 1
+label = "decoder 1 enable, active low"
+
+[pins.1A0]
+kind = "digital-in"
+number = 2
+label = "decoder 1 address bit 0"
+
+[pins.1A1]
+kind = "digital-in"
+number = 3
+label = "decoder 1 address bit 1"
+
+[pins.1Y0]
+kind = "digital-out"
+number = 4
+
+[pins.1Y1]
+kind = "digital-out"
+number = 5
+
+[pins.1Y2]
+kind = "digital-out"
+number = 6
+
+[pins.1Y3]
+kind = "digital-out"
+number = 7
+
+[pins.GND]
+kind = "ground"
+number = 8
+
+[pins.2Y3]
+kind = "digital-out"
+number = 9
+
+[pins.2Y2]
+kind = "digital-out"
+number = 10
+
+[pins.2Y1]
+kind = "digital-out"
+number = 11
+
+[pins.2Y0]
+kind = "digital-out"
+number = 12
+
+[pins.2A1]
+kind = "digital-in"
+number = 13
+label = "decoder 2 address bit 1"
+
+[pins.2A0]
+kind = "digital-in"
+number = 14
+label = "decoder 2 address bit 0"
+
+[pins.2E]
+kind = "digital-in"
+number = 15
+label = "decoder 2 enable, active low"
+
+[pins.VCC]
+kind = "power"
+number = 16
+
+[simulation]
+backend = "builtin"
+engine = "74hc139"

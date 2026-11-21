@@ -1,0 +1,37 @@
+[part]
+id = "litz-gps-neo6m"
+name = "GPS NEO-6M"
+version = "1.0.0"
+description = "u-blox NEO-6M GPS, NMEA at 9600 baud"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.TX]
+kind = "uart-tx"
+
+[pins.RX]
+kind = "uart-rx"
+
+[attrs.latitude]
+type = "float"
+default = 47.6062
+
+[attrs.longitude]
+type = "float"
+default = -122.3321
+
+[attrs.speed]
+type = "float"
+default = 0.5
+
+[buses.uart0]
+port = 0
+
+[simulation]
+backend = "builtin"
+engine = "gps-neo6m"

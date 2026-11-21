@@ -1,0 +1,58 @@
+[part]
+id = "litz-4051"
+name = "CD4051"
+version = "1.0.0"
+description = "8-channel analog multiplexer"
+license = "MIT"
+
+[pins.A]
+kind = "digital-in"
+
+[pins.B]
+kind = "digital-in"
+
+[pins.C]
+kind = "digital-in"
+
+[pins.INH]
+kind = "digital-in"
+
+[pins.X]
+kind = "digital-io"
+
+[pins.X0]
+kind = "digital-io"
+
+[pins.X1]
+kind = "digital-io"
+
+[pins.X2]
+kind = "digital-io"
+
+[pins.X3]
+kind = "digital-io"
+
+[pins.X4]
+kind = "digital-io"
+
+[pins.X5]
+kind = "digital-io"
+
+[pins.X6]
+kind = "digital-io"
+
+[pins.X7]
+kind = "digital-io"
+
+[pins.VDD]
+kind = "power"
+
+[pins.VSS]
+kind = "ground"
+
+[pins.VEE]
+kind = "passive"
+
+[simulation]
+backend = "builtin"
+engine = "4051"

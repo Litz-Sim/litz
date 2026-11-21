@@ -1,0 +1,12 @@
+[package]
+name = "litz-decode"
+description = "UART, I2C and SPI decoders for Litz probe waveforms."
+keywords = ["simulator", "protocol", "uart", "embedded"]
+categories = ["emulators"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+litz-core = { version = "0.0.1", path = "../litz-core" }

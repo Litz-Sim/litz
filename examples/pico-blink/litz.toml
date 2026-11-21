@@ -1,0 +1,15 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/pico-blink.bin"
+flash_size = "2MB"
+
+# Assembled here, not downloaded: `cargo run -p litz-fixture -- pico
+# examples/pico-blink/firmware/pico-blink.bin` rebuilds it from source, so the
+# example runs on a clean checkout with no ARM toolchain.
+[[test]]
+name = "the LED on GP15 blinks and the banner goes out on UART0"
+timeout = "2s"
+expect_state = "led1:on"
+expect = "litz: pico"

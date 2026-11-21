@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "uno", "type": "board-arduino-uno", "attrs": {} }
+  ],
+  "connections": []
+}

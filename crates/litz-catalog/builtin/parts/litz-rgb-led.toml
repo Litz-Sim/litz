@@ -1,0 +1,30 @@
+[part]
+id = "litz-rgb-led"
+name = "RGB LED"
+version = "1.0.0"
+description = "Three-die red/green/blue LED with a common cathode"
+license = "MIT"
+
+[pins.R]
+kind = "digital-in"
+number = 1
+label = "red anode"
+
+[pins.G]
+kind = "digital-in"
+number = 2
+label = "green anode"
+
+[pins.B]
+kind = "digital-in"
+number = 3
+label = "blue anode"
+
+[pins.COM]
+kind = "passive"
+number = 4
+label = "common cathode"
+
+[simulation]
+backend = "builtin"
+engine = "rgb-led"

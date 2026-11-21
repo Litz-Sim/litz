@@ -1,0 +1,56 @@
+[part]
+id = "litz-ds3231"
+name = "DS3231 RTC"
+version = "1.0.0"
+description = "DS3231 high-precision I2C real-time clock"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 1
+
+[pins.GND]
+kind = "ground"
+number = 2
+
+[pins.SDA]
+kind = "i2c-sda"
+number = 3
+label = "I2C data"
+
+[pins.SCL]
+kind = "i2c-scl"
+number = 4
+label = "I2C clock"
+
+[pins.SQW]
+kind = "digital-out"
+number = 5
+label = "square wave / interrupt"
+
+[pins."32K"]
+kind = "digital-out"
+number = 6
+label = "32 kHz oscillator output"
+
+# Start time, written into the BCD registers when the diagram flattens.
+[attrs.time]
+type = "string"
+default = "2024-01-01T00:00:00"
+
+# Day of week, 1 through 7. The date attributes are part of `time`.
+[attrs.weekday]
+type = "int"
+default = 1
+
+# Centigrade, with the part's quarter-degree resolution.
+[attrs.temperature]
+type = "float"
+default = 25.0
+
+[buses.i2c0]
+address = 0x68
+
+[simulation]
+backend = "builtin"
+engine = "ds3231"

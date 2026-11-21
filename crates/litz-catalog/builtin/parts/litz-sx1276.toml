@@ -1,0 +1,75 @@
+[part]
+id = "litz-sx1276"
+name = "SX1276"
+version = "1.0.0"
+description = "Sub-GHz LoRa transceiver on a pin-level SPI bus"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 3
+
+[pins.GND]
+kind = "ground"
+number = 2
+
+[pins.SCK]
+kind = "spi-sck"
+number = 14
+label = "SPI clock"
+
+[pins.MOSI]
+kind = "spi-mosi"
+number = 13
+label = "SPI data in"
+
+[pins.MISO]
+kind = "spi-miso"
+number = 12
+label = "SPI data out"
+
+[pins.NSS]
+kind = "spi-cs"
+number = 11
+label = "chip select, active low"
+
+[pins.RESET]
+kind = "digital-in"
+number = 6
+label = "reset, active high"
+
+[pins.DIO0]
+kind = "digital-out"
+number = 9
+label = "RxDone interrupt"
+
+[pins.DIO1]
+kind = "digital-out"
+number = 8
+label = "TxDone interrupt"
+
+# The medium this radio joins. Radios hear each other when network and
+# frequency agree; the packet radio model puts no addressing on a LoRa frame.
+[attrs.network]
+type = "string"
+default = "lora"
+
+[attrs.frequency]
+type = "float"
+default = 868.0
+
+[attrs.sf]
+type = "int"
+default = 7
+
+[attrs.bandwidth]
+type = "float"
+default = 125.0
+
+[attrs.power]
+type = "int"
+default = 14
+
+[simulation]
+backend = "builtin"
+engine = "sx1276"

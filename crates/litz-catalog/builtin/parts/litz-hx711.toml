@@ -1,0 +1,53 @@
+[part]
+id = "litz-hx711"
+name = "HX711"
+version = "1.0.0"
+description = "24-bit load-cell amplifier"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.DT]
+kind = "digital-out"
+
+[pins.SCK]
+kind = "digital-in"
+
+[pins."E+"]
+kind = "passive"
+
+[pins."E-"]
+kind = "passive"
+
+[pins."A+"]
+kind = "passive"
+
+[pins."A-"]
+kind = "passive"
+
+[pins."B+"]
+kind = "passive"
+
+[pins."B-"]
+kind = "passive"
+
+[attrs.weight]
+type = "float"
+default = 0.0
+
+[attrs.capacity]
+type = "float"
+default = 5000.0
+
+[attrs.type]
+type = "enum"
+values = ["5kg", "50kg"]
+default = "5kg"
+
+[simulation]
+backend = "builtin"
+engine = "hx711"

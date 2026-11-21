@@ -1,0 +1,34 @@
+[part]
+id = "litz-photoresistor-sensor"
+name = "Photoresistor sensor"
+version = "1.0.0"
+description = "Light-dependent resistor module with analog and digital outputs"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 1
+
+[pins.GND]
+kind = "ground"
+number = 2
+
+[pins.AO]
+kind = "analog-out"
+number = 3
+label = "light as a voltage"
+
+[pins.DO]
+kind = "digital-out"
+number = 4
+label = "comparator output"
+
+# Light level, 0 through 1000 permille. AO is that fraction of 3.3 V and DO
+# turns over at half scale.
+[attrs.light]
+type = "int"
+default = 500
+
+[simulation]
+backend = "builtin"
+engine = "photoresistor-sensor"

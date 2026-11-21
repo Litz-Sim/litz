@@ -1,0 +1,80 @@
+[part]
+id = "litz-pca9685"
+name = "PCA9685 PWM driver"
+version = "1.0.0"
+description = "16-channel 12-bit PWM driver"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.OE]
+kind = "digital-in"
+
+[pins.PWM0]
+kind = "digital-out"
+
+[pins.PWM1]
+kind = "digital-out"
+
+[pins.PWM2]
+kind = "digital-out"
+
+[pins.PWM3]
+kind = "digital-out"
+
+[pins.PWM4]
+kind = "digital-out"
+
+[pins.PWM5]
+kind = "digital-out"
+
+[pins.PWM6]
+kind = "digital-out"
+
+[pins.PWM7]
+kind = "digital-out"
+
+[pins.PWM8]
+kind = "digital-out"
+
+[pins.PWM9]
+kind = "digital-out"
+
+[pins.PWM10]
+kind = "digital-out"
+
+[pins.PWM11]
+kind = "digital-out"
+
+[pins.PWM12]
+kind = "digital-out"
+
+[pins.PWM13]
+kind = "digital-out"
+
+[pins.PWM14]
+kind = "digital-out"
+
+[pins.PWM15]
+kind = "digital-out"
+
+[attrs.frequency]
+type = "int"
+default = 50
+
+[buses.i2c0]
+address = 0x40
+
+[simulation]
+backend = "builtin"
+engine = "pca9685"

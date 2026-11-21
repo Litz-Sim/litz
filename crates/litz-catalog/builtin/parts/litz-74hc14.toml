@@ -1,0 +1,52 @@
+[part]
+id = "litz-74hc14"
+name = "74HC14"
+version = "1.0.0"
+description = "Hex inverter with Schmitt-trigger inputs"
+license = "MIT"
+
+[pins."1A"]
+kind = "digital-in"
+
+[pins."1Y"]
+kind = "digital-out"
+
+[pins."2A"]
+kind = "digital-in"
+
+[pins."2Y"]
+kind = "digital-out"
+
+[pins."3A"]
+kind = "digital-in"
+
+[pins."3Y"]
+kind = "digital-out"
+
+[pins."4A"]
+kind = "digital-in"
+
+[pins."4Y"]
+kind = "digital-out"
+
+[pins."5A"]
+kind = "digital-in"
+
+[pins."5Y"]
+kind = "digital-out"
+
+[pins."6A"]
+kind = "digital-in"
+
+[pins."6Y"]
+kind = "digital-out"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "gate"

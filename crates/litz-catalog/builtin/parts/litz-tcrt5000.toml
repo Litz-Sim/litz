@@ -1,0 +1,36 @@
+[part]
+id = "litz-tcrt5000"
+name = "TCRT5000 reflective sensor"
+version = "1.0.0"
+description = "Infrared reflective line sensor with analog and active-low digital outputs"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.AO]
+kind = "analog-out"
+label = "reflectance as a voltage"
+
+[pins.DO]
+kind = "digital-out"
+label = "active-low line detect"
+
+# The surface under the sensor. A white surface reflects and pulls DO low; a
+# black line absorbs the beam and lets DO rest high.
+[attrs.line]
+type = "enum"
+values = ["white", "black"]
+default = "white"
+
+# Reflectance reported on AO, 0 through 1000 permille of the 3.3 V rail.
+[attrs.reflectance]
+type = "int"
+default = 800
+
+[simulation]
+backend = "builtin"
+engine = "tcrt5000"

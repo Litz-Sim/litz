@@ -1,0 +1,31 @@
+name: Litz
+description: Run a Litz project's tests in CI, offline and without a token.
+branding:
+  icon: cpu
+  color: blue
+inputs:
+  path:
+    description: Directory holding diagram.json and litz.toml.
+    required: false
+    default: .
+  args:
+    description: Extra arguments for `litz test` (for example `--scenario scenario.yaml`).
+    required: false
+    default: ""
+  junit:
+    description: Write a JUnit XML report to this path, if set.
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "."
+    - shell: bash
+      run: |
+        set -euo pipefail
+        junit=""
+        if [ -n "${{ inputs.junit }}" ]; then junit="--junit ${{ inputs.junit }}"; fi
+        cargo run -q --release -p litz-cli -- test "${{ inputs.path }}" $junit ${{ inputs.args }}

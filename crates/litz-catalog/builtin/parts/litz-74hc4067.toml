@@ -1,0 +1,76 @@
+[part]
+id = "litz-74hc4067"
+name = "74HC4067 multiplexer"
+version = "1.0.0"
+description = "16-channel analog multiplexer"
+license = "MIT"
+
+[pins.S0]
+kind = "digital-in"
+
+[pins.S1]
+kind = "digital-in"
+
+[pins.S2]
+kind = "digital-in"
+
+[pins.S3]
+kind = "digital-in"
+
+[pins.E]
+kind = "digital-in"
+
+[pins.COM]
+kind = "analog-io"
+
+[pins.I0]
+kind = "analog-io"
+
+[pins.I1]
+kind = "analog-io"
+
+[pins.I2]
+kind = "analog-io"
+
+[pins.I3]
+kind = "analog-io"
+
+[pins.I4]
+kind = "analog-io"
+
+[pins.I5]
+kind = "analog-io"
+
+[pins.I6]
+kind = "analog-io"
+
+[pins.I7]
+kind = "analog-io"
+
+[pins.I8]
+kind = "analog-io"
+
+[pins.I9]
+kind = "analog-io"
+
+[pins.I10]
+kind = "analog-io"
+
+[pins.I11]
+kind = "analog-io"
+
+[pins.I12]
+kind = "analog-io"
+
+[pins.I13]
+kind = "analog-io"
+
+[pins.I14]
+kind = "analog-io"
+
+[pins.I15]
+kind = "analog-io"
+
+[simulation]
+backend = "builtin"
+engine = "cd4067"

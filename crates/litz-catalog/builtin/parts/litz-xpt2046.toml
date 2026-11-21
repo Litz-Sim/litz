@@ -1,0 +1,46 @@
+[part]
+id = "litz-xpt2046"
+name = "XPT2046 touch controller"
+version = "1.0.0"
+description = "12-bit resistive touch controller on SPI, the companion chip on common TFT modules"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 1
+
+[pins.GND]
+kind = "ground"
+number = 2
+
+[pins.CS]
+kind = "spi-cs"
+number = 11
+label = "chip select, active low"
+
+[pins.CLK]
+kind = "spi-sck"
+number = 15
+label = "SPI clock"
+
+[pins.DIN]
+kind = "spi-mosi"
+number = 14
+label = "data to the controller"
+
+[pins.DOUT]
+kind = "spi-miso"
+number = 12
+label = "data from the controller"
+
+[pins.IRQ]
+kind = "digital-out"
+number = 3
+label = "pen interrupt, low while touched"
+
+[buses.spi0]
+cs = "CS"
+
+[simulation]
+backend = "builtin"
+engine = "xpt2046"

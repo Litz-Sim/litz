@@ -1,0 +1,24 @@
+[part]
+id = "litz-hall-sensor"
+name = "Hall sensor A3144"
+version = "1.0.0"
+description = "Unipolar Hall-effect switch with an open-collector output"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.OUT]
+kind = "digital-out"
+label = "open collector, pulls low in a magnetic field"
+
+[attrs.magnetic]
+type = "bool"
+default = false
+
+[simulation]
+backend = "builtin"
+engine = "hall-sensor"

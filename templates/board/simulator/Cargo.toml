@@ -1,0 +1,15 @@
+[package]
+name = "{{crate}}"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# The simulator lives inside the author's project rather than in this
+# checkout, so it is its own workspace root instead of joining a parent one.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.61.1"

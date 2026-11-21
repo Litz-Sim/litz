@@ -1,0 +1,14 @@
+[package]
+name = "litz-mcu-wit"
+description = "The WIT contract between Litz and a microcontroller implemented as a WebAssembly component."
+keywords = ["simulator", "emulator", "wit", "component-model"]
+categories = ["emulators", "wasm"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+wit-parser = "0.261.0"

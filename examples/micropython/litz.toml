@@ -1,0 +1,17 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+# tools/fetch-micropython.sh fetches this image (and the C3 mask ROM) into
+# build/micropython; neither is committed. The image is a merged bootloader,
+# partition table and application, so the runner lets the mask ROM start it.
+firmware = "../../build/micropython/ESP32_GENERIC_C3-20260824-v1.29.0.bin"
+runtime = "micropython"
+script = "main.py"
+flash_size = "4MB"
+
+[[test]]
+name = "main.py runs over the REPL"
+timeout = "20s"
+expect = "litz: micropython"
+expect_state = "led1:on"

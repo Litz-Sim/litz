@@ -1,0 +1,30 @@
+[part]
+id = "litz-flame-sensor"
+name = "Flame sensor"
+version = "1.0.0"
+description = "Flame sensor with analog and threshold outputs"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.DO]
+kind = "digital-out"
+
+[pins.AO]
+kind = "analog-out"
+
+[attrs.intensity]
+type = "int"
+default = 500
+
+[attrs.threshold]
+type = "int"
+default = 500
+
+[simulation]
+backend = "builtin"
+engine = "flame-sensor"

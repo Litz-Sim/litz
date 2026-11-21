@@ -1,0 +1,22 @@
+[part]
+id = "litz-power-supply"
+name = "Power supply"
+version = "1.0.0"
+description = "Ideal DC bench supply"
+license = "MIT"
+
+[pins."+"]
+kind = "power"
+label = "positive terminal"
+
+[pins."-"]
+kind = "ground"
+label = "negative terminal"
+
+[attrs.voltage]
+type = "float"
+default = 5.0
+
+[simulation]
+backend = "builtin"
+engine = "voltage-source"

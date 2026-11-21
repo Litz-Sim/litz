@@ -1,0 +1,33 @@
+[part]
+id = "litz-relay-module"
+name = "Relay module"
+version = "1.0.0"
+description = "Single-pole double-throw relay module with a driver transistor"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.IN]
+kind = "digital-in"
+
+[pins.NC]
+kind = "passive"
+
+[pins.COM]
+kind = "passive"
+
+[pins.NO]
+kind = "passive"
+
+[attrs.transistor]
+type = "enum"
+values = ["npn", "pnp"]
+default = "npn"
+
+[simulation]
+backend = "builtin"
+engine = "relay"

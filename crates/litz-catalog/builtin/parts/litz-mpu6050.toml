@@ -1,0 +1,77 @@
+[part]
+id = "litz-mpu6050"
+name = "MPU6050"
+version = "1.0.0"
+description = "Six-axis accelerometer and gyroscope"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 8
+
+[pins.GND]
+kind = "ground"
+number = 1
+
+[pins.SDA]
+kind = "i2c-sda"
+number = 4
+label = "I2C data"
+
+[pins.SCL]
+kind = "i2c-scl"
+number = 3
+label = "I2C clock"
+
+[pins.INT]
+kind = "digital-out"
+number = 5
+label = "interrupt"
+
+[pins.XDA]
+kind = "digital-io"
+number = 6
+label = "auxiliary I2C data"
+
+[pins.XCL]
+kind = "digital-io"
+number = 7
+label = "auxiliary I2C clock"
+
+[pins.AD0]
+kind = "digital-in"
+number = 9
+label = "address select, low for 0x68"
+
+# Acceleration in g, one attribute per axis.
+[attrs.ax]
+type = "float"
+default = 0.0
+
+[attrs.ay]
+type = "float"
+default = 0.0
+
+[attrs.az]
+type = "float"
+default = 1.0
+
+# Angular rate in degrees per second.
+[attrs.gx]
+type = "float"
+default = 0.0
+
+[attrs.gy]
+type = "float"
+default = 0.0
+
+[attrs.gz]
+type = "float"
+default = 0.0
+
+[buses.i2c0]
+address = 0x68
+
+[simulation]
+backend = "builtin"
+engine = "mpu6050"

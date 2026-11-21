@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "esp",  "type": "board-esp32-c3-devkitm-1", "attrs": {}, "left": 40,  "top": 40 },
+    { "id": "gen",  "type": "litz-signal-generator", "attrs": { "wave": "square", "frequency": "5", "duty": "50" }, "left": 320, "top": 40 },
+    { "id": "r1",   "type": "litz-resistor", "attrs": { "value": "220" }, "left": 320, "top": 180 },
+    { "id": "led1", "type": "litz-led", "attrs": { "color": "green" }, "left": 320, "top": 300 }
+  ],
+  "connections": [
+    ["gen:OUT", "r1:1", "orange", []],
+    ["r1:2", "led1:A", "green", []],
+    ["led1:C", "esp:GND.1", "black", []],
+    ["gen:GND", "esp:GND.1", "black", []]
+  ]
+}

@@ -1,0 +1,11 @@
+[package]
+name = "litz-radio"
+description = "Deterministic shared radio medium for Litz: packets, airtime, channels and collisions."
+keywords = ["simulator", "radio", "electronics", "embedded"]
+categories = ["emulators", "embedded"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]

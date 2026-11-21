@@ -1,0 +1,21 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+# tools/fetch-circuitpython.sh 10.3.2 esp32c3 fetches this image into
+# build/circuitpython under a version-independent name; nothing is committed.
+# The image is a merged raw .bin, so it boots through the mask ROM: run with
+# LITZ_ROM_DIR=build/micropython (tools/fetch-micropython.sh puts the ROMs
+# there) or copy esp32c3_rev3_rom.elf next to the image.
+firmware = "../../build/circuitpython/circuitpython-esp32c3.bin"
+runtime = "circuitpython"
+# CircuitPython runs code.py on its own; the runner interrupts that program,
+# waits for the prompt and pastes this file over the raw REPL.
+script = "code.py"
+flash_size = "4MB"
+
+[[test]]
+name = "code.py runs over the REPL"
+timeout = "60s"
+expect = "litz: circuitpython"
+expect_state = "led1:on"

@@ -1,0 +1,24 @@
+[part]
+id = "litz-trimmer-potentiometer"
+name = "Trimmer potentiometer"
+version = "1.0.0"
+description = "Single-turn trimmer potentiometer"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "analog-out"
+label = "wiper"
+
+[pins."3"]
+kind = "passive"
+
+[attrs.value]
+type = "string"
+default = "50"
+
+[simulation]
+backend = "builtin"
+engine = "potentiometer"

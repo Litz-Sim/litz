@@ -1,0 +1,27 @@
+[part]
+id = "litz-ir-receiver"
+name = "IR receiver"
+version = "1.0.0"
+description = "38 kHz infrared receiver, NEC decoding"
+license = "MIT"
+
+[pins.GND]
+kind = "ground"
+
+[pins.VCC]
+kind = "power"
+
+[pins.DAT]
+kind = "digital-out"
+
+[attrs.address]
+type = "int"
+default = 0
+
+[attrs.command]
+type = "int"
+default = 12
+
+[simulation]
+backend = "builtin"
+engine = "ir-receiver"

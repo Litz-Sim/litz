@@ -1,0 +1,25 @@
+[part]
+id = "litz-nor"
+name = "NOR gate"
+version = "1.0.0"
+description = "Two-input NOR gate"
+license = "MIT"
+
+[pins.A]
+kind = "digital-in"
+
+[pins.B]
+kind = "digital-in"
+
+[pins.Y]
+kind = "digital-out"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "gate"

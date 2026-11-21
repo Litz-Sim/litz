@@ -1,0 +1,30 @@
+[part]
+id = "litz-gas-sensor"
+name = "Gas sensor"
+version = "1.0.0"
+description = "MQ-2 gas sensor with analog and threshold outputs"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.DOUT]
+kind = "digital-out"
+
+[pins.AOUT]
+kind = "analog-out"
+
+[attrs.ppm]
+type = "int"
+default = 400
+
+[attrs.threshold]
+type = "float"
+default = 4.4
+
+[simulation]
+backend = "builtin"
+engine = "gas-sensor"

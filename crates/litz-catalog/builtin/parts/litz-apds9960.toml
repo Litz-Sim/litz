@@ -1,0 +1,48 @@
+[part]
+id = "litz-apds9960"
+name = "APDS9960"
+version = "1.0.0"
+description = "Proximity, ambient-light and RGB sensor"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.INT]
+kind = "digital-out"
+
+[attrs.clear]
+type = "int"
+default = 1000
+
+[attrs.red]
+type = "int"
+default = 2000
+
+[attrs.green]
+type = "int"
+default = 1000
+
+[attrs.blue]
+type = "int"
+default = 500
+
+[attrs.proximity]
+type = "int"
+default = 0
+
+[buses.i2c0]
+address = 0x39
+
+[simulation]
+backend = "builtin"
+engine = "apds9960"

@@ -1,0 +1,38 @@
+[part]
+id = "litz-microsd-card"
+name = "microSD card"
+version = "1.0.0"
+description = "SPI microSD card with a byte image"
+license = "MIT"
+
+[pins.CD]
+kind = "digital-out"
+
+[pins.DO]
+kind = "spi-miso"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SCK]
+kind = "spi-sck"
+
+[pins.VCC]
+kind = "power"
+
+[pins.DI]
+kind = "spi-mosi"
+
+[pins.CS]
+kind = "spi-cs"
+
+[attrs.image]
+type = "string"
+default = ""
+
+[buses.spi0]
+cs = "CS"
+
+[simulation]
+backend = "builtin"
+engine = "microsd"

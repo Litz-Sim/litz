@@ -1,0 +1,17 @@
+[package]
+name = "litz-part-example"
+description = "Example Litz wasm part: an output pin mirrors an input pin."
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+
+# The template lives inside the Litz checkout but is not one of its crates;
+# the empty table makes Cargo treat this directory as its own workspace root.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+litz-part-sdk = { path = "../../crates/litz-part-sdk" }

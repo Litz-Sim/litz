@@ -1,0 +1,15 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+# tools/fetch-micropython.sh fetches this image into build/micropython.
+firmware = "../../build/micropython/ESP32_GENERIC_C6-20260824-v1.29.0.bin"
+runtime = "micropython"
+script = "main.py"
+flash_size = "4MB"
+
+[[test]]
+name = "main.py runs over the REPL"
+timeout = "20s"
+expect = "litz: micropython"
+expect_state = "led1:on"

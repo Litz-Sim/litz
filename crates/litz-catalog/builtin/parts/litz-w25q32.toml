@@ -1,0 +1,39 @@
+[part]
+id = "litz-w25q32"
+name = "W25Q32"
+version = "1.0.0"
+description = "4 MiB SPI NOR flash"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.CS]
+kind = "spi-cs"
+
+[pins.CLK]
+kind = "spi-sck"
+
+[pins.DI]
+kind = "spi-mosi"
+
+[pins.DO]
+kind = "spi-miso"
+
+[pins.WP]
+kind = "digital-in"
+label = "write protect, active low"
+
+[pins.HOLD]
+kind = "digital-in"
+label = "hold, active low"
+
+[buses.spi0]
+cs = "CS"
+
+[simulation]
+backend = "builtin"
+engine = "w25q32"

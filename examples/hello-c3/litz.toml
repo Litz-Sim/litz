@@ -1,0 +1,13 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/hello_world.bin"
+bootloader = "firmware/bootloader.bin"
+partition_table = "firmware/partition-table.bin"
+flash_size = "4MB"
+
+[[test]]
+name = "boots and greets"
+timeout = "10s"
+expect = ["Hello world!", "esp32c3 chip"]

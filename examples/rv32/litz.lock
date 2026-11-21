@@ -1,0 +1,19 @@
+version = 1
+
+[[entry]]
+type = "board-litz-rv32"
+version = "1.0.0"
+sha256 = "3ca978bb1829fce3a147d19db95cfbaa5152e23320931b1990804b9fb521d74c"
+
+[[entry]]
+type = "litz-led"
+version = "1.0.0"
+sha256 = "a8d86cc557a28cc146c22c549704ca24825cc01053c6445f1511cdfc8396ecad"
+
+[[entry]]
+type = "litz-resistor"
+version = "1.0.0"
+sha256 = "a0fd26342420c3740d19e88a74dc9c3be946d7f57c714deac416a853388dce35"
+
+[firmware]
+sha256 = "5d5e228d3f48d2d59b3182c8a20848d42388d9a2a4ad51036f0730f24a45688b"

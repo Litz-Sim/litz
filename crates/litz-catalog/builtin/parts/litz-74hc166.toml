@@ -1,0 +1,58 @@
+[part]
+id = "litz-74hc166"
+name = "74HC166"
+version = "1.0.0"
+description = "8-bit parallel-in, serial-out shift register"
+license = "MIT"
+
+[pins.D0]
+kind = "digital-in"
+
+[pins.D1]
+kind = "digital-in"
+
+[pins.D2]
+kind = "digital-in"
+
+[pins.D3]
+kind = "digital-in"
+
+[pins.D4]
+kind = "digital-in"
+
+[pins.D5]
+kind = "digital-in"
+
+[pins.D6]
+kind = "digital-in"
+
+[pins.D7]
+kind = "digital-in"
+
+[pins.PL]
+kind = "digital-in"
+
+[pins.CP]
+kind = "digital-in"
+
+[pins.CE]
+kind = "digital-in"
+
+[pins.DS]
+kind = "digital-in"
+
+[pins.Q7]
+kind = "digital-out"
+
+[pins.Q7_N]
+kind = "digital-out"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "74hc166"

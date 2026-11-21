@@ -1,0 +1,15 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+# tools/fetch-micropython.sh fetches this image into build/micropython.
+firmware = "../../build/micropython/ESP32_GENERIC-20260824-v1.29.0.bin"
+runtime = "micropython"
+script = "main.py"
+flash_size = "4MB"
+
+[[test]]
+name = "the board joins the simulated access point and fetches a page"
+timeout = "90s"
+expect = "litz: page litz: wifi works"
+expect_state = "led1:on"

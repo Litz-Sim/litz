@@ -1,0 +1,32 @@
+[part]
+id = "litz-lcd2004-i2c"
+name = "LCD 2004 I2C"
+version = "1.0.0"
+description = "20x4 character LCD with a PCF8574 I2C backpack"
+license = "MIT"
+
+[pins.GND]
+kind = "ground"
+
+[pins.VCC]
+kind = "power"
+
+[pins.SDA]
+kind = "i2c-sda"
+label = "I2C data"
+
+[pins.SCL]
+kind = "i2c-scl"
+label = "I2C clock"
+
+[attrs.color]
+type = "enum"
+values = ["black", "white", "blue"]
+default = "black"
+
+[buses.i2c0]
+address = 0x27
+
+[simulation]
+backend = "builtin"
+engine = "hd44780-i2c"

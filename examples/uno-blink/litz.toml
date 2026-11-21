@@ -1,0 +1,14 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/uno-blink.hex"
+flash_size = "32KB"
+
+# Six bytes of hand-assembled AVR: sbi DDRB,5 ; sbi PORTB,5 ; rjmp .
+# It drives the Uno's onboard D13 LED through the real ATmega328P core, with
+# no Arduino runtime and no avr-gcc on the machine.
+[[test]]
+name = "the onboard LED on D13 lights"
+timeout = "1s"
+expect_state = "uno/led_l:on"

@@ -1,0 +1,29 @@
+[part]
+id = "litz-force-sensor"
+name = "Force sensor FSR"
+version = "1.0.0"
+description = "Force-sensitive resistor reported as an analog voltage"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.AO]
+kind = "analog-out"
+label = "force as a fraction of vref"
+
+# Applied force, 0 through 1000 permille of the sensor's range.
+[attrs.force]
+type = "int"
+default = 300
+
+[attrs.vref]
+type = "float"
+default = 3.3
+
+[simulation]
+backend = "builtin"
+engine = "force-sensor"

@@ -1,0 +1,108 @@
+[board]
+id = "board-esp32-s31-coreboard"
+name = "ESP32-S31 Function CoreBoard"
+version = "1.0.0"
+description = "Espressif ESP32-S31 Function CoreBoard"
+chip = "esp32s31"
+flash_size = "16MB"
+psram = true
+schematic = "onboard-devkit.json"
+
+[[pins]]
+name = "3V3"
+fixed = "3v3"
+label = "3.3 V rail"
+
+[[pins]]
+name = "5V"
+fixed = "5v"
+label = "USB 5 V rail"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+repeat = 3
+
+[[pins]]
+name = "GPIO0"
+gpio = 0
+
+[[pins]]
+name = "GPIO1"
+gpio = 1
+
+[[pins]]
+name = "GPIO2"
+gpio = 2
+
+[[pins]]
+name = "GPIO3"
+gpio = 3
+
+[[pins]]
+name = "GPIO4"
+gpio = 4
+
+[[pins]]
+name = "GPIO5"
+gpio = 5
+
+[[pins]]
+name = "GPIO6"
+gpio = 6
+
+[[pins]]
+name = "GPIO7"
+gpio = 7
+
+[[pins]]
+name = "GPIO8"
+gpio = 8
+
+[[pins]]
+name = "GPIO9"
+gpio = 9
+
+[[pins]]
+name = "GPIO10"
+gpio = 10
+
+[[pins]]
+name = "GPIO11"
+gpio = 11
+
+[[pins]]
+name = "GPIO12"
+gpio = 12
+
+[[pins]]
+name = "GPIO13"
+gpio = 13
+
+[[pins]]
+name = "GPIO14"
+gpio = 14
+
+[[pins]]
+name = "GPIO15"
+gpio = 15
+
+[[pins]]
+name = "GPIO16"
+gpio = 16
+
+[[pins]]
+name = "GPIO17"
+gpio = 17
+
+[[pins]]
+name = "GPIO18"
+gpio = 18
+
+[[pins]]
+name = "GPIO19"
+gpio = 19
+
+[[pins]]
+name = "GPIO20"
+gpio = 20

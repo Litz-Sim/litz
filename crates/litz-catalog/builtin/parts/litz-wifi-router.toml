@@ -1,0 +1,67 @@
+[part]
+id = "litz-wifi-router"
+name = "Wi-Fi router"
+version = "1.0.0"
+description = "Access point with a deterministic TCP/UDP network behind it"
+license = "MIT"
+
+[pins."3V3"]
+kind = "power"
+number = 1
+label = "supply"
+
+[pins.GND]
+kind = "ground"
+number = 2
+
+[attrs.ssid]
+type = "string"
+default = "litz"
+
+[attrs.psk]
+type = "string"
+default = ""
+
+[attrs.channel]
+type = "int"
+default = 6
+
+[attrs.http]
+type = "string"
+default = "hello from litz\n"
+
+[attrs.echo]
+type = "string"
+default = "7"
+
+[attrs.udp_echo]
+type = "string"
+default = ""
+
+[attrs.https]
+type = "string"
+default = ""
+label = "HTTPS body on 443, empty for none"
+
+[attrs.ws]
+type = "string"
+default = ""
+label = "WebSocket echo ports"
+
+[attrs.wss]
+type = "string"
+default = ""
+label = "WebSocket-over-TLS echo ports"
+
+[attrs.mqtt]
+type = "int"
+default = 1883
+label = "MQTT broker port, 0 for none"
+
+[attrs.nearby]
+type = "string"
+default = ""
+
+[simulation]
+backend = "builtin"
+engine = "router"

@@ -1,0 +1,28 @@
+[part]
+id = "litz-zener"
+name = "Zener diode"
+version = "1.0.0"
+description = "Zener diode with a breakdown voltage"
+license = "MIT"
+
+[pins.A]
+kind = "passive"
+label = "anode"
+
+[pins.C]
+kind = "passive"
+label = "cathode"
+
+# Reverse breakdown voltage, in volts.
+[attrs.vz]
+type = "float"
+default = 5.1
+
+# Forward drop, in volts.
+[attrs.vf]
+type = "float"
+default = 0.7
+
+[simulation]
+backend = "builtin"
+engine = "diode"

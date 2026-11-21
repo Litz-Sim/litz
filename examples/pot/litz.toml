@@ -1,0 +1,13 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/pot.bin"
+flash_size = "4MB"
+
+# Generated, not downloaded: `cargo run -p litz-fixture -- pot
+# examples/pot/firmware/pot.bin` rebuilds it.
+[[test]]
+name = "the firmware boots and reads the knob"
+timeout = "1s"
+expect = "litz: turn the knob"

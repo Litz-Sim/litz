@@ -1,0 +1,15 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+# The same image the esp32sim example runs: this board's MCU is a wasm
+# component (board-litz-rv32 -> litz-rv32.wasm), and the firmware does not
+# know the difference.
+firmware = "../blinky/firmware/blinky.bin"
+flash_size = "4MB"
+
+[[test]]
+name = "the LED on GPIO8 blinks on the reference chip"
+timeout = "2s"
+expect_state = "led1:on"
+expect = "litz: blinky"

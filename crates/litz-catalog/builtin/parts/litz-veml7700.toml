@@ -1,0 +1,29 @@
+[part]
+id = "litz-veml7700"
+name = "VEML7700"
+version = "1.0.0"
+description = "High-accuracy ambient-light sensor"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[attrs.lux]
+type = "float"
+default = 500.0
+
+[buses.i2c0]
+address = 0x10
+
+[simulation]
+backend = "builtin"
+engine = "veml7700"

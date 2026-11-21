@@ -1,0 +1,22 @@
+[part]
+id = "litz-clock-generator"
+name = "Clock generator"
+version = "1.0.0"
+description = "Free-running digital clock signal"
+license = "MIT"
+
+[pins.CLK]
+kind = "digital-out"
+label = "clock output"
+
+[pins.GND]
+kind = "ground"
+# Written as a string with an optional k/m suffix.
+
+[attrs.frequency]
+type = "string"
+default = "10k"
+
+[simulation]
+backend = "builtin"
+engine = "clock-generator"

@@ -1,0 +1,25 @@
+[part]
+id = "litz-and"
+name = "AND gate"
+version = "1.0.0"
+description = "Two-input AND gate"
+license = "MIT"
+
+[pins.A]
+kind = "digital-in"
+
+[pins.B]
+kind = "digital-in"
+
+[pins.Y]
+kind = "digital-out"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "gate"

@@ -1,0 +1,28 @@
+[part]
+id = "litz-pushbutton-latching"
+name = "Pushbutton latching"
+version = "1.0.0"
+description = "Push-on, push-off latching switch"
+license = "MIT"
+
+# Two contacts, each with a left and a right leg; a press toggles the latch.
+[pins."1.l"]
+kind = "passive"
+
+[pins."1.r"]
+kind = "passive"
+
+[pins."2.l"]
+kind = "passive"
+
+[pins."2.r"]
+kind = "passive"
+
+[attrs.color]
+type = "enum"
+values = ["green", "blue", "red", "yellow", "white", "black"]
+default = "black"
+
+[simulation]
+backend = "builtin"
+engine = "pushbutton-latching"

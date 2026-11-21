@@ -1,0 +1,69 @@
+[part]
+id = "litz-pcf8574"
+name = "PCF8574"
+version = "1.0.0"
+description = "8-bit I2C port expander with quasi-bidirectional pins"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 16
+
+[pins.GND]
+kind = "ground"
+number = 8
+
+[pins.SDA]
+kind = "i2c-sda"
+number = 15
+label = "I2C data"
+
+[pins.SCL]
+kind = "i2c-scl"
+number = 14
+label = "I2C clock"
+
+[pins.P0]
+kind = "digital-io"
+number = 4
+
+[pins.P1]
+kind = "digital-io"
+number = 5
+
+[pins.P2]
+kind = "digital-io"
+number = 6
+
+[pins.P3]
+kind = "digital-io"
+number = 7
+
+[pins.P4]
+kind = "digital-io"
+number = 9
+
+[pins.P5]
+kind = "digital-io"
+number = 10
+
+[pins.P6]
+kind = "digital-io"
+number = 11
+
+[pins.P7]
+kind = "digital-io"
+number = 12
+
+[pins.INT]
+kind = "digital-out"
+number = 13
+label = "interrupt, open drain"
+
+# A0/A1/A2 are tied low on the reference module.
+[buses.i2c0]
+address = 0x20
+
+[simulation]
+backend = "builtin"
+engine = "pcf8574"

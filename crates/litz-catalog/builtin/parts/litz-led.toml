@@ -1,0 +1,29 @@
+[part]
+id = "litz-led"
+name = "LED"
+version = "1.0.0"
+description = "5 mm through-hole LED"
+license = "MIT"
+
+[pins.A]
+kind = "digital-in"
+number = 1
+label = "anode"
+
+[pins.C]
+kind = "ground"
+number = 2
+label = "cathode"
+
+[attrs.color]
+type = "enum"
+values = ["red", "green", "blue", "yellow", "white", "orange"]
+default = "red"
+
+[attrs.label]
+type = "string"
+default = ""
+
+[simulation]
+backend = "builtin"
+engine = "led"

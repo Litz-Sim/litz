@@ -1,0 +1,38 @@
+[part]
+id = "litz-sound-sensor"
+name = "Sound sensor"
+version = "1.0.0"
+description = "Electret microphone module with analog envelope and threshold outputs"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.AO]
+kind = "analog-out"
+
+[pins.DO]
+kind = "digital-out"
+
+[attrs.value]
+type = "float"
+default = 300
+
+[attrs.threshold]
+type = "float"
+default = 500
+
+[attrs.activeLow]
+type = "bool"
+default = false
+
+[attrs.vref]
+type = "float"
+default = 5.0
+
+[simulation]
+backend = "builtin"
+engine = "analog-sensor"

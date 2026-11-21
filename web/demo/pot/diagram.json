@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "esp",  "type": "board-esp32-c3-devkitm-1", "attrs": {} },
+    { "id": "pot1", "type": "litz-potentiometer", "attrs": { "value": "0" } },
+    { "id": "r1",   "type": "litz-resistor", "attrs": { "value": "220" } },
+    { "id": "led1", "type": "litz-led", "attrs": { "color": "green" } }
+  ],
+  "connections": [
+    ["esp:GND.1", "pot1:1", "black", []],
+    ["pot1:2", "esp:GPIO0", "green", []],
+    ["pot1:3", "esp:3V3", "red", []],
+    ["esp:GPIO8", "r1:1", "green", []],
+    ["r1:2", "led1:A", "green", []],
+    ["led1:C", "esp:GND.1", "black", []],
+    ["esp:TX", "$serialMonitor:RX", "", []]
+  ]
+}

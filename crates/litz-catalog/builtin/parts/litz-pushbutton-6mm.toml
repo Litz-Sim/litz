@@ -1,0 +1,27 @@
+[part]
+id = "litz-pushbutton-6mm"
+name = "Pushbutton 6mm"
+version = "1.0.0"
+description = "6 mm momentary tactile switch"
+license = "MIT"
+
+[pins."1.l"]
+kind = "passive"
+
+[pins."1.r"]
+kind = "passive"
+
+[pins."2.l"]
+kind = "passive"
+
+[pins."2.r"]
+kind = "passive"
+
+[attrs.color]
+type = "enum"
+values = ["green", "blue", "red", "yellow", "white", "black"]
+default = "black"
+
+[simulation]
+backend = "builtin"
+engine = "pushbutton"

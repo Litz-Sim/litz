@@ -1,0 +1,20 @@
+version = 1
+
+[[entry]]
+type = "board-esp32-s3-devkitc-1"
+version = "1.0.0"
+sha256 = "345e71d00e95c454a478e58f1ea83598e8e4adef8b0ca7d185a6d0b4916483ee"
+
+[[entry]]
+type = "litz-led"
+version = "1.0.0"
+sha256 = "a8d86cc557a28cc146c22c549704ca24825cc01053c6445f1511cdfc8396ecad"
+
+[[entry]]
+type = "litz-resistor"
+version = "1.0.0"
+sha256 = "a0fd26342420c3740d19e88a74dc9c3be946d7f57c714deac416a853388dce35"
+
+[firmware]
+sha256 = "1dd9dcd27ba2d6a1cb7f7b49a063f46d3d807d68b0151161233920228285e300"
+rom_sha256 = "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"

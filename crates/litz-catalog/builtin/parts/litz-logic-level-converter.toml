@@ -1,0 +1,43 @@
+[part]
+id = "litz-logic-level-converter"
+name = "Logic level converter"
+version = "1.0.0"
+description = "Four-channel bidirectional logic-level translator"
+license = "MIT"
+
+[pins.LV]
+kind = "power"
+
+[pins.HV]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.LV1]
+kind = "digital-io"
+
+[pins.LV2]
+kind = "digital-io"
+
+[pins.LV3]
+kind = "digital-io"
+
+[pins.LV4]
+kind = "digital-io"
+
+[pins.HV1]
+kind = "digital-io"
+
+[pins.HV2]
+kind = "digital-io"
+
+[pins.HV3]
+kind = "digital-io"
+
+[pins.HV4]
+kind = "digital-io"
+
+[simulation]
+backend = "builtin"
+engine = "level-shifter"

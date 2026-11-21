@@ -1,0 +1,38 @@
+[part]
+id = "litz-relay"
+name = "Relay"
+version = "1.0.0"
+description = "Single-pole double-throw relay"
+license = "MIT"
+
+[pins.IN]
+kind = "digital-in"
+number = 1
+label = "coil drive"
+
+[pins.VCC]
+kind = "power"
+number = 2
+
+[pins.GND]
+kind = "ground"
+number = 3
+
+[pins.NO]
+kind = "passive"
+number = 4
+label = "normally open"
+
+[pins.NC]
+kind = "passive"
+number = 5
+label = "normally closed"
+
+[pins.COM]
+kind = "passive"
+number = 6
+label = "common"
+
+[simulation]
+backend = "builtin"
+engine = "relay"

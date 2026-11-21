@@ -1,0 +1,52 @@
+[part]
+id = "litz-adxl345"
+name = "ADXL345"
+version = "1.0.0"
+description = "Three-axis digital accelerometer"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.CS]
+kind = "digital-in"
+label = "chip select, high for I2C"
+
+[pins.SDO]
+kind = "digital-in"
+label = "address select, low for 0x53"
+
+[pins.INT1]
+kind = "digital-out"
+
+[pins.INT2]
+kind = "digital-out"
+
+# Acceleration in g, one attribute per axis.
+[attrs.x]
+type = "float"
+default = 0.0
+
+[attrs.y]
+type = "float"
+default = 0.0
+
+[attrs.z]
+type = "float"
+default = 1.0
+
+[buses.i2c0]
+address = 0x53
+
+[simulation]
+backend = "builtin"
+engine = "adxl345"

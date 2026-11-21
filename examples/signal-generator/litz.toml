@@ -1,0 +1,20 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/hello.bin"
+
+# The generator is the only thing driving the LED; the firmware just prints.
+[[probe]]
+name = "sig"
+point = "gen:OUT"
+
+[[test]]
+name = "the generator lights the LED"
+timeout = "1s"
+expect = "litz: hello"
+# 5 Hz is a 200 ms period: high for the first 100 ms of each. Sampling at
+# 450 ms lands in the third period's high half, so the run lasts long enough
+# for two rising edges and the report has a frequency to print.
+expect_state = "led1:on"
+state_at = "450ms"

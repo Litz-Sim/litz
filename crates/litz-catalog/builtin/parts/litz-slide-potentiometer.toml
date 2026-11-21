@@ -1,0 +1,28 @@
+[part]
+id = "litz-slide-potentiometer"
+name = "Slide potentiometer"
+version = "1.0.0"
+description = "Linear slide potentiometer"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "analog-out"
+label = "wiper"
+
+[pins."3"]
+kind = "passive"
+
+[attrs.value]
+type = "string"
+default = "0"
+
+[attrs.travelLength]
+type = "string"
+default = "30"
+
+[simulation]
+backend = "builtin"
+engine = "slide-potentiometer"

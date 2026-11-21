@@ -1,0 +1,33 @@
+[part]
+id = "litz-mlx90614"
+name = "MLX90614"
+version = "1.0.0"
+description = "Infrared thermometer"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[attrs.object]
+type = "float"
+default = 25.0
+
+[attrs.ambient]
+type = "float"
+default = 22.0
+
+[buses.i2c0]
+address = 0x5a
+
+[simulation]
+backend = "builtin"
+engine = "mlx90614"

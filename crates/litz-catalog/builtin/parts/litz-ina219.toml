@@ -1,0 +1,43 @@
+[part]
+id = "litz-ina219"
+name = "INA219"
+version = "1.0.0"
+description = "Current and power monitor"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins."VIN+"]
+kind = "analog-in"
+
+[pins."VIN-"]
+kind = "analog-in"
+
+[attrs.busVoltage]
+type = "float"
+default = 5.0
+
+[attrs.shuntMillivolts]
+type = "float"
+default = 10.0
+
+[attrs.currentMilliamps]
+type = "float"
+default = 100.0
+
+[buses.i2c0]
+address = 0x40
+
+[simulation]
+backend = "builtin"
+engine = "ina219"

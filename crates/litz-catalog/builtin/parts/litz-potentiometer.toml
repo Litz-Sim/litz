@@ -1,0 +1,28 @@
+[part]
+id = "litz-potentiometer"
+name = "Potentiometer"
+version = "1.0.0"
+description = "10 kΩ linear rotary potentiometer"
+license = "MIT"
+
+# The track runs from 1 to 3; 2 is the wiper. Wired across 3V3 and GND it is a
+# voltage divider, which is how it reaches an ADC pin.
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "analog-out"
+label = "wiper"
+
+[pins."3"]
+kind = "passive"
+
+# Percent of travel, written as a string in the diagram like the
+# resistor's resistance).
+[attrs.value]
+type = "string"
+default = "50"
+
+[simulation]
+backend = "builtin"
+engine = "potentiometer"

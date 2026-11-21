@@ -1,0 +1,11 @@
+[package]
+name = "litz-ble"
+description = "The Bluetooth LE advertisers a circuit places: deterministic advertising data, scan responses and beacon addresses."
+keywords = ["simulator", "bluetooth", "electronics", "embedded"]
+categories = ["emulators", "embedded"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]

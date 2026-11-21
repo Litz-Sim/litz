@@ -1,0 +1,73 @@
+[part]
+id = "litz-lcd2004"
+name = "LCD 2004"
+version = "1.0.0"
+description = "20x4 character LCD, parallel 4-bit HD44780"
+license = "MIT"
+
+[pins.VSS]
+kind = "ground"
+
+[pins.VDD]
+kind = "power"
+
+[pins.V0]
+kind = "passive"
+
+[pins.RS]
+kind = "digital-in"
+
+[pins.RW]
+kind = "digital-in"
+
+[pins.E]
+kind = "digital-in"
+
+[pins.D0]
+kind = "digital-in"
+
+[pins.D1]
+kind = "digital-in"
+
+[pins.D2]
+kind = "digital-in"
+
+[pins.D3]
+kind = "digital-in"
+
+[pins.D4]
+kind = "digital-in"
+
+[pins.D5]
+kind = "digital-in"
+
+[pins.D6]
+kind = "digital-in"
+
+[pins.D7]
+kind = "digital-in"
+
+[pins.A]
+kind = "passive"
+
+[pins.K]
+kind = "ground"
+
+[attrs.color]
+type = "enum"
+values = ["black", "white", "blue"]
+default = "black"
+
+[attrs.background]
+type = "enum"
+values = ["green", "blue"]
+default = "green"
+
+[attrs.variant]
+type = "enum"
+values = ["A00", "A02"]
+default = "A00"
+
+[simulation]
+backend = "builtin"
+engine = "hd44780"

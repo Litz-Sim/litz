@@ -1,0 +1,44 @@
+[part]
+id = "litz-led-bar-graph"
+name = "LED bar graph"
+version = "1.0.0"
+description = "Ten-segment LED bar graph with a common cathode"
+license = "MIT"
+
+[pins.A1]
+kind = "digital-in"
+
+[pins.A2]
+kind = "digital-in"
+
+[pins.A3]
+kind = "digital-in"
+
+[pins.A4]
+kind = "digital-in"
+
+[pins.A5]
+kind = "digital-in"
+
+[pins.A6]
+kind = "digital-in"
+
+[pins.A7]
+kind = "digital-in"
+
+[pins.A8]
+kind = "digital-in"
+
+[pins.A9]
+kind = "digital-in"
+
+[pins.A10]
+kind = "digital-in"
+
+[pins.C]
+kind = "passive"
+label = "common cathode"
+
+[simulation]
+backend = "builtin"
+engine = "led-bar-graph"

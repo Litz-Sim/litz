@@ -1,0 +1,27 @@
+[part]
+id = "litz-fingerprint"
+name = "Fingerprint sensor"
+version = "1.0.0"
+description = "R307-style fingerprint sensor on UART"
+license = "MIT"
+
+[pins.TX]
+kind = "uart-tx"
+label = "transmit to the chip"
+
+[pins.RX]
+kind = "uart-rx"
+label = "receive from the chip"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[buses.uart0]
+port = 0
+
+[simulation]
+backend = "builtin"
+engine = "fingerprint"

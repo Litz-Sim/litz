@@ -1,0 +1,34 @@
+[part]
+id = "litz-dip-switch-4"
+name = "DIP switch 4"
+version = "1.0.0"
+description = "Four electrical switches in one package"
+license = "MIT"
+
+[pins."1a"]
+kind = "passive"
+
+[pins."1b"]
+kind = "passive"
+
+[pins."2a"]
+kind = "passive"
+
+[pins."2b"]
+kind = "passive"
+
+[pins."3a"]
+kind = "passive"
+
+[pins."3b"]
+kind = "passive"
+
+[pins."4a"]
+kind = "passive"
+
+[pins."4b"]
+kind = "passive"
+
+[simulation]
+backend = "builtin"
+engine = "dip-switch"

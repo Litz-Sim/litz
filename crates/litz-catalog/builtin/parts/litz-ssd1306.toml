@@ -1,0 +1,32 @@
+[part]
+id = "litz-ssd1306"
+name = "SSD1306 OLED"
+version = "1.0.0"
+description = "128x64 monochrome I2C OLED display"
+license = "MIT"
+
+[pins.GND]
+kind = "ground"
+number = 1
+
+[pins.VCC]
+kind = "power"
+number = 2
+
+[pins.SCL]
+kind = "i2c-scl"
+number = 3
+label = "I2C clock"
+
+[pins.SDA]
+kind = "i2c-sda"
+number = 4
+label = "I2C data"
+
+# The module's onboard pull-ups put the controller at 0x3C.
+[buses.i2c0]
+address = 0x3c
+
+[simulation]
+backend = "builtin"
+engine = "ssd1306"

@@ -1,0 +1,36 @@
+[part]
+id = "litz-bjt"
+name = "BJT"
+version = "1.0.0"
+description = "Generic bipolar junction transistor, NPN or PNP"
+license = "MIT"
+
+[pins.C]
+kind = "passive"
+label = "collector"
+
+[pins.B]
+kind = "passive"
+label = "base"
+
+[pins.E]
+kind = "passive"
+label = "emitter"
+
+[attrs.polarity]
+type = "enum"
+values = ["npn", "pnp"]
+default = "npn"
+
+# Forward current gain and the base-emitter drop at the edge of conduction.
+[attrs.beta]
+type = "float"
+default = 100.0
+
+[attrs.vbe]
+type = "float"
+default = 0.7
+
+[simulation]
+backend = "builtin"
+engine = "bjt"

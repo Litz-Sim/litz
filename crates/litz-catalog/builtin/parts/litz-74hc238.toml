@@ -1,0 +1,80 @@
+[part]
+id = "litz-74hc238"
+name = "74HC238"
+version = "1.0.0"
+description = "3-to-8 line decoder with active-high outputs"
+license = "MIT"
+
+[pins.A0]
+kind = "digital-in"
+number = 1
+label = "address bit 0"
+
+[pins.A1]
+kind = "digital-in"
+number = 2
+label = "address bit 1"
+
+[pins.A2]
+kind = "digital-in"
+number = 3
+label = "address bit 2"
+
+[pins.E1]
+kind = "digital-in"
+number = 4
+label = "enable, active low"
+
+[pins.E2]
+kind = "digital-in"
+number = 5
+label = "enable, active low"
+
+[pins.E3]
+kind = "digital-in"
+number = 6
+label = "enable, active high"
+
+[pins.Y0]
+kind = "digital-out"
+number = 15
+
+[pins.Y1]
+kind = "digital-out"
+number = 14
+
+[pins.Y2]
+kind = "digital-out"
+number = 13
+
+[pins.Y3]
+kind = "digital-out"
+number = 12
+
+[pins.Y4]
+kind = "digital-out"
+number = 11
+
+[pins.Y5]
+kind = "digital-out"
+number = 10
+
+[pins.Y6]
+kind = "digital-out"
+number = 9
+
+[pins.Y7]
+kind = "digital-out"
+number = 7
+
+[pins.VCC]
+kind = "power"
+number = 16
+
+[pins.GND]
+kind = "ground"
+number = 8
+
+[simulation]
+backend = "builtin"
+engine = "74hc238"

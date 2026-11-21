@@ -1,0 +1,47 @@
+[part]
+id = "litz-ads1115"
+name = "ADS1115 ADC"
+version = "1.0.0"
+description = "Four-channel 16-bit I2C ADC"
+license = "MIT"
+
+[pins.VDD]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.ADDR]
+kind = "digital-in"
+
+[pins.ALRT]
+kind = "digital-out"
+
+[attrs.a0]
+type = "float"
+default = 0.0
+
+[attrs.a1]
+type = "float"
+default = 0.0
+
+[attrs.a2]
+type = "float"
+default = 0.0
+
+[attrs.a3]
+type = "float"
+default = 0.0
+
+[buses.i2c0]
+address = 0x48
+
+[simulation]
+backend = "builtin"
+engine = "ads111x"

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "esp",   "type": "board-esp32-c3-devkitm-1", "attrs": {} },
+    { "id": "servo1", "type": "litz-servo", "attrs": {} }
+  ],
+  "connections": [
+    ["esp:5V", "servo1:V+", "red", []],
+    ["esp:GND.1", "servo1:GND", "black", []],
+    ["esp:GPIO8", "servo1:PWM", "orange", []],
+    ["esp:TX", "$serialMonitor:RX", "", []]
+  ]
+}

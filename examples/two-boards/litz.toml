@@ -1,0 +1,25 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+flash_size = "4MB"
+
+# One entry per development board. Each chip boots its own image; the wire
+# from a:GPIO8 to b:GPIO0 is what connects them.
+[[board]]
+id = "a"
+firmware = "firmware/hold-low.bin"
+
+[[board]]
+id = "b"
+firmware = "firmware/button.bin"
+
+# Generated with
+#   cargo run -p litz-fixture -- low examples/two-boards/firmware/hold-low.bin
+# and, for board b, the button example's own image.
+[[test]]
+name = "board b lights its LED while board a holds the wire low"
+timeout = "2s"
+# A leading `<board>@` reads that board's console instead of the merged one.
+expect = ["a@litz: holding GPIO8 low", "b@litz: press the button"]
+expect_state = "led1:on"

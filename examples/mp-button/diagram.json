@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "esp",  "type": "board-esp32-c3-devkitm-1", "attrs": {} },
+    { "id": "r1",   "type": "litz-resistor", "attrs": { "value": "220" } },
+    { "id": "led1", "type": "litz-led", "attrs": { "color": "green" } },
+    { "id": "r2",   "type": "litz-resistor", "attrs": { "value": "10000" } },
+    { "id": "btn1", "type": "litz-pushbutton", "attrs": {} }
+  ],
+  "connections": [
+    ["esp:GPIO8", "r1:1", "green", []],
+    ["r1:2", "led1:A", "green", []],
+    ["led1:C", "esp:GND.1", "black", []],
+    ["esp:3V3", "r2:1", "red", []],
+    ["r2:2", "esp:GPIO0", "orange", []],
+    ["esp:GPIO0", "btn1:1.l", "orange", []],
+    ["btn1:2.l", "esp:GND.1", "black", []],
+    ["esp:TX", "$serialMonitor:RX", "", []]
+  ]
+}

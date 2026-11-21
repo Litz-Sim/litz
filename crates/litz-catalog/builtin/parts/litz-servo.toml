@@ -1,0 +1,25 @@
+[part]
+id = "litz-servo"
+name = "Servo"
+version = "1.0.0"
+description = "Hobby servo, 180 degree"
+license = "MIT"
+
+[pins.GND]
+kind = "passive"
+number = 1
+label = "ground"
+
+[pins."V+"]
+kind = "passive"
+number = 2
+label = "power"
+
+[pins.PWM]
+kind = "passive"
+number = 3
+label = "signal"
+
+[simulation]
+backend = "builtin"
+engine = "servo"

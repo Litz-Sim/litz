@@ -1,0 +1,15 @@
+[package]
+name = "litz-catalog"
+description = "Part and dev-board manifests for Litz: the catalog a circuit's part types resolve against."
+keywords = ["simulator", "components", "catalog", "embedded"]
+categories = ["emulators", "embedded"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+litz-diagram = { version = "0.0.1", path = "../litz-diagram" }
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+toml = "1.2.1"

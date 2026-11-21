@@ -1,0 +1,41 @@
+{
+  "name": "litz",
+  "version": "0.1.0",
+  "description": "Deterministic electronics and firmware simulator in WebAssembly",
+  "keywords": [
+    "simulator",
+    "emulator",
+    "esp32",
+    "firmware",
+    "electronics",
+    "wasm"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "author": "redelectricity",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./litz_wasm.wasm": "./litz_wasm.wasm",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "litz_wasm.wasm",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/",
+    "prepublishOnly": "node scripts/build.mjs && node --test test/"
+  }
+}

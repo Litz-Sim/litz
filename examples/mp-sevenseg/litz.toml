@@ -1,0 +1,17 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "../../build/micropython/ESP32_GENERIC_C3-20260824-v1.29.0.bin"
+rom = "build/micropython/esp32c3_rev3_rom.elf"
+runtime = "micropython"
+script = "main.py"
+flash_size = "4MB"
+
+# Segment a is bit 0 and dp bit 7, so one digit is one mask. The script shows
+# "1" (segments b and c) and then "7" (a, b and c).
+[[test]]
+name = "the seven-segment display shows 1 and then 7"
+timeout = "20s"
+expect = ["litz: sevenseg", "litz: one", "litz: seven"]
+expect_state = ["seg1:0x06", "seg1:0x07"]

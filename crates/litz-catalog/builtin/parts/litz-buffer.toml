@@ -1,0 +1,22 @@
+[part]
+id = "litz-buffer"
+name = "Buffer"
+version = "1.0.0"
+description = "Non-inverting buffer"
+license = "MIT"
+
+[pins.A]
+kind = "digital-in"
+
+[pins.Y]
+kind = "digital-out"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "gate"

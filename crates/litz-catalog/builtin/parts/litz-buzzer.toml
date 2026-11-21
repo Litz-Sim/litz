@@ -1,0 +1,25 @@
+[part]
+id = "litz-buzzer"
+name = "Buzzer"
+version = "1.0.0"
+description = "12 mm through-hole buzzer"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+number = 1
+label = "positive"
+
+[pins."2"]
+kind = "passive"
+number = 2
+label = "negative"
+
+[attrs.buzzerType]
+type = "enum"
+values = ["active", "passive"]
+default = "active"
+
+[simulation]
+backend = "builtin"
+engine = "buzzer"

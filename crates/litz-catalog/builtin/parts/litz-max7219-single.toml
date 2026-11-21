@@ -1,0 +1,44 @@
+[part]
+id = "litz-max7219-single"
+name = "MAX7219 8x8 matrix (pin level)"
+version = "1.0.0"
+description = "Single MAX7219-driven 8x8 LED matrix on DIN/CLK/LOAD pins"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 19
+
+[pins.GND]
+kind = "ground"
+number = 4
+label = "ground and logic ground"
+
+[pins.DIN]
+kind = "digital-in"
+number = 1
+label = "serial data in, sampled on the CLK rising edge"
+
+[pins.CLK]
+kind = "digital-in"
+number = 13
+label = "shift clock"
+
+[pins.LOAD]
+kind = "digital-in"
+number = 12
+label = "load / chip select, latch on rising edge"
+
+[pins.DOUT]
+kind = "digital-out"
+number = 24
+label = "serial data out for a chained unit"
+
+[attrs.color]
+type = "enum"
+values = ["red", "green", "blue", "yellow"]
+default = "red"
+
+[simulation]
+backend = "builtin"
+engine = "max7219-single"

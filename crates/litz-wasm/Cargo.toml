@@ -1,0 +1,28 @@
+[package]
+name = "litz-wasm"
+description = "WebAssembly bindings for Litz: run the same simulator in a browser, in Node, or under WASI."
+keywords = ["simulator", "wasm", "embedded", "emulator"]
+categories = ["emulators", "wasm"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+litz-core = { version = "0.0.1", path = "../litz-core" }
+litz-diagram = { version = "0.0.1", path = "../litz-diagram" }
+litz-engine = { version = "0.0.1", path = "../litz-engine" }
+litz-esp = { version = "0.0.1", path = "../litz-esp", features = ["esp32c3"] }
+litz-mcu = { version = "0.0.1", path = "../litz-mcu" }
+litz-net = { version = "0.0.1", path = "../litz-net", optional = true }
+
+[dev-dependencies]
+litz-fixture = { path = "../litz-fixture" }
+
+[features]
+# `litz_tls_probe`: an export `tools/tls-probe.mjs` calls on the built module
+# to run a TLS handshake in the browser build. Not part of a page's ABI.
+tls-probe = ["dep:litz-net"]

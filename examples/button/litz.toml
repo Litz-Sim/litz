@@ -1,0 +1,20 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/button.bin"
+flash_size = "4MB"
+
+# Generated like `blinky`, with `cargo run -p litz-fixture -- button ...`.
+# The press is host input, so this test needs no firmware cooperation beyond
+# what a person would do with a finger.
+[[test]]
+name = "holding the button lights the LED"
+timeout = "1s"
+expect = "litz: press the button"
+expect_state = "led1:on"
+
+[[test.input]]
+at = "100ms"
+pin = "btn1"
+level = 0

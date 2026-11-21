@@ -1,0 +1,21 @@
+[part]
+id = "litz-inductor"
+name = "Inductor"
+version = "1.0.0"
+description = "Two-terminal inductor"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "passive"
+
+# Inductance as a diagram writes it: "10mH", "100uH", "1H".
+[attrs.value]
+type = "string"
+default = "10mH"
+
+[simulation]
+backend = "builtin"
+engine = "inductor"

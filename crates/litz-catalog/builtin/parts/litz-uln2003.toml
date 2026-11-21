@@ -1,0 +1,58 @@
+[part]
+id = "litz-uln2003"
+name = "ULN2003"
+version = "1.0.0"
+description = "Seven-channel Darlington driver array"
+license = "MIT"
+
+[pins.IN1]
+kind = "digital-in"
+
+[pins.IN2]
+kind = "digital-in"
+
+[pins.IN3]
+kind = "digital-in"
+
+[pins.IN4]
+kind = "digital-in"
+
+[pins.IN5]
+kind = "digital-in"
+
+[pins.IN6]
+kind = "digital-in"
+
+[pins.IN7]
+kind = "digital-in"
+
+[pins.OUT1]
+kind = "digital-out"
+
+[pins.OUT2]
+kind = "digital-out"
+
+[pins.OUT3]
+kind = "digital-out"
+
+[pins.OUT4]
+kind = "digital-out"
+
+[pins.OUT5]
+kind = "digital-out"
+
+[pins.OUT6]
+kind = "digital-out"
+
+[pins.OUT7]
+kind = "digital-out"
+
+[pins.COM]
+kind = "passive"
+
+[pins.GND]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "uln2003"

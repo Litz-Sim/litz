@@ -1,0 +1,25 @@
+[part]
+id = "litz-rotary-encoder"
+name = "Rotary encoder"
+version = "1.0.0"
+description = "Quadrature rotary encoder with push switch"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.CLK]
+kind = "digital-out"
+
+[pins.DT]
+kind = "digital-out"
+
+[pins.SW]
+kind = "digital-out"
+
+[simulation]
+backend = "builtin"
+engine = "rotary-encoder"

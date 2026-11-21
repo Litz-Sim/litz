@@ -1,0 +1,25 @@
+[part]
+id = "litz-analog-joystick"
+name = "Analog joystick"
+version = "1.0.0"
+description = "Two-axis analog joystick with push button"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.VERT]
+kind = "analog-out"
+
+[pins.HORZ]
+kind = "analog-out"
+
+[pins.SEL]
+kind = "digital-out"
+
+[simulation]
+backend = "builtin"
+engine = "analog-joystick"

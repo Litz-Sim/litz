@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "a",    "type": "board-esp32-c3-devkitm-1", "attrs": {}, "left": 40,  "top": 40 },
+    { "id": "b",    "type": "board-esp32-c3-devkitm-1", "attrs": {}, "left": 40,  "top": 400 },
+    { "id": "r1",   "type": "litz-resistor", "attrs": { "value": "220" }, "left": 390, "top": 400, "rotate": 90 },
+    { "id": "led1", "type": "litz-led", "attrs": { "color": "green" }, "left": 382, "top": 560 }
+  ],
+  "connections": [
+    ["a:GPIO8", "b:GPIO0", "orange", []],
+    ["b:GPIO8", "r1:1", "green", []],
+    ["r1:2", "led1:A", "green", []],
+    ["led1:C", "b:GND.1", "black", []]
+  ]
+}

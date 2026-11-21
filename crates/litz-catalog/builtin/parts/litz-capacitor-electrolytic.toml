@@ -1,0 +1,23 @@
+[part]
+id = "litz-capacitor-electrolytic"
+name = "Electrolytic capacitor"
+version = "1.0.0"
+description = "Polarised electrolytic capacitor"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+label = "positive"
+
+[pins."2"]
+kind = "passive"
+label = "negative"
+
+# Capacitance as a diagram writes it: "10u", "100u", "1000u".
+[attrs.value]
+type = "string"
+default = "10u"
+
+[simulation]
+backend = "builtin"
+engine = "capacitor"

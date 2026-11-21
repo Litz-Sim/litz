@@ -1,0 +1,40 @@
+[part]
+id = "litz-st7735"
+name = "ST7735 TFT"
+version = "1.0.0"
+description = "160x128 RGB565 SPI display"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.CS]
+kind = "spi-cs"
+
+[pins.RESET]
+kind = "digital-in"
+
+[pins.DC]
+kind = "digital-in"
+
+[pins.MOSI]
+kind = "spi-mosi"
+
+[pins.SCK]
+kind = "spi-sck"
+
+[pins.LED]
+kind = "passive"
+
+[pins.MISO]
+kind = "spi-miso"
+
+[buses.spi0]
+cs = "CS"
+
+[simulation]
+backend = "builtin"
+engine = "st7735"

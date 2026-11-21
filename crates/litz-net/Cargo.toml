@@ -1,0 +1,24 @@
+[package]
+name = "litz-net"
+description = "A deterministic IP network behind a simulated access point: DNS names and TCP/UDP services, no host sockets."
+keywords = ["simulator", "network", "electronics", "embedded"]
+categories = ["emulators", "network-programming"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+# `rustls` is the protocol; the cryptography is RustCrypto's provider rather
+# than `ring`, because the browser module has to link and `ring` has no
+# wasm32-unknown-unknown backend. One provider on every target also means one
+# set of handshake bytes. `src/tls.rs` replaces the provider's RNG, X25519
+# group and suite list.
+rustls = { version = "0.23.46", default-features = false, features = ["std"] }
+rustls-rustcrypto = { version = "0.1.0-pre.0", default-features = false, features = ["std"] }
+x25519-dalek = { version = "3", features = ["static_secrets"] }
+
+# Only named by the custom backend in `src/tls.rs`; the provider's own uses of
+# getrandom are replaced by the seeded RNG and key exchange.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.4", default-features = false }

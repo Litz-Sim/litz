@@ -1,0 +1,21 @@
+[part]
+id = "litz-capacitor"
+name = "Capacitor"
+version = "1.0.0"
+description = "Two-terminal capacitor"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "passive"
+
+# Capacitance as a diagram writes it: "100n", "10u", "4u7", "1m".
+[attrs.value]
+type = "string"
+default = "100n"
+
+[simulation]
+backend = "builtin"
+engine = "capacitor"

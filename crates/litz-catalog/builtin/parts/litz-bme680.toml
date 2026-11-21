@@ -1,0 +1,52 @@
+[part]
+id = "litz-bme680"
+name = "BME680"
+version = "1.0.0"
+description = "Temperature, pressure, humidity and gas sensor"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.CS]
+kind = "digital-in"
+label = "chip select, high for I2C"
+
+[pins.SDO]
+kind = "digital-in"
+label = "address select, low for 0x76"
+
+# The raw pressure, temperature and humidity words are derived from these.
+[attrs.temperature]
+type = "float"
+default = 25.0
+
+[attrs.pressure]
+type = "float"
+default = 101325.0
+
+[attrs.humidity]
+type = "float"
+default = 50.0
+
+# Gas resistance in ohms.
+[attrs.gas]
+type = "float"
+default = 100000.0
+
+# I2C is the only interface modelled; SPI is not.
+[buses.i2c0]
+address = 0x76
+
+[simulation]
+backend = "builtin"
+engine = "bme680"

@@ -1,0 +1,82 @@
+[part]
+id = "litz-at86rf233"
+name = "AT86RF233"
+version = "1.0.0"
+description = "2.4 GHz IEEE 802.15.4 transceiver on a pin-level SPI bus"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 15
+
+[pins.GND]
+kind = "ground"
+number = 1
+
+[pins.SCK]
+kind = "spi-sck"
+number = 11
+label = "SPI clock"
+
+[pins.MOSI]
+kind = "spi-mosi"
+number = 12
+label = "SPI data in"
+
+[pins.MISO]
+kind = "spi-miso"
+number = 13
+label = "SPI data out"
+
+[pins.SELN]
+kind = "spi-cs"
+number = 14
+label = "chip select, active low"
+
+[pins.RSTN]
+kind = "digital-in"
+number = 5
+label = "reset, active low"
+
+[pins.IRQ]
+kind = "digital-out"
+number = 9
+label = "interrupt, active high until the driver changes polarity"
+
+[pins.SLPTR]
+kind = "digital-in"
+number = 4
+label = "sleep control"
+
+# The medium this radio joins. Radios hear each other when network and channel
+# agree; a directed frame must also name the receiver's PAN and address.
+[attrs.network]
+type = "string"
+default = "ieee802154"
+
+# Channel page 0, channels 11 through 26, 5 MHz apart. 15 is 2425 MHz.
+[attrs.channel]
+type = "int"
+default = 15
+
+[attrs.pan]
+type = "int"
+default = 0xabcd
+
+# The 16-bit short address this station answers to.
+[attrs.address]
+type = "int"
+default = 0x0001
+
+# The 64-bit address, written most-significant byte first.
+[attrs.extended_address]
+type = "string"
+default = "0011223344556677"
+
+[attrs.power]
+type = "int"
+default = 0
+
+[simulation]
+backend = "builtin"
+engine = "at86rf233"

@@ -1,0 +1,27 @@
+[part]
+id = "litz-led-ring"
+name = "NeoPixel ring"
+version = "1.0.0"
+description = "WS2812 addressable LED ring"
+license = "MIT"
+
+[pins.VDD]
+kind = "power"
+
+[pins.DOUT]
+kind = "digital-out"
+
+[pins.VSS]
+kind = "ground"
+
+[pins.DIN]
+kind = "digital-in"
+
+# Number of pixels around the ring; the chain engine reads this as its size.
+[attrs.pixels]
+type = "int"
+default = 12
+
+[simulation]
+backend = "builtin"
+engine = "neopixel"

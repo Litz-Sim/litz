@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "esp",  "type": "board-esp32-c3-devkitm-1", "attrs": {} },
+    { "id": "seg1", "type": "litz-7segment", "attrs": { "color": "red" } }
+  ],
+  "connections": [
+    ["esp:GPIO0", "seg1:a", "green", []],
+    ["esp:GPIO1", "seg1:b", "green", []],
+    ["esp:GPIO2", "seg1:c", "green", []],
+    ["esp:GPIO3", "seg1:d", "green", []],
+    ["esp:GPIO4", "seg1:e", "green", []],
+    ["esp:GPIO5", "seg1:f", "green", []],
+    ["esp:GPIO6", "seg1:g", "green", []],
+    ["seg1:com", "esp:GND.1", "black", []],
+    ["esp:TX", "$serialMonitor:RX", "", []]
+  ]
+}

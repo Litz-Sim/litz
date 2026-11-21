@@ -1,0 +1,16 @@
+[part]
+id = "litz-reed-switch"
+name = "Reed switch"
+version = "1.0.0"
+description = "Magnetically operated normally-open contact"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "passive"
+
+[simulation]
+backend = "builtin"
+engine = "reed-switch"

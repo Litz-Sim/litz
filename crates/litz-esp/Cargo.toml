@@ -1,0 +1,48 @@
+[package]
+name = "litz-esp"
+description = "ESP32-family chips for Litz: ESP32-C3/C6 RISC-V cores, memory maps, boot ROM loading and on-chip peripherals."
+keywords = ["simulator", "emulator", "esp32", "riscv", "embedded"]
+categories = ["emulators", "embedded"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+esp-periph = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
+esp-soc = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
+esp32 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
+esp32c3 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
+esp32c6 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
+esp32p4 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
+esp32s3 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
+esp32s31 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
+litz-ble = { version = "0.0.1", path = "../litz-ble", optional = true }
+litz-board = { version = "0.0.1", path = "../litz-board", optional = true }
+litz-net = { version = "0.0.1", path = "../litz-net", optional = true }
+litz-core = { version = "0.0.1", path = "../litz-core" }
+litz-mcu = { version = "0.0.1", path = "../litz-mcu" }
+gdbstub = "0.7.10"
+
+[features]
+esp32c3 = ["dep:esp32c3", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32c6 = ["dep:esp32c6", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32 = ["dep:esp32", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32s3 = ["dep:esp32s3", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32p4 = ["dep:esp32p4", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32s31 = ["dep:esp32s31", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+
+[[test]]
+name = "c3_boot"
+required-features = ["esp32c3"]
+
+[[example]]
+name = "c3_boot"
+required-features = ["esp32c3"]
+
+[dev-dependencies]
+esp-soc = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+litz-board = { path = "../litz-board" }
+litz-catalog = { path = "../litz-catalog" }
+litz-diagram = { path = "../litz-diagram" }
+litz-fixture = { path = "../litz-fixture" }

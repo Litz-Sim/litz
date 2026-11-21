@@ -1,0 +1,95 @@
+[part]
+id = "litz-mcp23017"
+name = "MCP23017"
+version = "1.0.0"
+description = "16-bit I2C I/O expander"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.A0]
+kind = "digital-in"
+label = "address select bit 0"
+
+[pins.A1]
+kind = "digital-in"
+label = "address select bit 1"
+
+[pins.A2]
+kind = "digital-in"
+label = "address select bit 2"
+
+[pins.RESET]
+kind = "digital-in"
+label = "reset, active low"
+
+[pins.INTA]
+kind = "digital-out"
+
+[pins.INTB]
+kind = "digital-out"
+
+[pins.GPA0]
+kind = "digital-io"
+
+[pins.GPA1]
+kind = "digital-io"
+
+[pins.GPA2]
+kind = "digital-io"
+
+[pins.GPA3]
+kind = "digital-io"
+
+[pins.GPA4]
+kind = "digital-io"
+
+[pins.GPA5]
+kind = "digital-io"
+
+[pins.GPA6]
+kind = "digital-io"
+
+[pins.GPA7]
+kind = "digital-io"
+
+[pins.GPB0]
+kind = "digital-io"
+
+[pins.GPB1]
+kind = "digital-io"
+
+[pins.GPB2]
+kind = "digital-io"
+
+[pins.GPB3]
+kind = "digital-io"
+
+[pins.GPB4]
+kind = "digital-io"
+
+[pins.GPB5]
+kind = "digital-io"
+
+[pins.GPB6]
+kind = "digital-io"
+
+[pins.GPB7]
+kind = "digital-io"
+
+[buses.i2c0]
+address = 0x20
+
+[simulation]
+backend = "builtin"
+engine = "mcp23017"

@@ -1,0 +1,36 @@
+[part]
+id = "litz-ks2e-m-dc5"
+name = "DPDT relay"
+version = "1.0.0"
+description = "Two-pole double-throw relay"
+license = "MIT"
+
+[pins.COIL1]
+kind = "digital-in"
+
+[pins.COIL2]
+kind = "digital-in"
+
+[pins.P1]
+kind = "passive"
+label = "first pole"
+
+[pins.NC1]
+kind = "passive"
+
+[pins.NO1]
+kind = "passive"
+
+[pins.P2]
+kind = "passive"
+label = "second pole"
+
+[pins.NC2]
+kind = "passive"
+
+[pins.NO2]
+kind = "passive"
+
+[simulation]
+backend = "builtin"
+engine = "dpdt-relay"

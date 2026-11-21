@@ -1,0 +1,28 @@
+[part]
+id = "litz-ir-emitting-diode"
+name = "IR emitting diode"
+version = "1.0.0"
+description = "Infrared emitting diode, driven like an ordinary LED"
+license = "MIT"
+
+[pins.A]
+kind = "digital-in"
+number = 1
+label = "anode"
+
+[pins.C]
+kind = "ground"
+number = 2
+label = "cathode"
+
+[attrs.infrared]
+type = "bool"
+default = true
+
+[attrs.wavelength]
+type = "int"
+default = 940
+
+[simulation]
+backend = "builtin"
+engine = "ir-emitting-diode"

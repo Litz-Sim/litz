@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "pico", "type": "board-raspberry-pi-pico", "attrs": {} },
+    { "id": "r1",   "type": "litz-resistor", "attrs": { "value": "330" } },
+    { "id": "led1", "type": "litz-led", "attrs": { "color": "green" } }
+  ],
+  "connections": [
+    ["pico:GP15", "r1:1", "green", []],
+    ["r1:2", "led1:A", "green", []],
+    ["led1:C", "pico:GND.1", "black", []],
+    ["pico:GP0", "$serialMonitor:RX", "", []]
+  ]
+}

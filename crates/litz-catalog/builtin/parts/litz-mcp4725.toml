@@ -1,0 +1,32 @@
+[part]
+id = "litz-mcp4725"
+name = "MCP4725 DAC"
+version = "1.0.0"
+description = "12-bit I2C digital-to-analog converter"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.VOUT]
+kind = "analog-out"
+
+[attrs.value]
+type = "int"
+default = 0
+
+[buses.i2c0]
+address = 0x60
+
+[simulation]
+backend = "builtin"
+engine = "mcp4725"

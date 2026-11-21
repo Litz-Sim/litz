@@ -1,0 +1,16 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/pico-c-i2c.bin"
+flash_size = "2MB"
+
+# I2C0 reads the LM75 at 0x48 on GP4/GP5: write the pointer register, then read
+# the two-byte temperature and print it on UART0. The LED lights only when the
+# bytes have the sensor's 9-bit shape. `build.sh` regenerates the image; the
+# binary is committed, so the test itself needs no ARM toolchain.
+[[test]]
+name = "I2C0 reads the LM75 temperature at 0x48"
+timeout = "100ms"
+expect_state = "led1:on"
+expect = "litz: lm75 25.0 C"

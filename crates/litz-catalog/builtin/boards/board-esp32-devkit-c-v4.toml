@@ -1,0 +1,120 @@
+[board]
+id = "board-esp32-devkit-c-v4"
+name = "ESP32-DevKitC V4"
+version = "1.0.0"
+description = "Espressif ESP32-DevKitC V4 (Xtensa LX6, two cores)"
+chip = "esp32"
+flash_size = "4MB"
+psram = false
+schematic = "onboard-devkit.json"
+
+[[pins]]
+name = "3V3"
+fixed = "3v3"
+label = "3.3 V rail"
+
+[[pins]]
+name = "5V"
+fixed = "5v"
+label = "USB 5 V rail"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+repeat = 3
+
+[[pins]]
+name = "GPIO0"
+gpio = 0
+functions = ["boot"]
+
+[[pins]]
+name = "GPIO1"
+gpio = 1
+functions = ["uart"]
+
+[[pins]]
+name = "GPIO2"
+gpio = 2
+functions = ["adc", "strap"]
+
+[[pins]]
+name = "GPIO3"
+gpio = 3
+functions = ["uart"]
+
+[[pins]]
+name = "GPIO4"
+gpio = 4
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO5"
+gpio = 5
+functions = ["adc", "strap"]
+
+[[pins]]
+name = "GPIO8"
+gpio = 8
+
+[[pins]]
+name = "GPIO9"
+gpio = 9
+
+[[pins]]
+name = "GPIO10"
+gpio = 10
+
+[[pins]]
+name = "GPIO18"
+gpio = 18
+
+[[pins]]
+name = "GPIO19"
+gpio = 19
+
+[[pins]]
+name = "GPIO21"
+gpio = 21
+
+[[pins]]
+name = "GPIO22"
+gpio = 22
+
+[[pins]]
+name = "GPIO23"
+gpio = 23
+
+[[pins]]
+name = "GPIO25"
+gpio = 25
+
+[[pins]]
+name = "GPIO26"
+gpio = 26
+
+[[pins]]
+name = "GPIO27"
+gpio = 27
+
+[[pins]]
+name = "GPIO32"
+gpio = 32
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO33"
+gpio = 33
+functions = ["adc"]
+
+[[pins]]
+name = "TX"
+gpio = 1
+functions = ["uart"]
+label = "UART0 TX"
+
+[[pins]]
+name = "RX"
+gpio = 3
+functions = ["uart"]
+label = "UART0 RX"

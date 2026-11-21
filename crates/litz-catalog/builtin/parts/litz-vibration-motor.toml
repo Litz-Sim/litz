@@ -1,0 +1,16 @@
+[part]
+id = "litz-vibration-motor"
+name = "Vibration motor"
+version = "1.0.0"
+description = "Two-terminal vibration motor"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "passive"
+
+[simulation]
+backend = "builtin"
+engine = "vibration-motor"

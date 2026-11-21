@@ -1,0 +1,60 @@
+[part]
+id = "litz-pcf8591"
+name = "PCF8591 ADC/DAC"
+version = "1.0.0"
+description = "Four-channel 8-bit ADC with one 8-bit DAC"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.AOUT]
+kind = "analog-out"
+
+[pins.AIN0]
+kind = "analog-in"
+
+[pins.AIN1]
+kind = "analog-in"
+
+[pins.AIN2]
+kind = "analog-in"
+
+[pins.AIN3]
+kind = "analog-in"
+
+[attrs.ain0]
+type = "float"
+default = 0.0
+
+[attrs.ain1]
+type = "float"
+default = 0.0
+
+[attrs.ain2]
+type = "float"
+default = 0.0
+
+[attrs.ain3]
+type = "float"
+default = 0.0
+
+[attrs.vref]
+type = "float"
+default = 3.3
+
+[buses.i2c0]
+address = 0x48
+
+[simulation]
+backend = "builtin"
+engine = "pcf8591"

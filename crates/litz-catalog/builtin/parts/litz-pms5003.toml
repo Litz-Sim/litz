@@ -1,0 +1,42 @@
+[part]
+id = "litz-pms5003"
+name = "PMS5003 particulate sensor"
+version = "1.0.0"
+description = "Plantower PMS5003: a 32-byte PM1.0/PM2.5/PM10 frame on UART once a measurement interval"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.TX]
+kind = "uart-tx"
+
+[pins.RX]
+kind = "uart-rx"
+
+[attrs.pm1]
+type = "float"
+default = 4.0
+
+[attrs.pm25]
+type = "float"
+default = 7.0
+
+[attrs.pm10]
+type = "float"
+default = 9.0
+
+[attrs.interval]
+type = "int"
+default = 1000
+label = "measurement interval in milliseconds"
+
+[buses.uart0]
+port = 0
+
+[simulation]
+backend = "builtin"
+engine = "pms5003"

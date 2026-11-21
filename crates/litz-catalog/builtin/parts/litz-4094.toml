@@ -1,0 +1,55 @@
+[part]
+id = "litz-4094"
+name = "CD4094"
+version = "1.0.0"
+description = "8-bit serial-in, parallel-out shift register with latch"
+license = "MIT"
+
+[pins.DATA]
+kind = "digital-in"
+
+[pins.CLK]
+kind = "digital-in"
+
+[pins.STROBE]
+kind = "digital-in"
+
+[pins.OE]
+kind = "digital-in"
+
+[pins.Q0]
+kind = "digital-out"
+
+[pins.Q1]
+kind = "digital-out"
+
+[pins.Q2]
+kind = "digital-out"
+
+[pins.Q3]
+kind = "digital-out"
+
+[pins.Q4]
+kind = "digital-out"
+
+[pins.Q5]
+kind = "digital-out"
+
+[pins.Q6]
+kind = "digital-out"
+
+[pins.Q7]
+kind = "digital-out"
+
+[pins.QS]
+kind = "digital-out"
+
+[pins.VDD]
+kind = "power"
+
+[pins.VSS]
+kind = "ground"
+
+[simulation]
+backend = "builtin"
+engine = "4094"

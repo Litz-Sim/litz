@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "chip", "type": "$chip", "attrs": {} }
+  ],
+  "connections": []
+}

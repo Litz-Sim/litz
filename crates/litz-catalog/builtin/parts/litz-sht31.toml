@@ -1,0 +1,33 @@
+[part]
+id = "litz-sht31"
+name = "SHT31"
+version = "1.0.0"
+description = "Temperature and humidity sensor"
+license = "MIT"
+
+[pins.VDD]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[attrs.temperature]
+type = "float"
+default = 25.0
+
+[attrs.humidity]
+type = "float"
+default = 50.0
+
+[buses.i2c0]
+address = 0x44
+
+[simulation]
+backend = "builtin"
+engine = "sht31"

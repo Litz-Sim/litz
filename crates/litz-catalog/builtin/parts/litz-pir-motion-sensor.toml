@@ -1,0 +1,23 @@
+[part]
+id = "litz-pir-motion-sensor"
+name = "PIR motion sensor"
+version = "1.0.0"
+description = "Passive-infrared motion detector"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 1
+
+[pins.OUT]
+kind = "digital-out"
+number = 2
+label = "motion, high when detected"
+
+[pins.GND]
+kind = "ground"
+number = 3
+
+[simulation]
+backend = "builtin"
+engine = "pir-motion-sensor"

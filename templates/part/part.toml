@@ -1,0 +1,21 @@
+[part]
+id = "litz-part-example"
+name = "Example mirror"
+version = "0.1.0"
+description = "A two-pin part whose output follows its input"
+license = "MIT OR Apache-2.0"
+
+[pins.IN]
+kind = "digital-in"
+number = 1
+label = "input"
+
+[pins.OUT]
+kind = "digital-out"
+number = 2
+label = "output"
+
+[simulation]
+backend = "wasm"
+module = "part.wasm"
+abi = "litz-part-2"

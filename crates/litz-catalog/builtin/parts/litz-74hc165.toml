@@ -1,0 +1,80 @@
+[part]
+id = "litz-74hc165"
+name = "74HC165"
+version = "1.0.0"
+description = "8-bit parallel-in, serial-out shift register"
+license = "MIT"
+
+[pins.D0]
+kind = "digital-in"
+number = 11
+
+[pins.D1]
+kind = "digital-in"
+number = 12
+
+[pins.D2]
+kind = "digital-in"
+number = 13
+
+[pins.D3]
+kind = "digital-in"
+number = 14
+
+[pins.D4]
+kind = "digital-in"
+number = 3
+
+[pins.D5]
+kind = "digital-in"
+number = 4
+
+[pins.D6]
+kind = "digital-in"
+number = 5
+
+[pins.D7]
+kind = "digital-in"
+number = 6
+
+[pins.PL]
+kind = "digital-in"
+number = 1
+label = "parallel load, active low"
+
+[pins.CP]
+kind = "digital-in"
+number = 2
+label = "shift clock"
+
+[pins.CE]
+kind = "digital-in"
+number = 15
+label = "clock enable, active low"
+
+[pins.DS]
+kind = "digital-in"
+number = 10
+label = "serial data in"
+
+[pins.Q7]
+kind = "digital-out"
+number = 9
+label = "serial data out"
+
+[pins.Q7_N]
+kind = "digital-out"
+number = 7
+label = "inverted serial data out"
+
+[pins.VCC]
+kind = "power"
+number = 16
+
+[pins.GND]
+kind = "ground"
+number = 8
+
+[simulation]
+backend = "builtin"
+engine = "74hc165"

@@ -1,0 +1,46 @@
+[part]
+id = "litz-bmp280"
+name = "BMP280"
+version = "1.0.0"
+description = "Bosch BMP280 barometric pressure and temperature sensor"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 1
+label = "supply"
+
+[pins.GND]
+kind = "ground"
+number = 2
+label = "ground"
+
+[pins.SCL]
+kind = "i2c-scl"
+number = 3
+label = "I2C clock"
+
+[pins.SDA]
+kind = "i2c-sda"
+number = 4
+label = "I2C data"
+
+[pins.CSB]
+kind = "digital-in"
+number = 5
+label = "chip select, tie high for I2C"
+
+[pins.SDO]
+kind = "digital-in"
+number = 6
+label = "address select, low for 0x76"
+
+# The BMP280 answers at 0x76 when SDO is low, which is how the reference
+# board wires it. The physical SDA/SCL pins come from the diagram: a part is
+# a device on a bus because its manifest says so, and the wires say where.
+[buses.i2c0]
+address = 0x76
+
+[simulation]
+backend = "builtin"
+engine = "bmp280"

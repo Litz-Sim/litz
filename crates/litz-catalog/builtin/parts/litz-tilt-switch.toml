@@ -1,0 +1,16 @@
+[part]
+id = "litz-tilt-switch"
+name = "Tilt switch"
+version = "1.0.0"
+description = "Ball-in-cage tilt switch"
+license = "MIT"
+
+[pins."1"]
+kind = "passive"
+
+[pins."2"]
+kind = "passive"
+
+[simulation]
+backend = "builtin"
+engine = "tilt-switch"

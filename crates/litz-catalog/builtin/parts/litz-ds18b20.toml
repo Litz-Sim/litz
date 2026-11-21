@@ -1,0 +1,28 @@
+[part]
+id = "litz-ds18b20"
+name = "DS18B20"
+version = "1.0.0"
+description = "Digital temperature sensor on the 1-Wire bus"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.DQ]
+kind = "digital-io"
+label = "data"
+
+[attrs.temperature]
+type = "float"
+default = 25.0
+
+[attrs.deviceID]
+type = "string"
+default = "2800000000000001"
+
+[simulation]
+backend = "builtin"
+engine = "ds18b20"

@@ -1,0 +1,17 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "../../build/micropython/ESP32_GENERIC_C3-20260824-v1.29.0.bin"
+rom = "build/micropython/esp32c3_rev3_rom.elf"
+runtime = "micropython"
+script = "main.py"
+flash_size = "4MB"
+
+# 1.5 ms is 90 degrees on the part's 0.5-2.5 ms scale. The servo records the
+# angle from the falling edge, so the assertion reads the part, not the script.
+[[test]]
+name = "a 1.5 ms pulse train centres the servo"
+timeout = "10s"
+expect = ["litz: servo", "litz: 90 degrees"]
+expect_state = "servo1:90"

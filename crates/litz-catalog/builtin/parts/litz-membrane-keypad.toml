@@ -1,0 +1,39 @@
+[part]
+id = "litz-membrane-keypad"
+name = "Membrane keypad"
+version = "1.0.0"
+description = "4x4 membrane keypad"
+license = "MIT"
+
+[pins.R1]
+kind = "passive"
+
+[pins.R2]
+kind = "passive"
+
+[pins.R3]
+kind = "passive"
+
+[pins.R4]
+kind = "passive"
+
+[pins.C1]
+kind = "passive"
+
+[pins.C2]
+kind = "passive"
+
+[pins.C3]
+kind = "passive"
+
+[pins.C4]
+kind = "passive"
+
+[attrs.columns]
+type = "enum"
+values = ["3", "4"]
+default = "4"
+
+[simulation]
+backend = "builtin"
+engine = "membrane-keypad"

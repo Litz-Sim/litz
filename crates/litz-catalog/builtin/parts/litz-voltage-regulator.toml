@@ -1,0 +1,32 @@
+[part]
+id = "litz-voltage-regulator"
+name = "Voltage regulator"
+version = "1.0.0"
+description = "Three-terminal linear voltage regulator"
+license = "MIT"
+
+[pins.VI]
+kind = "power"
+label = "input"
+
+[pins.GND]
+kind = "ground"
+label = "ground"
+
+[pins.VO]
+kind = "power"
+label = "output"
+
+[attrs.variant]
+type = "enum"
+values = ["7805", "7812", "7905", "LM317"]
+default = "7805"
+
+# Output voltage for the adjustable LM317; the fixed parts ignore it.
+[attrs.voltage]
+type = "float"
+default = 5.0
+
+[simulation]
+backend = "builtin"
+engine = "analog"

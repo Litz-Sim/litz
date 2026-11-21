@@ -1,0 +1,16 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/echo.bin"
+flash_size = "4MB"
+
+# `write-serial` feeds UART0 RX and `wait-serial` reads it back: one test that
+# proves the console is two-way.
+[[test]]
+name = "what is typed comes back"
+timeout = "1s"
+expect = "litz: echo"
+[[test.input]]
+at = "50ms"
+serial = "hello"

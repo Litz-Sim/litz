@@ -1,0 +1,11 @@
+name: The knob drives the LED
+version: 1
+steps:
+  - wait-serial: "turn the knob"
+  - expect-pin: { part-id: led1, name: A, value: 0 }
+  - set-control: { part-id: pot1, control: value, value: 100 }
+  - delay: 20ms
+  - expect-pin: { part-id: led1, name: A, value: 1 }
+  - set-control: { part-id: pot1, control: value, value: 0 }
+  - delay: 20ms
+  - expect-pin: { part-id: led1, name: A, value: 0 }

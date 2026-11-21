@@ -1,0 +1,17 @@
+[package]
+name = "litz-avr"
+description = "A pure-Rust ATmega328P interpreter for Litz: AVR8 core, interrupts, GPIO, timers and PWM, ADC, USART, SPI, TWI and EEPROM."
+keywords = ["simulator", "emulator", "avr", "atmega328p", "embedded"]
+categories = ["emulators", "embedded"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+litz-board = { version = "0.0.1", path = "../litz-board" }
+litz-core = { version = "0.0.1", path = "../litz-core" }
+
+[dev-dependencies]
+litz-catalog = { path = "../litz-catalog" }
+litz-diagram = { path = "../litz-diagram" }

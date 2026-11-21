@@ -1,0 +1,12 @@
+[package]
+name = "litz-rp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "RP2040 (Raspberry Pi Pico) chip backend: an ARMv6-M Cortex-M0+ core and the peripherals a Pico firmware drives."
+
+[dependencies]
+litz-core = { path = "../litz-core" }
+litz-board = { path = "../litz-board" }
+litz-mcu = { path = "../litz-mcu" }

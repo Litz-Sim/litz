@@ -1,0 +1,37 @@
+[part]
+id = "litz-dht22"
+name = "DHT22"
+version = "1.0.0"
+description = "Temperature and humidity sensor on the single-wire protocol"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+number = 1
+
+[pins.SDA]
+kind = "digital-io"
+number = 2
+label = "single-wire data"
+
+[pins.NC]
+kind = "nc"
+number = 3
+
+[pins.GND]
+kind = "ground"
+number = 4
+
+# The starting reading. A host control moves temperature across -40..80 °C;
+# humidity stays at this attribute.
+[attrs.temperature]
+type = "float"
+default = 25.0
+
+[attrs.humidity]
+type = "float"
+default = 50.0
+
+[simulation]
+backend = "builtin"
+engine = "dht22"

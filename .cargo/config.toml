@@ -1,0 +1,9 @@
+# `rustls-rustcrypto` links `getrandom` for a default RNG and a default X25519
+# group, both of which Litz replaces with its seeded ones. On wasm32 that crate
+# would otherwise need its JavaScript backend, which adds imports the page does
+# not provide: `web/app.js` instantiates the module with an empty import object.
+# The custom backend is `litz_net::tls::__getrandom_v03_custom`, which reports
+# "unsupported", so a call that ever slips past the seeded provider fails loudly
+# instead of drawing entropy from the page.
+[target.wasm32-unknown-unknown]
+rustflags = ['--cfg', 'getrandom_backend="custom"']

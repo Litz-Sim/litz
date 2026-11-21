@@ -1,0 +1,38 @@
+[part]
+id = "litz-tm1637-7segment"
+name = "TM1637 4-digit display"
+version = "1.0.0"
+description = "Four-digit seven-segment module with the TM1637 two-wire protocol"
+license = "MIT"
+
+[pins.CLK]
+kind = "digital-in"
+number = 1
+label = "clock input"
+
+[pins.DIO]
+kind = "digital-io"
+number = 2
+label = "data in/out"
+
+[pins.VCC]
+kind = "power"
+number = 3
+
+[pins.GND]
+kind = "ground"
+number = 4
+
+[attrs.color]
+type = "enum"
+values = ["red", "green", "blue"]
+default = "red"
+
+[attrs.type]
+type = "enum"
+values = ["colon", "dp"]
+default = "colon"
+
+[simulation]
+backend = "builtin"
+engine = "tm1637"

@@ -1,0 +1,41 @@
+[part]
+id = "litz-lm75"
+name = "LM75"
+version = "1.0.0"
+description = "I2C temperature sensor with set points"
+license = "MIT"
+
+[pins.VCC]
+kind = "power"
+
+[pins.GND]
+kind = "ground"
+
+[pins.SDA]
+kind = "i2c-sda"
+
+[pins.SCL]
+kind = "i2c-scl"
+
+[pins.A0]
+kind = "digital-in"
+label = "address select bit 0"
+
+[pins.A1]
+kind = "digital-in"
+label = "address select bit 1"
+
+[pins.A2]
+kind = "digital-in"
+label = "address select bit 2"
+
+[attrs.temperature]
+type = "float"
+default = 25.0
+
+[buses.i2c0]
+address = 0x48
+
+[simulation]
+backend = "builtin"
+engine = "lm75"

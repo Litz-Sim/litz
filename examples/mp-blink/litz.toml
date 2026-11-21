@@ -1,0 +1,18 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+# The C3 image is merged, so it runs from the mask ROM. Paths in `[sim]` other
+# than `firmware` are read from the invocation directory (the repository root
+# for the commands in examples/README.md).
+firmware = "../../build/micropython/ESP32_GENERIC_C3-20260824-v1.29.0.bin"
+rom = "build/micropython/esp32c3_rev3_rom.elf"
+runtime = "micropython"
+script = "main.py"
+flash_size = "4MB"
+
+[[test]]
+name = "main.py blinks the LED on GPIO8"
+timeout = "20s"
+expect = ["litz: blink", "litz: done"]
+expect_state = "led1:on"
