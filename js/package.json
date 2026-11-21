@@ -12,6 +12,13 @@
   ],
   "license": "MIT OR Apache-2.0",
   "author": "redelectricity",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Litz-Sim/litz.git",
+    "directory": "js"
+  },
+  "homepage": "https://github.com/Litz-Sim/litz#readme",
+  "bugs": "https://github.com/Litz-Sim/litz/issues",
   "type": "module",
   "main": "./index.js",
   "types": "./index.d.ts",
