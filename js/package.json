@@ -42,7 +42,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test test/",
-    "prepublishOnly": "node scripts/build.mjs && node --test test/"
+    "test": "node --test test/*.test.js",
+    "prepublishOnly": "node scripts/build.mjs && node --test test/*.test.js"
   }
 }

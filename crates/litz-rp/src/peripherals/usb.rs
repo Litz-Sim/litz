@@ -728,10 +728,10 @@ impl Usb {
                     control.step = Step::Arm;
                 }
             }
-            // The firmware arms EP0 only once its interrupt handler has run,
-            // and a status-stage buffer left over from the previous transfer
-            // arrives in this window. Waiting for the acknowledgement and then
-            // clearing both buffers keeps the two apart.
+            // A status-stage buffer left over from the previous transfer can
+            // arrive after this setup was written; waiting for the firmware to
+            // acknowledge the packet keeps the two apart, and `Deliver` has
+            // already dropped anything armed before it.
             Step::Arm => {
                 let pending =
                     self.regs[Self::reg_index(reg::SIE_STATUS)] & sie_status::SETUP_REC != 0;
@@ -742,7 +742,6 @@ impl Usb {
                     }
                     return;
                 }
-                self.clear_control_buffers();
                 let next = if length == 0 {
                     Step::StatusIn
                 } else {
@@ -807,6 +806,17 @@ impl Usb {
             return;
         }
         let len = ((ctrl & buf_ctrl::LEN_MASK) as usize).min(EP0_MPS);
+        // A zero-length packet while data is expected is the previous
+        // transfer's status stage, not the answer to this request: drop it and
+        // keep waiting for the data.
+        let expecting_data = self.control.as_ref().is_some_and(|c| c.length > 0);
+        if len == 0 && expecting_data {
+            self.write_dpram_word(
+                dpram::ep_buf_ctrl(0, false) as u32,
+                ctrl & !(buf_ctrl::FULL | buf_ctrl::AVAIL),
+            );
+            return;
+        }
         let packet = &self.dpram[dpram::EP0_BUF..dpram::EP0_BUF + len];
         if let Some(control) = self.control.as_mut() {
             control.received.extend_from_slice(packet);
@@ -1068,7 +1078,7 @@ mod tests {
     }
 
     /// What the other end of the cable would do with each SETUP packet.
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, PartialEq, Eq)]
     enum Phase {
         Idle,
         In,
@@ -1195,28 +1205,6 @@ mod tests {
             usb.tick(HOST_STEP_CYCLES);
             responder.service(usb);
         }
-    }
-
-    #[test]
-    fn debug_pump() {
-        let mut usb = powered();
-        let mut responder = Responder::new();
-        for step in 0..40 {
-            usb.tick(HOST_STEP_CYCLES);
-            responder.service(&mut usb);
-            let stage = usb.stage;
-            let state = usb.control.as_ref().map(|c| c.step);
-            let sie = usb.read(reg::SIE_STATUS);
-            let in_ctrl = usb.read_dpram_word(dpram::ep_buf_ctrl(0, false) as u32);
-            let out_ctrl = usb.read_dpram_word(dpram::ep_buf_ctrl(0, true) as u32);
-            eprintln!(
-                "{step:3} stage={stage:?} ctrl={state:?} sie={sie:#x} in={in_ctrl:#x} out={out_ctrl:#x} resp={:?} off={} len={}",
-                responder.phase,
-                responder.offset,
-                responder.data.len(),
-            );
-        }
-        assert!(!usb.device_descriptor().is_empty());
     }
 
     #[test]
