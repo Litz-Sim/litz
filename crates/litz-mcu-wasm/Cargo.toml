@@ -14,7 +14,14 @@ litz-board = { version = "0.0.1", path = "../litz-board" }
 litz-core = { version = "0.0.1", path = "../litz-core" }
 litz-mcu-wit = { version = "0.0.1", path = "../litz-mcu-wit" }
 litz-net = { version = "0.0.1", path = "../litz-net" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 thiserror = "2.0.21"
+
+# The host side of the 0.2 contract — analog, buses, Wi-Fi, BLE and radio —
+# is plain board code and also compiles into the browser build. Only the
+# native component loader needs wasmtime.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wasmtime = "50"
 
 [[bin]]

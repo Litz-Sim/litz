@@ -156,10 +156,11 @@ const EP0_MPS: usize = 64;
 const BULK_MPS: usize = 64;
 /// One host action per microsecond of simulated time (125 MHz core).
 const HOST_STEP_CYCLES: u64 = 125;
-/// Host steps to wait for a firmware handshake before driving on. Sixty-four
-/// steps is 8 µs of simulated bus time: long enough for an interrupt handler,
-/// short enough that firmware which never answers does not wedge the port.
-const HANDSHAKE_TIMEOUT: u32 = 64;
+/// Host steps to wait for a firmware handshake before driving on. At one
+/// microsecond per step this is 5 ms of simulated bus time: long enough for
+/// an interrupt handler to run, short enough that firmware which never answers
+/// does not wedge the port.
+const HANDSHAKE_TIMEOUT: u32 = 5_000;
 /// A frame is 1 ms, so the host sends a SOF this often.
 const SOF_CYCLES: u64 = 125_000;
 /// How long the host leaves `SIE_STATUS.BUS_RESET` asserted before giving up
@@ -242,9 +243,6 @@ struct Control {
     step: Step,
     /// The device answered with STALL; complete without data.
     stalled: bool,
-    /// An OUT data stage handed the device a buffer that it has not read yet.
-    /// The host must not start the next transfer before the device drains it.
-    await_out_ack: bool,
     /// Host steps spent waiting on the setup acknowledgement.
     arm_wait: u32,
     /// Host steps spent waiting on the status stage.
@@ -269,7 +267,6 @@ impl Control {
             status_in,
             step: Step::Deliver,
             stalled: false,
-            await_out_ack: false,
             arm_wait: 0,
             status_wait: 0,
         }
@@ -308,6 +305,8 @@ pub struct Usb {
     input: VecDeque<u8>,
     /// Bytes the device sent on a bulk IN endpoint, for the console.
     output: Vec<u8>,
+    /// Host steps to wait after a transfer completes before the next SETUP.
+    settle: u32,
 }
 
 impl Default for Usb {
@@ -344,6 +343,7 @@ impl Usb {
             next_buf: [false; 16],
             input: VecDeque::new(),
             output: Vec::new(),
+            settle: 0,
         }
     }
 
@@ -639,7 +639,9 @@ impl Usb {
             return;
         }
 
-        if self.control.is_some() {
+        if self.settle > 0 {
+            self.settle -= 1;
+        } else if self.control.is_some() {
             self.step_control();
         } else {
             self.begin_request();
@@ -764,13 +766,6 @@ impl Usb {
             // the bus open if it never does.
             Step::StatusIn | Step::StatusOut => {
                 let out = matches!(step, Step::StatusOut);
-                let control = self.control.as_ref().expect("control in flight");
-                if control.await_out_ack {
-                    let ctrl = self.read_dpram_word(dpram::ep_buf_ctrl(0, true) as u32);
-                    if ctrl & buf_ctrl::FULL != 0 {
-                        return;
-                    }
-                }
                 let ctrl = self.read_dpram_word(dpram::ep_buf_ctrl(0, out) as u32);
                 if ctrl & buf_ctrl::AVAIL != 0 {
                     self.write_dpram_word(
@@ -828,7 +823,11 @@ impl Usb {
         self.buf_status |= ep_bit(0, false);
         self.should_handle &= !ep_bit(0, false);
 
-        let finished = ctrl & buf_ctrl::LAST != 0 || len < EP0_MPS;
+        let finished = len < EP0_MPS
+            || self
+                .control
+                .as_ref()
+                .is_some_and(|c| c.received.len() >= c.length);
         let Some(control) = self.control.as_mut() else {
             return;
         };
@@ -861,7 +860,6 @@ impl Usb {
             control.sent += len;
             if done {
                 control.step = Step::StatusIn;
-                control.await_out_ack = true;
             }
         }
         let value = (ctrl & !(buf_ctrl::LEN_MASK | buf_ctrl::AVAIL)) | len as u32 | buf_ctrl::FULL;
@@ -874,6 +872,10 @@ impl Usb {
         let Some(control) = self.control.take() else {
             return;
         };
+        // The firmware drains the status stage from its interrupt handler.
+        // Starting the next SETUP in the same microsecond makes that handler
+        // read the new packet, so give it a millisecond of bus silence.
+        self.settle = 1000;
         if control.stalled {
             // The script still advances so enumeration does not wedge; the
             // descriptors simply stay empty.
@@ -1089,6 +1091,7 @@ mod tests {
     struct Responder {
         phase: Phase,
         data: Vec<u8>,
+        config: Vec<u8>,
         offset: usize,
         status_armed: bool,
     }
@@ -1098,8 +1101,18 @@ mod tests {
             Responder {
                 phase: Phase::Idle,
                 data: Vec::new(),
+                config: CONFIG.to_vec(),
                 offset: 0,
                 status_armed: false,
+            }
+        }
+
+        /// A responder whose configuration descriptor is longer than one
+        /// packet, the way MicroPython's 75-byte CDC descriptor is.
+        fn with_config(config: Vec<u8>) -> Self {
+            Responder {
+                config,
+                ..Self::new()
             }
         }
 
@@ -1136,7 +1149,7 @@ mod tests {
                 if setup[0] & 0x80 != 0 && setup[1] == 0x06 {
                     self.data = match value >> 8 {
                         0x01 => DEVICE.to_vec(),
-                        0x02 => CONFIG.to_vec(),
+                        0x02 => self.config.clone(),
                         _ => Vec::new(),
                     };
                     self.phase = Phase::In;
@@ -1225,7 +1238,8 @@ mod tests {
     fn enumeration_sets_the_address_and_reads_the_configuration() {
         let mut usb = powered();
         let mut responder = Responder::new();
-        pump(&mut usb, &mut responder, 400);
+        // Each completed transfer is followed by a millisecond of bus silence.
+        pump(&mut usb, &mut responder, 5_000);
 
         assert_eq!(usb.device_address(), 1, "SET_ADDRESS reached the device");
         assert_eq!(
@@ -1240,6 +1254,36 @@ mod tests {
                 out_ep: 2
             }),
             "the bulk endpoints come from the descriptor, not a constant"
+        );
+    }
+
+    #[test]
+    fn a_configuration_descriptor_spanning_two_packets_is_reassembled() {
+        // MicroPython's CDC descriptor is 75 bytes, so the host reads 64 and
+        // then 11. Stopping at the first full packet would parse a truncated
+        // descriptor and miss the bulk endpoints.
+        let mut config = CONFIG.to_vec();
+        config.extend_from_slice(&[0x05, 0x24, 0x06, 0x00, 0x01]);
+        // Pad to 75 with a vendor-specific descriptor the parser ignores.
+        config.extend_from_slice(&[0x0f, 0xff]);
+        config.extend_from_slice(&[0u8; 12]);
+        assert_eq!(config.len(), 75);
+
+        let mut usb = powered();
+        let mut responder = Responder::with_config(config.clone());
+        pump(&mut usb, &mut responder, 5_000);
+
+        assert_eq!(
+            usb.configuration_descriptor(),
+            &config[..],
+            "both packets reach the device"
+        );
+        assert_eq!(
+            usb.cdc_endpoints(),
+            Some(CdcEndpoints {
+                in_ep: 2,
+                out_ep: 2
+            })
         );
     }
 

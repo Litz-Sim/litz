@@ -17,7 +17,6 @@ litz-catalog = { version = "0.0.1", path = "../litz-catalog" }
 litz-core = { version = "0.0.1", path = "../litz-core" }
 litz-decode = { version = "0.0.1", path = "../litz-decode" }
 litz-diagram = { version = "0.0.1", path = "../litz-diagram" }
-litz-esp = { version = "0.0.1", path = "../litz-esp", features = ["esp32", "esp32c3", "esp32c6", "esp32s3", "esp32p4", "esp32s31"] }
 litz-net = { version = "0.0.1", path = "../litz-net" }
 png = "0.18.1"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -27,3 +26,10 @@ toml = "1.2.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 litz-mcu-wasm = { version = "0.0.1", path = "../litz-mcu-wasm" }
+# The Xtensa chips (classic ESP32 and S3) execute guest blocks through a host
+# JIT on wasm32, which is a host import; the zero-import browser module leaves
+# them out and boots the RISC-V ESP parts, the AVR and the RP2040 instead.
+litz-esp = { version = "0.0.1", path = "../litz-esp", features = ["esp32", "esp32c3", "esp32c6", "esp32s3", "esp32p4", "esp32s31"] }
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+litz-esp = { version = "0.0.1", path = "../litz-esp", features = ["esp32c3", "esp32c6", "esp32p4", "esp32s31"] }

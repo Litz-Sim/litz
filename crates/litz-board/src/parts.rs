@@ -211,15 +211,14 @@ pub(crate) fn load_wasm_part(
         .map_err(|e| BuildError::Message(format!("part {:?}: {e}", part.id)))
 }
 
-/// A wasm32 build is itself a component and cannot load a second one, so the
-/// browser keeps the builtin engines. The message names the part so a diagram
-/// using a wasm part fails clearly instead of silently skipping it.
+/// A wasm32 build cannot host a component itself, so the JavaScript host
+/// instantiates it and this side talks to it through the `litz_host` imports.
+/// A host that did not register the module fails here with the reason it gave.
 #[cfg(target_arch = "wasm32")]
-fn build_wasm(part: &FlatPart, _module: &WasmModule) -> Result<Box<dyn Part>, BuildError> {
-    Err(BuildError::Message(format!(
-        "part {:?} is a wasm module; this build was compiled without the wasm part backend",
-        part.id
-    )))
+fn build_wasm(part: &FlatPart, module: &WasmModule) -> Result<Box<dyn Part>, BuildError> {
+    crate::host::HostPart::open(&module.module)
+        .map(|part| Box::new(part) as Box<dyn Part>)
+        .map_err(|error| BuildError::Message(format!("part {:?}: {error}", part.id)))
 }
 
 /// The pin-level shell of a part whose behaviour lives on a bus.

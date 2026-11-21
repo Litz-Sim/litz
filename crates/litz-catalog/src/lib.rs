@@ -139,6 +139,10 @@ pub struct Registry {
     /// The manifest source text per id, kept so a lock file can hash exactly
     /// the bytes a run parsed rather than a checkout path.
     texts: BTreeMap<String, String>,
+    /// Internal schematics the host supplied for boards whose manifest has no
+    /// directory to resolve `schematic` against. A browser session uses this:
+    /// the board arrives as manifest text plus the onboard JSON.
+    schematics: BTreeMap<String, String>,
 }
 
 impl Registry {
@@ -932,8 +936,21 @@ impl Registry {
         self.entries.keys().map(String::as_str)
     }
 
-    /// The internal schematic that ships with a builtin board.
-    pub fn builtin_schematic(&self, board_id: &str) -> Option<&'static str> {
+    /// Supply the internal schematic for a board the host described itself.
+    ///
+    /// A manifest loaded from a directory resolves `schematic` against that
+    /// directory; a manifest the host handed over has none, so the board's
+    /// onboard JSON is provided alongside it.
+    pub fn set_schematic(&mut self, board_id: &str, text: impl Into<String>) {
+        self.schematics.insert(board_id.to_string(), text.into());
+    }
+
+    /// The internal schematic that ships with a builtin board, or the one the
+    /// host supplied for that id.
+    pub fn builtin_schematic(&self, board_id: &str) -> Option<&str> {
+        if let Some(text) = self.schematics.get(board_id) {
+            return Some(text);
+        }
         match board_id {
             "board-esp32-c3-devkitm-1" => Some(include_str!(
                 "../builtin/boards/board-esp32-c3-devkitm-1.onboard.json"

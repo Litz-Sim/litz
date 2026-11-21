@@ -169,10 +169,13 @@ fn wasm_i2c(
 #[cfg(target_arch = "wasm32")]
 fn wasm_i2c(
     part: &FlatPart,
-    _module: &WasmModule,
-    _address: u16,
+    module: &WasmModule,
+    address: u16,
 ) -> Result<Box<dyn I2cDevice>, BuildError> {
-    Err(wasm_unavailable(part))
+    let device = crate::host::HostPart::open(&module.module)
+        .map_err(|error| BuildError::Message(format!("part {:?}: {error}", part.id)))?
+        .with_i2c_address(address as u8);
+    Ok(Box::new(device))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -181,8 +184,10 @@ fn wasm_spi(part: &FlatPart, module: &WasmModule) -> Result<Box<dyn SpiDevice>, 
 }
 
 #[cfg(target_arch = "wasm32")]
-fn wasm_spi(part: &FlatPart, _module: &WasmModule) -> Result<Box<dyn SpiDevice>, BuildError> {
-    Err(wasm_unavailable(part))
+fn wasm_spi(part: &FlatPart, module: &WasmModule) -> Result<Box<dyn SpiDevice>, BuildError> {
+    let device = crate::host::HostPart::open(&module.module)
+        .map_err(|error| BuildError::Message(format!("part {:?}: {error}", part.id)))?;
+    Ok(Box::new(device))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -191,16 +196,10 @@ fn wasm_uart(part: &FlatPart, module: &WasmModule) -> Result<Box<dyn UartPeer>, 
 }
 
 #[cfg(target_arch = "wasm32")]
-fn wasm_uart(part: &FlatPart, _module: &WasmModule) -> Result<Box<dyn UartPeer>, BuildError> {
-    Err(wasm_unavailable(part))
-}
-
-#[cfg(target_arch = "wasm32")]
-fn wasm_unavailable(part: &FlatPart) -> BuildError {
-    BuildError::Message(format!(
-        "part {:?} is a wasm bus device; this build was compiled without the wasm part backend",
-        part.id
-    ))
+fn wasm_uart(part: &FlatPart, module: &WasmModule) -> Result<Box<dyn UartPeer>, BuildError> {
+    let device = crate::host::HostPart::open(&module.module)
+        .map_err(|error| BuildError::Message(format!("part {:?}: {error}", part.id)))?;
+    Ok(Box::new(device))
 }
 
 // The bus traits live in this crate and `WasmPart` lives in `litz-part-wasm`,

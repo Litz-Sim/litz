@@ -1,6 +1,6 @@
 # Litz file formats
 
-Five files describe a simulation. Three describe hardware, two describe how to run it.
+Five primary files describe a simulation. Three describe hardware, two describe how to run it.
 
 | File | Answers | Written by |
 |---|---|---|
@@ -9,6 +9,8 @@ Five files describe a simulation. Three describe hardware, two describe how to r
 | `board.toml` (+ onboard schematic) | what a dev board is | maintainers |
 | `litz.toml` | which firmware to run and what to assert | project author |
 | `litz.lock` | which catalog versions produced a result | the runner |
+
+Three more formats feed a run: `litz.build.toml` (§13) builds firmware, `scenario.yaml` (§14) drives a scripted session, and the session JSON accepted by `litz_new_json` is part of the runtime host ABI (§12.1). Observation outputs — VCD, scope CSV, scope JSON and pcap — are in §15.
 
 Circuits are JSON; manifests are TOML because they are read and edited by people, and comments matter.
 
@@ -41,21 +43,21 @@ Two rules override everything else:
 | Key | Required | Meaning |
 |---|---|---|
 | `version` | no, default 1 | schema version |
-| `author`, `editor` | no | provenance, ignored |
-| `parts` | yes | placed instances |
-| `connections` | yes | wires |
-| `dependencies` | no | editor metadata, ignored |
+| `author`, `editor` | no | provenance, retained |
+| `parts` | no, default empty | placed instances |
+| `connections` | no, default empty | wires |
+| `dependencies` | no | editor metadata, retained |
 
 A part instance:
 
 | Field | Required | Meaning |
 |---|---|---|
-| `id` | yes | unique in the file; `[A-Za-z0-9_-]+`; `$` is reserved |
+| `id` | yes | unique in the file; `$` is reserved for host names |
 | `type` | yes | catalog key |
 | `attrs` | no | scalar attributes, validated against the catalog |
 | `left`, `top`, `rotate`, `hide` | no | presentation only |
 
-A connection is a four-element array `[from, to, colour, route]`. Only the first two elements carry meaning; `colour` and `route` are presentation. A three-way join is written as three connections — there are no junction markers.
+Unknown keys at any level are retained in `extra` rather than rejected, so a file from a newer editor still loads. A connection is a four-element array `[from, to, colour, route]`. Only the first two elements carry meaning; `colour` is kept for round-tripping and `route` is accepted and discarded. A three-way join is written as three connections — there are no junction markers.
 
 ### 1.1 Pin references
 
@@ -72,7 +74,7 @@ Host devices and rails do not need a `parts` entry. They are the only `$` names 
 
 | Name | Meaning |
 |---|---|
-| `$serialMonitor` | host serial endpoint; `RX` receives what the firmware prints, `TX` feeds the firmware |
+| `$serialMonitor` | host serial endpoint accepted for compatibility; the runner reads the chip's UART0 directly, so a wire to it is decorative |
 | `$gnd` | global ground |
 | `$v33`, `$v5`, `$vin` | global power rails |
 
@@ -151,7 +153,7 @@ These ids and engine names are Rust models compiled into the runner. The id is t
 | `litz-ds3231` | `ds3231` | `[buses.i2c0] address = 0x68`; `SDA`, `SCL` | `time` (`YYYY-MM-DDTHH:MM:SS`, default `2024-01-01T00:00:00`), `weekday` (1–7), `temperature` (°C); all in BCD registers |
 | `litz-pcf8574` | `pcf8574` | `[buses.i2c0] address = 0x20`; `SDA`, `SCL` | none; `P0`–`P7` are a quasi-bidirectional port |
 | `litz-mpu6050` | `mpu6050` | `[buses.i2c0] address = 0x68`; `SDA`, `SCL` | `ax`, `ay`, `az` (g, default 0/0/1) and `gx`, `gy`, `gz` (deg/s, default 0) |
-| `litz-mcp3008` | `mcp3008` | `[buses.spi0] cs = "CS"`; `CLK`, `DIN`, `DOUT`, `CS` | `v0`–`v7` (volts per channel, default 0), `vref` (default 3.3) |
+| `litz-mcp3008` | `mcp3008` | `[buses.spi0] cs = "CS"`; `CLK`, `DIN`, `DOUT`, `CS`, `CH0`–`CH7` | `v0`–`v7` (volts per channel, default 0), `vref` (default 3.3) |
 | `litz-dht22` | `dht22` | `SDA` (single wire) | `temperature` (°C, default 25), `humidity` (% default 50); a control moves temperature across −40…80 °C |
 | `litz-pms5003` | `pms5003` | `[buses.uart0]`; `TX`, `RX` | `pm1`, `pm25`, `pm10` (µg/m³, defaults 4/7/9), `interval` (ms, default 1000); a 32-byte Plantower frame with checksum once per interval |
 | `litz-hc-sr04` | `hc-sr04` | `TRIG`, `ECHO` | `distance` (cm, default 100); a control spans 2…400 cm |
@@ -180,7 +182,7 @@ The fourth group covers protocol displays, analog modules and bus sensors. Sever
 |---|---|---|---|
 | `litz-tm1637-7segment` | `tm1637` | `CLK`, `DIO` | `color`, `type`; six display registers written with the two-wire start/bit/acknowledge sequence |
 | `litz-max7219-matrix` | `max7219` | `[buses.spi0] cs = "CS"`; `DIN`, `CLK`, `DOUT` | `chain`, `color`, `layout`; 16-bit register words fill the row RAM |
-| `litz-nokia-5110-screen` | `pcd8544` | `[buses.spi0] cs = "CE"`; `RST`, `DC`, `DIN`, `CLK`, `BL` | none; 84x48 bank framebuffer, 0x00 command / 0x40 data framing |
+| `litz-nokia-5110-screen` | `pcd8544` | `[buses.spi0] cs = "CE"`; `RST`, `DC`, `DIN`, `CLK`, `BL` | `color`; 84x48 bank framebuffer, 0x00 command / 0x40 data framing |
 | `litz-ky-040` | `rotary-encoder` | `CLK`, `DT`, `SW` | none; shares the quadrature model with `litz-rotary-encoder` |
 | `litz-reed-switch` | `reed-switch` | `1`, `2` | none; a magnet closes the contact (the tilt-switch model) |
 | `litz-soil-moisture-sensor` | `analog-sensor` | `AO`, `DO` | `value` (0–1000), `threshold`, `activeLow`, `vref` |
@@ -229,7 +231,7 @@ These parts own an air interface rather than a pin-level behaviour. A radio part
 
 | Part id | `engine` | Pins | Attributes |
 |---|---|---|---|
-| `litz-wifi-router` | `router` | `3V3`, `GND` | `ssid` (default `litz`), `psk`, `channel` (1–14, default 6), `http` (the body on port 80, default `hello from litz\\n`), `echo` (TCP echo port, default 7), `udp_echo`, `mqtt` (MQTT broker port, default 1883, 0 for none), `nearby` (networks a scan reports, `ssid=NAME[,rssi=-70]`) |
+| `litz-wifi-router` | `router` | `3V3`, `GND` | `ssid` (default `litz`), `psk`, `channel` (1–14, default 6), `http` (the body on port 80, default `hello from litz\\n`), `echo` (TCP echo port, default 7), `udp_echo`, `https` (body on 443, empty for none), `ws` and `wss` (WebSocket and WebSocket-over-TLS echo ports), `mqtt` (MQTT broker port, default 1883, 0 for none), `nearby` (networks a scan reports, `ssid=NAME[,rssi=-70]`) |
 | `litz-ble-beacon` | `ble-beacon` | `3V3`, `GND` | `name` (1–26 bytes), `address` (`aa:bb:cc:dd:ee:ff`, empty derives a stable random-static address from the advertising data), `rssi` (default −60), `services` (four-digit UUIDs), `adv` and `rsp` (hex; `adv` replaces the data `name` and `services` build, so it and `name` are exclusive), `gatt` (services and characteristics a central discovers: `180f.2a19=64, 180f.2a1a+w`, where flags after `+` are `r`, `w` and `n`) |
 | `litz-nrf24l01` | `nrf24l01` | `SCK`, `MOSI`, `MISO`, `CSN`, `CE`, `IRQ` | `network`, `channel` (0–125, default 76), `rate` (`1M`/`2M`), `address` (five bytes as hex), `payload_size` (1–32, default 32) |
 | `litz-sx1276` | `sx1276` | `SCK`, `MOSI`, `MISO`, `NSS`, `RESET`, `DIO0`, `DIO1` | `network`, `frequency` (MHz, default 868), `sf` (spreading factor, default 7), `bandwidth` (kHz, default 125), `power` |
@@ -239,7 +241,7 @@ The Wi-Fi router has no behaviour of its own: its attributes become the network 
 
 `--pcap FILE` writes every exchange the router answered as a nanosecond-resolution pcap: synthetic Ethernet II frames carrying IPv4, TCP, UDP and DNS, timestamped from simulated time. The capture is a property of the network, not of the backend, so a run on an ESP32, a C6 or a wasm MCU produces the same bytes for the same firmware, and two runs of the same firmware produce byte-identical files. TLS records appear as ciphertext, exactly as they cross the wire.
 
-The TLS endpoint is TLS 1.3 with the simulated CA in `crates/litz-net/certs/` (`api.litz.dev`, valid 2000–2100). Its handshake randomness comes from a ChaCha20 generator seeded at compile time and its X25519 key exchange from the same stream, so two runs of the same firmware produce the same records and a pcap of an HTTPS connection is reproducible; the same bytes appear whether the run is native or in the browser. A firmware trusts the server by loading `ca.pem`; a client that does not is rejected. `Service::https`/`Service::wss` wrap the HTTP and WebSocket services, and `[[sim.wifi.service]]` reaches them with `tls = true`. `websocket = true` makes a WebSocket echo server, which answers the RFC 6455 upgrade and echoes text and binary frames without a mask. The browser (`wasm32`) build carries the same endpoint: the provider is pure Rust, the suite is pinned to `TLS13_CHACHA20_POLY1305_SHA256`, and the module is instantiated with no imports, so an HTTPS service behaves the same on a page and on the command line.
+The TLS endpoint is TLS 1.3 with the simulated CA in `crates/litz-net/certs/` (`api.litz.dev`, valid 2000–2100). Its handshake randomness comes from a ChaCha20 generator seeded at compile time and its X25519 key exchange from the same stream, so two runs of the same firmware produce the same records and a pcap of an HTTPS connection is reproducible; the same bytes appear whether the run is native or in a wasm host. A firmware trusts the server by loading `ca.pem`; a client that does not is rejected. `Service::https`/`Service::wss` wrap the HTTP and WebSocket services, and `[[sim.wifi.service]]` reaches them with `tls = true`. `websocket = true` makes a WebSocket echo server, which answers the RFC 6455 upgrade and echoes text and binary frames without a mask. The wasm (`wasm32`) build carries the same endpoint: the provider is pure Rust, the suite is pinned to `TLS13_CHACHA20_POLY1305_SHA256`, and the TLS stack needs no JavaScript imports, so an HTTPS service behaves the same in a wasm host and on the command line.
 
 The Bluetooth beacon works the same way through `Board::bluetooth`; a scanning guest reaches it through the chip's HCI controller, which is started by patching the guest's own controller task, so a project with a beacon also needs `[sim] elf` (§4). Without one the runner refuses the run instead of putting nothing on the air. A beacon with a `gatt` table accepts a connection from a custom chip: discovery reports the UUIDs, reads return the current values, writes update them and are queued for the owner, and a notifiable characteristic reaches every subscribed central. A pure beacon has no table and refuses the connection, as a real one would. A connection is not instantaneous: the first event follows the connect request by 7.5 ms and each ATT exchange rides one 30 ms connection event, so the host's clock advances by the interval for every discovery, read, write, subscribe and notification poll. A native ESP32 refreshes its HCI scan list from the board whenever a runtime advertiser starts or stops, and the list carries each beacon's GATT table, so a guest acting as a central can connect to a scanned address and discover, read and write that table. The C3's full link controller (`enable_full_ble`, driven by `ble_command`) models connection events, channel hopping and the 30 ms interval for GATT transactions. The scan-list change lives in `vendor/esp-soc` (see `PATCH.md`) because upstream at `d043ff1` fixes the table to one built-in battery service.
 
@@ -298,7 +300,7 @@ module = "litz-rv32.wasm"    # relative to this manifest, no ".."
 abi = "litz-mcu-1"           # optional; this is the default
 ```
 
-A chip that needs buses or the radio is built against `litz:mcu@0.2.0` and names `abi = "litz-mcu-2"` (§10). `litz board check <dir>` parses the manifest, resolves the schematic and module beside it, and instantiates the component under the ABI the manifest names, so a bundle is tested before a project depends on it.
+A chip that needs buses or the radio is built against `litz:mcu@0.2.0` and names `abi = "litz-mcu-2"` (§10). `litz board check <dir>` parses the manifest, resolves the schematic and module beside it, and instantiates the component under the ABI the manifest names, so a bundle is tested before a project depends on it. Under the native runner `litz-mcu-wasm` hosts the component with wasmtime; in the wasm build the JavaScript host instantiates it and reaches it through `litz_host` (§12). Both ABI versions are fully bridged there: a 0.2 call crosses `litz_guest_call`, which answers it from `litz_mcu_wasm::HostState` over the same board code the native host uses.
 
 `chip` and `[board.simulator]` are mutually exclusive, and one of them is required; a board with both or neither is rejected with `board-simulator`. `module` is resolved next to the manifest, never against the current directory, and a path that is absolute or contains `..` is refused when the catalog loads. Builtin boards carry the module inside the binary, so a stock install needs no files.
 
@@ -310,12 +312,12 @@ A board instance is flattened before the netlist is built, with names that canno
 
 | Outside | Inside |
 |---|---|
-| `esp:GPIO8` | `esp/chip:GPIO8` |
-| `esp:TX` (gpio 21) | `esp/chip:GPIO21` |
+| `esp:GPIO8` | chip GPIO 8 of board `esp` (`Endpoint::Chip(8)` for board 0) |
+| `esp:TX` (gpio 21) | chip GPIO 21 of board `esp` |
 | `esp:GND.1` | `$gnd` |
-| `esp/led_pwr:A` | child part, prefixed |
+| `esp/led_pwr:A` | child part `esp/led_pwr`, pin `A` |
 
-The onboard schematic uses one reserved type, `$chip`, for the MCU. It exposes exactly `GPIO<n>` for every header pin with `gpio = n`; power comes from the global rails. Child part ids are prefixed with `<instance>/`, so an onboard `led_pwr` is reachable but never collides with a top-level `led_pwr`.
+The onboard schematic uses one reserved type, `$chip`, for the MCU. It exposes exactly `GPIO<n>` for every header pin with `gpio = n`; power comes from the global rails. Expansion consumes the `$chip` part: it never becomes a leaf part, and a header pin is represented by the chip endpoint it names (with a board index once a second board is present), not by a materialised `esp/chip` part. Child part ids are prefixed with `<instance>/`, so an onboard `led_pwr` is reachable but never collides with a top-level `led_pwr`.
 
 Expansion is depth-first and deterministic. A board inside another board's schematic is an error: a nested board's chip pins would have no second board index to name them, and its firmware no second entry to hide behind.
 
@@ -359,7 +361,7 @@ rx = "tx"                   # a channel already named by a [[probe]]
 baud = 115200               # optional; inferred from the shortest run when absent
 ```
 
-`[sim]`: `firmware`, optional `bootloader` and `partition_table` (ESP-IDF layout: 0x0, 0x8000, 0x10000 — with neither, the app is written at 0x10000 and started directly, which is what a bare image needs), optional `flash_size`, `mac`, `rom`, `elf`, `runtime`, `script` and `analog`. `elf` names the firmware's symbol table: the image runs without it, but a Bluetooth scan needs it, and it is what names addresses in logs, disassembly and the debugger. `analog = true` solves the circuit's analog network alongside the digital run; the `--analog` flag turns it on for one invocation without editing the file. `wifi = "ssid=NAME,psk=PASS"` attaches a simulated access point to an ESP32-family radio; `--wifi` overrides it for one run. The radio only exists on imported esp32sim chips, so an `atmega328p` board refuses the option rather than ignoring it. `seed` is reserved: it is parsed and does nothing yet. The mask ROM is Espressif's, Apache-2.0, and is not vendored: `rom` names it, or `LITZ_ROM_DIR` names the directory holding `esp32c3_rev3_rom.elf`. Durations are strings with an SI suffix (`ms`, `s`, `m`); the runner converts them to ticks.
+`[sim]`: `firmware`, optional `bootloader` and `partition_table` (ESP-IDF layout: 0x0, 0x8000, 0x10000 — with neither, the app is written at 0x10000 and started directly, which is what a bare image needs), optional `flash_size`, `mac`, `rom`, `elf`, `runtime`, `script`, `scripts` and `analog`. `elf` names the firmware's symbol table: the image runs without it, but a Bluetooth scan needs it, and it is what names addresses in logs, disassembly and the debugger. `scripts` stages extra Python modules beside the entry script and is read only with a Python runtime. `analog = true` solves the circuit's analog network alongside the digital run; the `--analog` flag turns it on for one invocation without editing the file. `wifi = "ssid=NAME,psk=PASS"` attaches a simulated access point to an ESP32-family radio; `--wifi` overrides it for one run. The radio only exists on imported esp32sim chips, so an `atmega328p` board refuses the option rather than ignoring it. `seed` is reserved: it is parsed and does nothing yet. The mask ROM is Espressif's, Apache-2.0, and is not vendored: `rom` names it, or `LITZ_ROM_DIR` names the directory holding the chip's ROM, for example `esp32c3_rev3_rom.elf`. Durations are strings with an optional SI suffix (`ms`, `us`, `s`, `m`); a bare number is seconds, and fractional values are accepted.
 
 With several boards, `litz.lock` has no single `[firmware]` table to describe the run, so the images are folded into the one firmware hash in board order: each board's id, then the length and bytes of its application image and its mask ROM. Every byte that booted is in that hash, so the run is still repeatable; `rom_sha256`, `bootloader_sha256` and `partition_table_sha256` are left out because the folded hash already covers them.
 
@@ -394,7 +396,7 @@ flash_size = "4MB"
 mac = "24:0a:c4:12:34:56"
 ```
 
-`[[board]]` fields: `id` (required, the instance id), `firmware` (required), and the same optional inputs as `[sim]` — `bootloader`, `partition_table`, `rom`, `elf`, `runtime`, `script`, `flash_size`, `mac`. A field a board leaves out falls back to `[sim]`. Every development board in the diagram must be named exactly once and no other id may be listed; the runner refuses a missing or duplicate entry rather than guessing which firmware goes where. `[sim] firmware` and `[[board]]` are exclusive. With no `[[board]]`, the project has one board and `[sim]` describes it, exactly as before.
+`[[board]]` fields: `id` (required, the instance id), `firmware` (required in normal use), and the same optional inputs as `[sim]` — `bootloader`, `partition_table`, `rom`, `elf`, `runtime`, `script`, `scripts`, `flash_size`, `mac`. A field a board leaves out falls back to `[sim]`. A board whose `[board.simulator]` carries its own program may omit `firmware`. Every development board in the diagram must be named exactly once and no other id may be listed; the runner refuses a missing or duplicate entry rather than guessing which firmware goes where. `[sim] firmware` and `[[board]]` are exclusive. With no `[[board]]`, the project has one board and `[sim]` describes it, exactly as before.
 
 The consoles of all boards are merged in board order at each scheduling batch, and an `expect` or `fail` entry matches the merged text. A leading `<board>@` narrows one entry to that board's console — `expect = ["a@litz: holding GPIO8 low", "b@litz: press the button"]` — and is read as a board only when it names one, so any other text (an `@` included) stays a plain match. Part-state assertions read the one shared board. `[[test.input]]` takes a `board` field: required when the diagram has more than one development board, omitted for a single-board project. Time advanced in the run loop is the frontier every running board has reached, so a board that halted does not hold the others back. `--gdb [<board>@]<port>` serves one board; without a board it picks the first one whose backend has a debug target, because a session owns its chip's clock until the client disconnects.
 
@@ -408,15 +410,18 @@ The consoles of all boards are merged in board order at each scheduling batch, a
 
 A test passes when every `expect` string appeared, no `fail` string appeared, and the simulation did not stop on a trap before `timeout` of simulated time.
 
-The command has three forms, with fixed exit codes:
+The commands and their fixed exit codes:
 
 | Command | Does | Exit |
 |---|---|---|
 | `litz run [dir]` | boots the firmware, streams serial to stdout | 0 when every board halts, 42 at the time limit, 1 on a fault |
 | `litz test [dir]` | runs the `[[test]]` entries | 0 all passed, 1 any failed |
-| `litz check [dir]` | validates the diagram, loads nothing | 0 valid, 1 errors |
+| `litz check [dir]` | validates the diagram without booting firmware | 0 valid, 1 errors |
+| `litz serve [dir]` | serves the directory as static files over HTTP on loopback | 0 when stopped |
 
-`litz lint` is an alias for `check`. `--strict` (also spelled `--warnings-as-errors`) promotes validation warnings to errors; `--coverage` asks the backend for an instruction-coverage report and prints it after the run without changing the exit code; `--interactive[=BOARD]` forwards lines typed on stdin to that board's console, the first board when none is named. `--screenshot [<board>@]<file>` writes the board's display or panel memory as a PNG at the end of a `run` and when a test fails; without a board the first board that has a framebuffer is captured, and a board with none says so on stderr while the run's exit code stays what it was. A board name that is not in the diagram is refused before the firmware boots. `--probe POINT` watches a point for one run and may be repeated; `--scope FILE` writes every probe's record as a CSV when the run ends. `--decode SPEC` adds a protocol decoder for one run and may be repeated; a spec is `uart:rx=tx[,baud=N]`, `i2c:sda=a,scl=b` or `spi:sck=c,mosi=d,cs=e[,miso=f][,mode=N]`, each optionally with `name=`, and channel names cannot contain `,` or `=` because those are the separators. Decoding reads the probe record and never changes the run. `--gdb [<board>@]<port>` serves the GDB remote protocol on 127.0.0.1 once the chip is booted and returns when the client disconnects, after which the run continues; the RISC-V adapters have a target, the Xtensa and AVR ones refuse rather than advertising a layout they do not have. With several boards the board name picks the chip; without one the first board that has a target is served, and naming a board without one is an error that says so.
+`litz serve` defaults to `.` and port 8000, serves `index.html` for a bare path, and refuses a request that escapes the directory. It is a plain static file server: it has no simulator behind it.
+
+`litz lint` is an alias for `check`. `--strict` (also spelled `--warnings-as-errors`) promotes validation warnings to errors; `--coverage` asks the backend for an instruction-coverage report and prints it after the run without changing the exit code; `--interactive[=BOARD]` forwards lines typed on stdin to that board's console, the first board when none is named. `--screenshot [<board>@]<file>` writes the board's display or panel memory as a PNG at the end of a `run` and when a test fails; without a board the first board that has a framebuffer is captured, and a board with none says so on stderr while the run's exit code stays what it was. A board name that is not in the diagram is refused before the firmware boots. `--probe POINT` watches a point for one run and may be repeated; `--scope FILE` writes every probe's record as a CSV when the run ends. `--decode SPEC` adds a protocol decoder for one run and may be repeated; a spec is `uart:rx=tx[,baud=N]`, `i2c:sda=a,scl=b` or `spi:sck=c,mosi=d,cs=e[,miso=f][,mode=N]`, each optionally with `name=`, and channel names cannot contain `,` or `=` because those are the separators. Decoding reads the probe record and never changes the run. `--pcap FILE`, `--pcap-air FILE` and `--pcap-eth FILE` write the network, air and Ethernet captures described in §15. `--heap` samples the firmware's own allocator at chunk boundaries using `esp_get_free_heap_size`, `heap_caps_get_free_size` or `xPortGetFreeHeapSize`; `--heap-interval MS`, `--heap-min-free BYTES` and `--heap-csv FILE` tune that sampling, and a firmware without one of those symbols fails the run with that explanation. `--gdb [<board>@]<port>` serves the GDB remote protocol on 127.0.0.1 once the chip is booted and returns when the client disconnects, after which the run continues; the RISC-V ESP adapters have a target, while the Xtensa, AVR and RP2040 ones refuse rather than advertising a layout they do not have. With several boards the board name picks the chip; without one the first board that has a target is served, and naming a board without one is an error that says so.
 
 Electrical faults are reported as `litz: electrical fault on net N: <detail>` after the serial output, and they fail the run whether or not a test was asserted.
 
@@ -466,9 +471,15 @@ sha256 = "…"
 
 [firmware]
 sha256 = "…"
+# Present only when those images were part of the run.
+# rom_sha256 = "…"
+# bootloader_sha256 = "…"
+# partition_table_sha256 = "…"
 ```
 
-The runner refuses to start when the lock and the catalog disagree unless `--update-lock` is passed.
+`[[entry]]` hashes the manifest text of each catalog entry the diagram actually expands, sorted by id. `[firmware]` hashes the application image; the three optional hashes are written when a mask ROM, bootloader or partition table was also loaded. With several boards the images are folded into the one `[firmware]` hash in board order, each board's id followed by the length and bytes of its application image and mask ROM, and the three separate hashes are omitted.
+
+The runner refuses to start when the lock and the catalog disagree unless `--update-lock` is passed. A missing lock is written rather than treated as a mismatch.
 
 ## 6. Electrical rules
 
@@ -514,18 +525,17 @@ An optional DC solve, or a backward-Euler transient, turns the same flat nets in
 | `litz-resistor` (`resistor`) | `value` | resistance in ohms, in electronics notation: `220`, `10k`, `4k7`, `2.2k`, `1M`, `4R7`. Default `220`. |
 | `litz-led` (`led`) | `color` | LED forward voltage: red 1.8 V, green/yellow/orange 2.0 V, blue 3.0 V, white 3.2 V. The junction is a Shockley diode rated for that drop at 20 mA, in series with a small internal resistance. |
 | `litz-potentiometer` (`potentiometer`) | `value` | initial position, 0–100 percent of travel from pin 1 to pin 3. It is an initial value, not a resistance. Track resistance is 10 kΩ unless the part also carries `resistance`. |
-| `litz-capacitor` (`capacitor`) | `value` or `capacitance` | capacitance in farads with an SI prefix: `100p`, `100n`, `100nF`, `4.7u`, `2.2µF`, `1mF`. Default `1u`. |
-| `litz-inductor` (`inductor`) | `value` or `inductance` | inductance in henries: `100n`, `10u`, `10uH`, `4.7mH`. Default `1m`. |
+| `litz-capacitor` (`capacitor`) | `value` or `capacitance` | capacitance in farads with an SI prefix: `100p`, `100n`, `100nF`, `4.7u`, `2.2µF`, `1mF`. Default `100n`. |
+| `litz-inductor` (`inductor`) | `value` or `inductance` | inductance in henries: `100n`, `10u`, `10uH`, `4.7mH`. Default `10mH`. |
 | `litz-pushbutton` (`pushbutton`) | none | a contact between pins `1.l`/`1.r` and `2.l`/`2.r`: 0.1 Ω pressed, 10 MΩ released. Driven by `press`. |
 | `litz-slide-switch` (`slide-switch`) | none | common pin `2`: 0.1 Ω to the resting throw `1` or `3`, 10 MΩ to the other. Driven by `press` (it latches). |
 | `litz-ntc-temperature-sensor` (`ntc-temperature-sensor`) | `temperature` | initial °C from −20 to 100. A 10 kΩ divider from VCC to ground whose ratio follows the part's control; the solved `AO` voltage is the temperature as a fraction of the reference. |
 | `litz-photoresistor-sensor` (`photoresistor-sensor`) | `light` | initial light 0–1000. The same divider model; a control moves the light level. |
 | generic transistor (`bjt`) | `beta`, `vbe`, `early_voltage` | NPN Ebers-Moll: current gain (default 100), base-emitter turn-on at 1 mA (default 0.7 V), Early voltage (default 100 V). Pins `C`, `B`, `E`. |
 | generic transistor (`mosfet`) | `vth`, `k`, `lambda` | enhancement NMOS level 1: threshold (default 2 V), transconductance parameter in A/V² (default 10 mA/V²; `beta` is accepted as another name), channel-length modulation (default 0). Pins `D`, `G`, `S`. |
-| generic op-amp (`opamp`, `op-amp`) | `gain`, `rail_low`, `rail_high` | finite-gain voltage-mode amplifier (default gain 1e5) clamping to its rails; rails default to 0 V and `$v33`. Pins `+`, `-`, `OUT`. |
+| generic op-amp (`opamp`) | `gain`, `rail_low`, `rail_high` | finite-gain voltage-mode amplifier (default gain 1e5) clamping to its rails; rails default to 0 V and `$v33`. Pins `+`, `-`, `OUT`, `V+`, `V-`. |
 | generic diode (`diode`) | `vf` | forward voltage used to derive the diode model. Omit it for a small-signal silicon diode. |
-| generic source (`voltage-source`, `dc-source`, `vsource`, `battery`) | `voltage` or `value` | ideal voltage from the positive pin to the negative pin. |
-| generic source (`current-source`, `isource`) | `amps` or `value` | ideal current from the positive pin to the negative pin. |
+| generic voltage source (`voltage-source`, `battery`) | `voltage` or `value` | ideal voltage from the positive pin to the negative pin. |
 
 Mapping rules:
 
@@ -565,9 +575,9 @@ Errors block the run. Warnings do not; `--strict` turns warnings into failures, 
 
 ## 8. Versioning
 
-`diagram.json` has an integer `version`. Readers accept a higher version only if every unknown key can be ignored, which is why unknown keys are preserved rather than rejected.
+`diagram.json` has an integer `version`, defaulting to 1. Readers do not gate on it: they preserve every unknown key in `extra`, so a file written by a newer editor loads without losing what this build does not understand.
 
-Catalog entries follow semver: patch for fixes, minor for additive changes (new pins, new attributes with defaults), major for anything that changes behaviour. An id may gain `aliases` in a new version; it may never be removed.
+Catalog entries follow semver: patch for fixes, minor for additive changes (new pins, new attributes with defaults), major for anything that changes behaviour. An id may gain features in a new version, but the id itself never changes.
 
 The lock file is the reproducibility boundary. A diagram plus a lock plus a firmware hash is a complete description of a run.
 
@@ -577,12 +587,12 @@ A diagram can arrive from a pull request, so it is untrusted input.
 
 - Catalogs and diagrams are data: parsing never executes code.
 - `wasm` parts run in a sandbox with no filesystem, network, clock or randomness. They receive pin levels and time; everything else is denied.
-- The runner meters fuel and memory per wasm part, so a malicious part cannot hang CI.
-- Attribute values are size-limited and every string is length-checked before it reaches a model.
+- The runner meters fuel and memory per wasm part on a native run, so a malicious part cannot hang CI; in a wasm host the component runs inside the host engine's sandbox.
+- A manifest's wasm module path is rejected when it is absolute or contains `..`, so a catalog entry cannot reach outside its directory.
 
 ## 10. MCU simulator ABI
 
-A board may name a WebAssembly component instead of a builtin chip. Two contracts are current: `litz:mcu@0.1.0` (`abi = "litz-mcu-1"`, the default) in `crates/litz-mcu-wit/wit/`, and `litz:mcu@0.2.0` (`abi = "litz-mcu-2"`) in `crates/litz-mcu-wit/wit-v2/`. Both use world `simulator`; a board manifest says which one its module was built against.
+A board may name a WebAssembly component instead of a builtin chip. Two contracts are current: `litz:mcu@0.1.0` (`abi = "litz-mcu-1"`, the default) in `crates/litz-mcu-wit/wit/`, and `litz:mcu@0.2.0` (`abi = "litz-mcu-2"`) in `crates/litz-mcu-wit/wit-v2/`. Both use world `simulator`, and the manifest's `abi` selects which one: `litz-mcu-wasm` links both sets of bindings and loads the version the field names. The version is not inferred from the component's exported interfaces; that detection belongs to the part contract (§11).
 
 The exported `chip` interface is the same in both versions:
 
@@ -612,15 +622,15 @@ A runtime advertisement is heard by every other 0.2 station on the board and by 
 
 One invariant survives both versions: **one call runs a budget**. `run` is called once per few million instructions, not once per instruction, because a per-instruction boundary would cost more than the simulation. The 0.1 rule that only pins and console bytes cross is relaxed in 0.2 — a chip can start a bus transaction and join a network — but everything it reaches is still the circuit the diagram describes: bus devices are the parts the manifest attached, and every network answer comes from the deterministic router the circuit places.
 
-The host loads the module with no WASI, no filesystem, no clock and no randomness, caps its memory, and meters it with fuel, so a chip module from a pull request cannot hang a run or reach outside its sandbox. A board whose guest carries its own program may omit `firmware` in `litz.toml`; the guest's `boot` starts whatever it has in flash.
+Under wasmtime on a native run, the host loads the module with no WASI, no filesystem, no clock and no randomness, caps its memory, and meters it with fuel, so a chip module from a pull request cannot hang a run or reach outside its sandbox. In the wasm build the component is transpiled with `jco` and instantiated by the JavaScript host (§12); it sees only the `litz:mcu/host` imports and runs inside the host engine's sandbox. A board whose guest carries its own program may omit `firmware` in `litz.toml`; the guest's `boot` starts whatever it has in flash.
 
-`litz catalog new board <id>` writes a complete 0.2 guest, manifest, schematic and template README into `boards/<id>/`, and `boards/<id>/simulator/build.sh` builds the component. A guest built from that template is checked in as a test fixture, so every host call above is exercised by `cargo test -p litz-mcu-wasm`.
+`litz catalog new board <id>` writes a complete 0.2 guest, manifest, schematic and template README into `boards/<id>/`, and `boards/<id>/simulator/build.sh` builds the component. A guest built from that template is checked in as a test fixture, and `cargo test -p litz-mcu-wasm` exercises it against analog reads, I2C, UART writes, Wi-Fi scan and join, TCP, BLE scan/advertise/GATT and the raw radio medium.
 
-Nothing about the contract is Rust-specific. `wit-bindgen` generates the same guest bindings for C, C++, Go, MoonBit and Python from `wit-v2/litz-mcu.wit`; a toolchain that emits a component directly can skip the wrapper, and a core module built by any language can be wrapped with `litz-componentize` (or `wasm-tools component new`) as long as it carries the world's interface metadata. The manifest only names the `.wasm` file and the ABI it speaks.
+Nothing about the contract is Rust-specific: a guest can be produced by any toolchain that emits a component carrying the world's interface metadata, and a core module can be wrapped with `litz-componentize` or `wasm-tools component new`. The manifest only names the `.wasm` file and the ABI it speaks.
 
 ## 11. Part simulator ABI
 
-A `part.toml` with `backend = "wasm"` names a WebAssembly component instead of a builtin engine. The current contract is WIT package `litz:part@0.2.0`, world `component`, in `crates/litz-part-wit/wit/litz-part.wit`; `abi = "litz-part-2"` names it and is the default. `abi = "litz-part-1"` still selects the 0.1.0 package kept in `crates/litz-part-wit/wit-legacy`; the host detects the version from the component's exported interface, so a module built before 0.2 keeps running. A 0.1 module has no bus, attribute or framebuffer calls, and the host answers those with empty defaults.
+A `part.toml` with `backend = "wasm"` names a WebAssembly component instead of a builtin engine. The current contract is WIT package `litz:part@0.2.0`, world `component`, in `crates/litz-part-wit/wit/litz-part.wit`; `abi = "litz-part-2"` names it and is the default. `abi = "litz-part-1"` is still accepted for the 0.1.0 package kept in `crates/litz-part-wit/wit-legacy`. Unlike the MCU contract, the manifest's `abi` does not choose the guest's world: `WasmPart` reads the component's exported interface and selects the 0.1 or 0.2 bindings from it, so a module built before 0.2 keeps running even when a later manifest named the other version. A 0.1 module has no bus, attribute or framebuffer calls, and the host answers those with empty defaults.
 
 Pins are indices into the part's own pin table, assigned in catalog order. The world imports two host calls and exports one `part` interface.
 
@@ -641,7 +651,7 @@ Pins are indices into the part's own pin table, assigned in catalog order. The w
 | export `part` | `uart-receive(bytes, at-ns)` / `uart-poll()` | bytes from and to the chip on a UART |
 | export `part` | `framebuffer()` / `draw(offset, pixels)` / `damage()` | RGBA8888 framebuffer geometry, uploads and pending damage |
 
-Levels are `low`, `high` and `floating`; strength is `strong` or `weak`. There is no time base inside the module: `at-ns` and `to-ns` are the only clock it sees. The host loads it with no WASI, caps its memory and meters every call with fuel, so a part module from a pull request cannot hang a run or reach outside its sandbox.
+Levels are `low`, `high` and `floating`; strength is `strong` or `weak`. There is no time base inside the module: `at-ns` and `to-ns` are the only clock it sees. On a native run the host loads it with no WASI, caps its memory and meters every call with fuel, so a part module from a pull request cannot hang a run or reach outside its sandbox. In the wasm build the component is instantiated by the JavaScript host and reached through `litz_host` (§12); its host imports are the two `litz:part/host` calls.
 
 **ROM.** A component gets read-only load-time contents only through `host.rom()`; the host supplies them with `WasmPart::from_bytes_with_rom`, before instantiation. The 24C02 guest reads them from `info()` and seeds its array. There is no separate `load-rom` call, so a guest cannot rewrite the image at run time.
 
@@ -653,4 +663,167 @@ Levels are `low`, `high` and `floating`; strength is `strong` or `weak`. There i
 
 The reference guests are `crates/litz-part-74hc595` (the original 0.1.0 shift register, which is also the compatibility proof), `crates/litz-part-eeprom` (`litz-24c02`, a 256-byte I2C EEPROM at 0x50) and `crates/litz-part-display` (`litz-rgb-panel`, an 8x8 RGBA framebuffer at 0x3c). Guest sources use `crates/litz-part-sdk`, which generates the bindings and re-exports `Guest`, `export!` and the host helpers. Each guest's `build.sh` compiles for `wasm32-unknown-unknown` and wraps the core module with `litz-componentize`; the resulting components are committed in `crates/litz-catalog/builtin/parts/`.
 
-The reference MCU implementation is `crates/litz-chip-rv32`: RV32IMC plus enough of the ESP32-C3 memory map (GPIO, UART0, IRAM/DRAM) to run the firmware this repository generates. `crates/litz-chip-rv32/build.sh` rebuilds it. Custom chips run under the native runner and the CLI; the browser page is itself a wasm module and cannot load a second component, so `web/` keeps the builtin backend.
+The reference MCU implementation is `crates/litz-chip-rv32`: RV32IMC plus enough of the ESP32-C3 memory map (GPIO, UART0, IRAM/DRAM) to run the firmware this repository generates. `crates/litz-chip-rv32/build.sh` rebuilds it. A custom chip runs under the native runner and the CLI through `litz-mcu-wasm`, which hosts it with wasmtime; in the wasm build the JavaScript host instantiates the jco-transpiled component and the Rust `HostChip` in `crates/litz-board/src/host.rs` forwards images, pins, console and fault through `litz_host` (§12). Both `litz:mcu@0.1.0` and `litz:mcu@0.2.0` are fully bridged there.
+
+## 12. Runtime host ABI
+
+`crates/litz-wasm` builds a `cdylib` for `wasm32-unknown-unknown` with a plain C ABI over linear memory: a host allocates a buffer with `litz_alloc`, writes bytes, passes `(ptr, len)`, and releases it with `litz_free`. There is no wasm-bindgen layer. The module has no WASI and reaches no filesystem, clock, network or random source on its own; everything it reads is passed in. The `@litz-sim/litz` 0.2.0 package in `js/`, built from `litz-wasm` and the JavaScript sources, wraps this ABI as a headless library and adds the custom-component bridge.
+
+### 12.1 Session options — `litz_new_json`
+
+`litz_new` takes the diagram and four images as separate pointer/length pairs and uses the defaults. `litz_new_json` takes one JSON document so a host can also choose the flash size, the MAC, analog co-simulation and catalog manifests:
+
+```json
+{
+  "diagram": "{ ... }",
+  "app":  { "ptr": 1024, "len": 131072 },
+  "rom":  { "ptr": 4096, "len": 65536 },
+  "boot": null,
+  "ptable": null,
+  "flashSize": 4194304,
+  "mac": "24:0a:c4:12:34:56",
+  "analog": false,
+  "manifests": []
+}
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `diagram` | yes | the `diagram.json` text |
+| `app` | yes | application image as `{ ptr, len }` in linear memory |
+| `rom` | no | mask ROM as `{ ptr, len }`; omitted or `null` to use the backend's own |
+| `boot` | no | second-stage bootloader; must be given with `ptable` |
+| `ptable` | no | partition table; must be given with `boot` |
+| `flashSize` | no | positive flash size in bytes; the board manifest's, then 4 MiB |
+| `mac` | no | six hex octets, `:` or `-` separated; a fixed default keeps runs identical |
+| `analog` | no | solve the analog network instead of treating every net as digital; default `false` |
+| `manifests` | no | catalog manifests as TOML text, or `{ toml, schematic }` for a board whose internal schematic the host also supplies |
+
+`app` is required; every other key may be omitted. Unknown keys are an error, so a typo is reported rather than ignored. A successful call returns a session handle; a failure returns `0` and leaves the reason for `litz_last_error`.
+
+The backend is chosen from the board the diagram names, through the same `builtin_chip` selection the file-based runner uses. The wasm build carries the RISC-V ESP parts (ESP32-C3, C6, P4 and S31), the ATmega328P and the RP2040. Classic ESP32 and ESP32-S3 are Xtensa, whose esp32sim backend executes guest blocks through host JIT imports; the module has only the `litz_host` namespace, so those two are compiled out and a diagram naming one reports the reason. An in-memory session runs one board; a diagram with several is refused.
+
+### 12.2 `litz_host` imports
+
+The wasm module imports exactly one namespace, `litz_host`. It exists to run custom components. A native run does not use it: there, `litz-part-wasm` and `litz-mcu-wasm` instantiate the component with wasmtime. On wasm32 `litz-part-wasm` is compiled out, and `litz-mcu-wasm` keeps only its wasmtime-free `HostState`, which the bridge dispatches to. In a wasm host the roles split: the JavaScript side instantiates each jco-transpiled component and answers every call below, and the Rust side (`crates/litz-board/src/host.rs`) implements `Part`/`I2cDevice`/`SpiDevice`/`UartPeer` as `HostPart` and `Chip` as `HostChip`.
+
+Part calls:
+
+| Call | Contract |
+|---|---|
+| `part_create(name_ptr, name_len) -> u32` | instantiate the component registered under the name; `0` on failure |
+| `part_drop(id)` | release one instance |
+| `part_set_pin(id, pin, level, at_ns)` | a net on a pin resolved a level (`0` low, `1` high, `2` floating) |
+| `part_advance(id, to_ns)` / `part_next_event(id) -> i64` | advance the part's timers; `-1` when none is pending |
+| `part_drive(id, pin) -> u32` | `level \| strength << 8`; level `2` is floating |
+| `part_state(id, dst_ptr, cap) -> u32` | writes `kind` and `value` as two little-endian words; returns the bytes written |
+| `part_press(id, pressed) -> u32` / `part_set_control(id, permille) -> u32` | host interaction; `1` when the part has that input |
+| `part_analog(id, pin) -> f32` | volts, or NaN when the pin sources none |
+| `part_i2c_connect(id, address, read)`, `part_i2c_read(id) -> u32`, `part_i2c_write(id, byte) -> u32`, `part_i2c_stop(id)` | I2C target transaction |
+| `part_spi_select(id, selected)`, `part_spi_transfer(id, tx_ptr, tx_len, rx_len, out_ptr, out_cap) -> u32` | bracketed SPI transfer |
+| `part_uart_receive(id, bytes_ptr, len, at_ns)`, `part_uart_poll(id, out_ptr, out_cap) -> u32` | bytes from and to the chip |
+| `host_error(dst_ptr, cap) -> u32` | the last `part_create` or `chip_create` failure as UTF-8 |
+
+Chip calls:
+
+| Call | Contract |
+|---|---|
+| `chip_create(name_ptr, name_len) -> u32` | instantiate the component registered as a chip; `0` on failure |
+| `chip_drop(id)` | release one instance |
+| `chip_info(id, dst_ptr, cap) -> u32` | the guest's `info()` as JSON |
+| `chip_load_image(id, kind, offset, ptr, len) -> u32` | place a ROM, bootloader, partition table or firmware; `1` on success |
+| `chip_boot(id) -> i64` | start the firmware and return its entry address, or `-1` with the reason in `host_error` |
+| `chip_set_inputs(id, ptr, count)` | `count` records of `pin: u32, level: u32` |
+| `chip_run(id, budget, out_ptr) -> u32` | run up to `budget` cycles; writes `cycles: u64, stop: u32` |
+| `chip_take_outputs(id, out_ptr, cap) -> u32` | records of `pin: u32, level: u32, enabled: u32` |
+| `chip_write_console(id, ptr, len)` | bytes from the host terminal into the chip's receive path |
+
+Outputs longer than one word are written into a buffer the Rust side provides; a call returns the number of bytes written. The JavaScript `HostRuntime` in `js/src/host.js` answers these imports from registered factories, and `js/src/jco.js` adapts the object a transpiled module's `instantiate` returns (`partFromJco`, `partImports`, `chipFromJco`, `chipImports`). `createSession({ parts, boards })` maps a module name to a factory.
+
+The 0.2 host calls add no imports. `chipImports` routes each one to the module's `litz_guest_call(chip, op, args, out, cap)` export, where `op` is the contract's camelCase function name, `args` is a JSON object, and the reply is a JSON envelope `{"ok":true,"value":...}` or `{"ok":false,"error":"..."}`. The export returns the full reply length even when it exceeds `cap`, so a host that got a truncated buffer calls again. `HostChip` registers one `GuestHost` per chip instance, built from `litz_mcu_wasm::HostState`, and that host answers the call over the board's buses, network, beacons and radio medium.
+
+A `litz:mcu@0.1.0` chip is fully bridged: images, pin inputs and outputs, console and fault. A `litz:mcu@0.2.0` chip is fully bridged too: its analog, bus, Wi-Fi, socket, BLE and raw-radio calls cross `litz_guest_call` and are answered by the registered `litz_mcu_wasm::HostState`, the same implementation the native wasmtime loader uses. `chipImports` in `js/src/jco.js` builds the transpiled module's import object and the Rust side owns the dispatch, so no 0.2 call falls back to an error. A `litz:part` component of either package is bridged: pins, state, controls, analog and the I2C/SPI/UART calls.
+
+## 13. Build recipe — `litz.build.toml`
+
+Litz does not compile firmware. A project brings an ordered list of shell steps in `litz.build.toml`, shaped like a CI job, and `litz build` runs them with the user's permissions.
+
+```toml
+[build]
+workdir = "firmware"
+firmware = "../build/blink.bin"
+
+[build.env]
+FQBN = "esp32:esp32:esp32c3"
+
+[[step]]
+name = "compile"
+run = "arduino-cli compile --fqbn $FQBN --output-dir build ."
+timeout = "5m"
+
+[[step]]
+name = "collect"
+run = "cp build/*.bin ../build/blink.bin"
+env = { STRIP = "1" }
+```
+
+| Key | Where | Meaning |
+|---|---|---|
+| `workdir` | `[build]`, `[[step]]` | directory for the step, relative to the project; a step's value wins. An absolute path or one containing `..` is refused, and the resolved path must stay inside the project. |
+| `env` | `[build]`, `[[step]]` | environment variables; `[build.env]` is the base and a step's `env` overrides one key. |
+| `firmware` | `[build]` | a file that must exist after the last step, relative to the project rather than to `workdir`. |
+| `name` | `[[step]]` | transcript label; defaults to the command. |
+| `run` | `[[step]]` | the command, run by `sh -c` on Unix and `cmd /C` on Windows; required and non-empty. |
+| `timeout` | `[[step]]` | wall-clock limit using the same duration syntax as `litz.toml`; a step without one has no limit. |
+
+At least one `[[step]]` is required. Steps run in file order and the first failure stops the recipe with its exit code. `litz build [dir]` runs the recipe, `litz build [dir] --dry-run` prints the steps and their commands without running anything, and `litz test --build` or `litz run --build` runs the recipe first. The command exits 0 when every step succeeds and the named `firmware` exists, 1 when a step fails or the recipe is missing or invalid, and 2 for an unknown option.
+
+## 14. Automation scenario — `scenario.yaml`
+
+`litz test [dir] --scenario FILE` runs an ordered YAML scenario instead of the `[[test]]` entries. The document has an optional `name`, an optional integer `version`, and a `steps` list. Each step is a mapping with exactly one key; an unknown key is rejected when the scenario loads. Durations are relative to the previous step, and all timestamps are simulated.
+
+```yaml
+name: Blink
+version: 1
+steps:
+  - wait-serial: "Ready"
+  - delay: 500ms
+  - write-serial: "on\n"
+  - wait-serial: { text: "LED on", timeout: 2s }
+  - expect-pin: { part-id: led1, value: 1 }
+  - set-control: { part-id: pot1, name: value, value: "512" }
+```
+
+| Step | Body | Meaning |
+|---|---|---|
+| `delay` | a duration string | advance simulated time. |
+| `wait-serial` | text or `{text, timeout}` | wait for the console to contain the text. |
+| `write-serial` | text, a list of byte values, or `{value: ...}` | send bytes to the console. |
+| `wait-pin` | `{part-id, name?, value, timeout?}` | wait until the pin reaches the level (`name` selects a pin; without it the level is on the part's chip pin). |
+| `expect-pin` | `{part-id, name?, value}` | assert the pin's level; `name` is the pin, `value`/`expected` is `0`, `1`, `low`, `high`, `true` or `false`. |
+| `set-control` | `{part-id, name?, control?, value}` | set a named control; `name` and `control` are synonyms. |
+| `take-screenshot` | a path, `{path, board, expected}`, or `{part-id, save-to, compare-with, tolerance?}` | write a PNG at this point and optionally compare it pixel by pixel. |
+| `touch` | `{x, y, down}` or `{x, y, duration?, wait?, board?, part-id?}` or `"x,y"` | press or release a panel; without `down` it is a tap that releases after `duration` (default 50 ms). |
+| `touch-press` | `{x, y, board?, part-id?}` or `"x,y"` | press without releasing. |
+| `touch-move` | `{x, y, board?, part-id?}` or `"x,y"` | move the touch point. |
+| `touch-release` | optional `{x, y, board?, part-id?}` | release at the current or named point. |
+
+`part-id` accepts `part-id` or, when it is the only identifier, `pin`; the touch steps accept `part-id` or `part`. Coordinates are panel pixels.
+
+## 15. Observation outputs
+
+### 15.1 VCD
+
+`--vcd FILE` records every net transition after the trace starts and writes a Value Change Dump. The file begins with `$timescale 1ns $end`, one `$var wire 1 n<id> <name> $end` per net inside `$scope module litz`, and an `$enddefinitions` block. Initial values follow `#0`, then each change follows a `#<time_ns>` marker. A level is `0`, `1` or `z`. Net names are `net<id>_<label>`, where the label is `gpio<n>` for board 0, `b<board>_gpio<n>` for another board, `<part>_<pin>` for a part endpoint, or `gnd`/`v33`/`v5`/`vin` for a rail. A character in a part id or pin name that is not ASCII alphanumeric or `_` is written as `_`.
+
+### 15.2 Scope CSV
+
+`--scope FILE` writes one header row `time_ns` followed by one column per probe, plus `<name>_volts` for a channel with analog samples. There is one row per time any channel changes; levels hold between changes and are written `1`, `0` or `z`; volts are written with six decimals.
+
+### 15.3 Scope JSON
+
+`litz_scope_json` returns one object with `ms` and two arrays. Each `probes` entry is `{name, point, net, edges, high_ns, low_ns, frequency_hz, duty, min_volts, max_volts, digital, volts}`, where `digital` is a list of `[time_ns, code]` pairs with code `0` low, `1` high and `2` floating, and `volts` is a list of `[time_ns, volts]` pairs. Measurements that do not exist are `null`. Each `decodes` entry is `{spec, kind, name, frames}`, and each frame is `{at, end, text, error}` with `error` either `null` or a string.
+
+### 15.4 Packet captures
+
+`--pcap FILE` writes the simulated network's traffic at the end of the run as a nanosecond-resolution pcap (magic `0xa1b23c4d`, version 2.4, snaplen 65535, link type 1). The frames are synthetic Ethernet II carrying IPv4, TCP, UDP and DNS; TLS records appear as ciphertext. `--pcap-air FILE` records every 802.11 frame the radio carries as a link-type-105 pcap, and `--pcap-eth FILE` records the station's Ethernet frames as a link-type-1 pcap; both are written as the run goes and require a backend with that radio.

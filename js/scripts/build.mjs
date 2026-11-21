@@ -35,15 +35,19 @@ const built = path.join(
 copyFileSync(built, target);
 
 const module = new WebAssembly.Module(readFileSync(target));
+// The module imports exactly one namespace: the custom-part bridge, which
+// `loadLitz` fills from its own host runtime. Anything else would reach the
+// page's globals, so it is refused here rather than at first call.
 const imports = WebAssembly.Module.imports(module);
-if (imports.length > 0) {
+const foreign = imports.filter((entry) => entry.module !== "litz_host");
+if (foreign.length > 0) {
   throw new Error(
-    `the module imports ${imports.map((entry) => entry.name).join(", ")}; ` +
-      "the loader instantiates it with an empty import object",
+    `the module imports ${foreign.map((entry) => `${entry.module}.${entry.name}`).join(", ")}; ` +
+      "only litz_host is allowed",
   );
 }
 const names = new Set(WebAssembly.Module.exports(module).map((entry) => entry.name));
-const required = readFileSync(path.join(packageDir, "index.js"), "utf8").match(
+const required = readFileSync(path.join(packageDir, "src", "constants.js"), "utf8").match(
   /const REQUIRED_EXPORTS = \[([\s\S]*?)\];/,
 );
 for (const [, name] of required ? required[1].matchAll(/"([^"]+)"/g) : []) {

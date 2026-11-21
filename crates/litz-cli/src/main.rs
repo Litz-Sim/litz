@@ -264,13 +264,7 @@ fn main() -> ExitCode {
         }
     }
 
-    let dir = dir.unwrap_or_else(|| {
-        PathBuf::from(if command.as_deref() == Some("serve") {
-            "web"
-        } else {
-            "."
-        })
-    });
+    let dir = dir.unwrap_or_else(|| PathBuf::from("."));
 
     if command.as_deref() == Some("build") {
         return match litz_cli::build::run(&dir, dry_run) {
@@ -893,7 +887,7 @@ fn usage() {
         "  check  validate diagram.json against the catalog without running (`lint` is an alias)"
     );
     eprintln!("  build  run the project's litz.build.toml recipe and check its firmware output");
-    eprintln!("  serve  serve the browser simulator (default directory: web, default port: 8000)");
+    eprintln!("  serve  serve a directory over HTTP (default directory: ., default port: 8000)");
     eprintln!("  catalog  print the builtin catalog, or install and inspect a project's own parts");
     eprintln!(
         "  toolchain  report installed firmware toolchains (read-only; no network, no installs)"

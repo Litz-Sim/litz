@@ -12,12 +12,15 @@ authors.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+litz-board = { version = "0.0.1", path = "../litz-board" }
 litz-core = { version = "0.0.1", path = "../litz-core" }
 litz-diagram = { version = "0.0.1", path = "../litz-diagram" }
 litz-engine = { version = "0.0.1", path = "../litz-engine" }
 litz-esp = { version = "0.0.1", path = "../litz-esp", features = ["esp32c3"] }
 litz-mcu = { version = "0.0.1", path = "../litz-mcu" }
 litz-net = { version = "0.0.1", path = "../litz-net", optional = true }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 
 [dev-dependencies]
 litz-fixture = { path = "../litz-fixture" }
@@ -26,3 +29,6 @@ litz-fixture = { path = "../litz-fixture" }
 # `litz_tls_probe`: an export `tools/tls-probe.mjs` calls on the built module
 # to run a TLS handshake in the browser build. Not part of a page's ABI.
 tls-probe = ["dep:litz-net"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+litz-mcu-wasm = { version = "0.0.1", path = "../litz-mcu-wasm" }

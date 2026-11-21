@@ -35,14 +35,28 @@
 //! | [`litz_scope_len`] | `(handle: u32) -> u32` | bytes of the scope document |
 //! | [`litz_scope_json`] | `(handle, dst, cap) -> u32` | every probe's record as JSON |
 //! | [`litz_decode_add`] | `(handle, spec, len) -> i32` | decode a protocol off the probes; `1` on success |
+//! | [`litz_new_json`] | `(json_ptr, json_len) -> u32` | build a session from images, options and manifests |
 //! | [`litz_part_count`] | `(handle: u32) -> u32` | parts declared in the diagram |
 //! | [`litz_part_id`] | `(handle, index, dst, cap) -> u32` | id of the `index`-th part |
+//! | [`litz_chip_info`] | `(handle, dst, cap) -> u32` | the backend's name, clock and flash layout as JSON |
+//! | [`litz_stop`] | `(handle: u32) -> u32` | how the last run ended |
+//! | [`litz_fault`] | `(handle, dst, cap) -> u32` | the backend's trap text |
+//! | [`litz_part_pin_level`] | `(handle, id, id_len, pin, pin_len) -> i32` | a part pin's level |
+//! | [`litz_gpio_level`] | `(handle, pin: u32) -> i32` | a chip pad's level |
+//! | [`litz_set_named_control`] | `(handle, id, name, value) -> i32` | set `temperature`, `lux`, ... |
+//! | [`litz_heap`] | `(handle: u32) -> i32` | the firmware's free heap, or -1 |
+//! | [`litz_guest_console`] | `(chip, ptr, len)` | console bytes from a host chip's run |
+//! | [`litz_guest_fault`] | `(chip, ptr, len)` | a host chip's stop reason |
+//! | [`litz_guest_call`] | `(chip, op, args, out, cap) -> u32` | one 0.2 host call, answered as JSON |
 //! | [`litz_display_info`] | `(handle: u32) -> u32` | `width << 16 \| height`, or 0 without a display |
 //! | [`litz_display_version`] | `(handle: u32) -> u32` | display change counter |
 //! | [`litz_display_rgba`] | `(handle, dst, cap) -> u32` | the frame as RGBA8888, bytes written |
 //! | [`litz_touch`] | `(handle, x, y, down) -> i32` | touch panel pixels; `1` on success |
 //!
-//! A session owns one ESP32-C3, its flattened board and its flash. `litz_run`
+//! A session owns one board, its flattened circuit and its flash. The backend
+//! is chosen from the board the diagram names: every builtin chip boots this
+//! way, and a board whose manifest names a wasm component is hosted by the
+//! JavaScript side and reached through the `litz_host` imports. `litz_run`
 //! advances it by at most `steps` scheduling steps — the host decides how much
 //! simulated time one call should cover — and returns the simulated clock in
 //! milliseconds, saturating at `u32::MAX`. Serial output is collected
@@ -73,6 +87,20 @@ thread_local! {
     static LAST_ERROR: RefCell<String> = const { RefCell::new(String::new()) };
 }
 
+/// Give a host-instantiated `litz:mcu@0.2.0` chip its circuit side. The
+/// factory builds the same `HostState` the native loader uses, so bus, ADC,
+/// Wi-Fi and BLE answers do not depend on which host runs the component.
+#[cfg(target_arch = "wasm32")]
+fn ensure_guest_factory() {
+    use std::sync::Once;
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        litz_board::host::set_guest_factory(|_module, board, index| {
+            Some(Box::new(litz_mcu_wasm::HostState::attached(board, index)))
+        });
+    });
+}
+
 /// Allocate `len` bytes of host-visible linear memory.
 ///
 /// Returns a byte offset, or 0 when the allocation cannot be made. A
@@ -85,7 +113,67 @@ thread_local! {
 pub mod abi {
     #![allow(unsafe_code)]
 
+    use serde::Deserialize;
+
     use super::*;
+    use crate::session::level_code;
+
+    /// The JSON `litz_new_json` takes.
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
+    struct SessionSpec {
+        diagram: String,
+        app: ImageRef,
+        #[serde(default)]
+        rom: Option<ImageRef>,
+        #[serde(default)]
+        boot: Option<ImageRef>,
+        #[serde(default)]
+        ptable: Option<ImageRef>,
+        #[serde(default)]
+        flash_size: Option<u32>,
+        #[serde(default)]
+        mac: Option<String>,
+        #[serde(default)]
+        analog: Option<bool>,
+        /// Catalog manifests as TOML text, or `{toml, schematic}` for a board
+        /// whose internal schematic the host also supplies.
+        #[serde(default)]
+        manifests: Vec<ManifestSpec>,
+    }
+
+    /// A manifest the host handed over.
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum ManifestSpec {
+        Text(String),
+        Bundle {
+            toml: String,
+            #[serde(default)]
+            schematic: Option<String>,
+        },
+    }
+
+    /// A host buffer named by a byte offset and a length.
+    #[derive(Deserialize)]
+    struct ImageRef {
+        ptr: u32,
+        len: u32,
+    }
+
+    /// `24:0a:c4:12:34:56` or `24-0a-c4-12-34-56`.
+    fn parse_mac(text: &str) -> Result<[u8; 6], String> {
+        let octets: Vec<u8> = text
+            .split([':', '-'])
+            .map(|octet| {
+                u8::from_str_radix(octet, 16)
+                    .map_err(|_| format!("invalid MAC {text:?}: expected six hex octets"))
+            })
+            .collect::<Result<_, _>>()?;
+        octets
+            .try_into()
+            .map_err(|_| format!("invalid MAC {text:?}: expected six hex octets"))
+    }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn litz_alloc(len: u32) -> u32 {
@@ -109,11 +197,19 @@ pub mod abi {
     ///
     /// `rom`, `boot` (the second-stage bootloader) and `ptable` (the partition
     /// table) may each be absent by passing `(0, 0)`; the application is required.
-    /// With a bootloader and partition table the images are placed at the ESP-IDF
-    /// offsets and the bootloader runs; without them the application is flashed at
-    /// 0x1_0000 and started directly. Supplying only one of the bootloader and
-    /// partition table is an error, because the bootloader cannot find the
-    /// application without the table.
+    /// The backend is chosen from the board the diagram names, so every
+    /// builtin chip boots the same way: the ESP32 family, the ATmega328P and
+    /// the RP2040.
+    ///
+    /// With a bootloader and partition table the images are placed at the
+    /// chip's own offsets and the bootloader runs; without them the
+    /// application is placed at the application offset, and a merged ESP image
+    /// is recognised and written at the bootloader offset. Supplying only one
+    /// of the bootloader and partition table is an error, because the
+    /// bootloader cannot find the application without the table.
+    ///
+    /// This entry point uses default flash size, MAC and analog settings.
+    /// [`litz_new_json`] takes those from the host.
     ///
     /// Returns a session handle, or 0 on failure with the reason in
     /// [`litz_last_error`].
@@ -141,6 +237,96 @@ pub mod abi {
         let app = memory::to_vec(app_ptr, app_len);
 
         match Session::new(&diagram, &rom, &bootloader, &ptable, &app) {
+            Ok(session) => register(session),
+            Err(message) => error_u32(message),
+        }
+    }
+
+    /// Build a session from a JSON document.
+    ///
+    /// The document names the images by their buffers in linear memory, so the
+    /// host writes them with [`litz_alloc`] first and frees them afterwards:
+    ///
+    /// ```json
+    /// {
+    ///   "diagram": "{ ... }",
+    ///   "app":  { "ptr": 1024, "len": 131072 },
+    ///   "rom":  { "ptr": 4096, "len": 65536 },
+    ///   "boot": null,
+    ///   "ptable": null,
+    ///   "flashSize": 4194304,
+    ///   "mac": "24:0a:c4:12:34:56",
+    ///   "analog": false
+    /// }
+    /// ```
+    ///
+    /// `app` is required; `rom`, `boot`, `ptable`, `flashSize`, `mac` and
+    /// `analog` are optional and fall back to the board's manifest and the
+    /// module's defaults. Unknown keys are an error so a typo is reported
+    /// rather than silently ignored.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_new_json(json_ptr: u32, json_len: u32) -> u32 {
+        clear_error();
+        #[cfg(target_arch = "wasm32")]
+        ensure_guest_factory();
+        let text = match memory::to_string(json_ptr, json_len, "session options") {
+            Ok(text) => text,
+            Err(message) => return error_u32(message),
+        };
+        let spec: SessionSpec = match serde_json::from_str(&text) {
+            Ok(spec) => spec,
+            Err(error) => return error_u32(format!("session options: {error}")),
+        };
+        let mac = match spec.mac.as_deref().map(parse_mac) {
+            None => litz_engine::machine::DEFAULT_MAC,
+            Some(Ok(mac)) => mac,
+            Some(Err(message)) => return error_u32(message),
+        };
+        if spec.flash_size == Some(0) {
+            return error_u32("flashSize must be positive");
+        }
+        let rom = spec
+            .rom
+            .map(|r| memory::to_vec(r.ptr, r.len))
+            .unwrap_or_default();
+        let boot = spec
+            .boot
+            .map(|r| memory::to_vec(r.ptr, r.len))
+            .unwrap_or_default();
+        let ptable = spec
+            .ptable
+            .map(|r| memory::to_vec(r.ptr, r.len))
+            .unwrap_or_default();
+        let app = memory::to_vec(spec.app.ptr, spec.app.len);
+
+        let options = litz_engine::machine::BootOptions {
+            flash_size: spec.flash_size.map(|size| size as usize),
+            mac,
+            analog: spec.analog.unwrap_or(false),
+            manifests: spec
+                .manifests
+                .into_iter()
+                .map(|manifest| match manifest {
+                    ManifestSpec::Text(toml) => litz_engine::machine::ManifestText {
+                        toml,
+                        schematic: None,
+                    },
+                    ManifestSpec::Bundle { toml, schematic } => {
+                        litz_engine::machine::ManifestText { toml, schematic }
+                    }
+                })
+                .collect(),
+        };
+        match Session::with_options(
+            &spec.diagram,
+            litz_engine::machine::Images {
+                rom: &rom,
+                bootloader: &boot,
+                partition_table: &ptable,
+                app: &app,
+            },
+            &options,
+        ) {
             Ok(session) => register(session),
             Err(message) => error_u32(message),
         }
@@ -539,6 +725,210 @@ pub mod abi {
             Some(None) => 0,
             None => error_u32(missing_session(handle)),
         }
+    }
+
+    /// The backend the diagram booted, as JSON.
+    ///
+    /// `{"name":"esp32c3","cpuHz":160000000,"flash":{"size":4194304,
+    /// "bootloader":0,"partitionTable":32768,"app":65536}}`. The chip name,
+    /// its clock and where its images sit are what a host needs to label a
+    /// run without repeating the board manifest.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_chip_info(handle: u32, dst_ptr: u32, cap: u32) -> u32 {
+        clear_error();
+        match with_session(handle, |session| session.chip_info_json()) {
+            Some(text) => memory::copy_out(dst_ptr, cap, text.as_bytes()),
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// How the last [`litz_run`] ended.
+    ///
+    /// `0` step budget, `1` idle (nothing to do until an input changes),
+    /// `2` halted, `3` trap, `4` reset, `5` breakpoint.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_stop(handle: u32) -> u32 {
+        clear_error();
+        match with_session(handle, |session| session.stop_code()) {
+            Some(code) => code,
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// The backend's own explanation for a trap or fault, if it has one.
+    ///
+    /// Returns the bytes written; an empty string when the chip has nothing
+    /// to report.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_fault(handle: u32, dst_ptr: u32, cap: u32) -> u32 {
+        clear_error();
+        match with_session(handle, |session| session.fault()) {
+            Some(Some(text)) => memory::copy_out(dst_ptr, cap, text.as_bytes()),
+            Some(None) => 0,
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// The level on one of a named part's pins.
+    ///
+    /// `pin` may be empty to ask for the part's first pin. `-1` means the
+    /// diagram has no such part or pin; `0`/`1`/`2` are low, high and high
+    /// impedance.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_part_pin_level(
+        handle: u32,
+        id_ptr: u32,
+        id_len: u32,
+        pin_ptr: u32,
+        pin_len: u32,
+    ) -> i32 {
+        clear_error();
+        let id = match memory::to_string(id_ptr, id_len, "part id") {
+            Ok(id) => id,
+            Err(message) => return error_i32(message),
+        };
+        let pin = match memory::to_string(pin_ptr, pin_len, "pin name") {
+            Ok(pin) => pin,
+            Err(message) => return error_i32(message),
+        };
+        let pin = if pin.is_empty() {
+            None
+        } else {
+            Some(pin.as_str())
+        };
+        match with_session(handle, |session| {
+            session.part_pin_level(&id, pin).map(level_code)
+        }) {
+            Some(Some(code)) => code,
+            Some(None) => -1,
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// The level the chip sees on one of its own pads, by GPIO number.
+    ///
+    /// `-1` means the chip has no such pad or is not attached to a board;
+    /// otherwise `0`/`1`/`2` as in [`litz_part_pin_level`].
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_gpio_level(handle: u32, pin: u32) -> i32 {
+        clear_error();
+        let Ok(pin) = u8::try_from(pin) else {
+            return error_i32(format!("GPIO number {pin} is past the chip's last pin"));
+        };
+        match with_session(handle, |session| session.gpio_level(pin).map(level_code)) {
+            Some(Some(code)) => code,
+            Some(None) => -1,
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// Set a named control on a part (`temperature`, `lux`, `pressed`).
+    ///
+    /// Returns 1 on success, 0 when the part has no such control, and -1 when
+    /// the diagram has no such part. The reason is in [`litz_last_error`].
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_set_named_control(
+        handle: u32,
+        id_ptr: u32,
+        id_len: u32,
+        name_ptr: u32,
+        name_len: u32,
+        value_ptr: u32,
+        value_len: u32,
+    ) -> i32 {
+        clear_error();
+        let id = match memory::to_string(id_ptr, id_len, "part id") {
+            Ok(id) => id,
+            Err(message) => return error_i32(message),
+        };
+        let name = match memory::to_string(name_ptr, name_len, "control name") {
+            Ok(name) => name,
+            Err(message) => return error_i32(message),
+        };
+        let value = match memory::to_string(value_ptr, value_len, "control value") {
+            Ok(value) => value,
+            Err(message) => return error_i32(message),
+        };
+        match with_session(handle, |session| {
+            session.set_named_control(&id, &name, &value)
+        }) {
+            Some(Ok(())) => 1,
+            Some(Err(message)) => {
+                let code = if message.starts_with("no part") {
+                    -1
+                } else {
+                    0
+                };
+                set_error(message);
+                code
+            }
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// The firmware's own free-heap figure, or -1 when this backend cannot
+    /// call into the guest to ask.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_heap(handle: u32) -> i32 {
+        clear_error();
+        match with_session(handle, |session| session.sample_heap()) {
+            Some(Ok(bytes)) => bytes as i32,
+            Some(Err(_)) => -1,
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// Console bytes a host chip wrote while the module was inside its run.
+    ///
+    /// The host's chip adapter calls this from the guest's `host.console`
+    /// import; the module is suspended in `chip_run`, so the bytes are
+    /// buffered and the session drains them on its next `litz_serial_take`.
+    #[cfg(target_arch = "wasm32")]
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_guest_console(chip: u32, ptr: u32, len: u32) {
+        litz_board::host::push_console(chip, &memory::to_vec(ptr, len));
+    }
+
+    /// A host chip's explanation for stopping, from the guest's `host.fault`.
+    #[cfg(target_arch = "wasm32")]
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_guest_fault(chip: u32, ptr: u32, len: u32) {
+        let detail = String::from_utf8_lossy(&memory::to_vec(ptr, len)).into_owned();
+        litz_board::host::push_fault(chip, detail);
+    }
+
+    /// One `litz:mcu@0.2.0` host call from a transpiled guest.
+    ///
+    /// `op` is the contract's camelCase function name and `args` a JSON
+    /// object; the reply is a JSON envelope, `{"ok":true,"value":...}` or
+    /// `{"ok":false,"error":"..."}`. The return value is the reply's full
+    /// length, even when it exceeds `cap`, so a host that got a short buffer
+    /// knows how much to allocate and calls again.
+    #[cfg(target_arch = "wasm32")]
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_guest_call(
+        chip: u32,
+        op_ptr: u32,
+        op_len: u32,
+        args_ptr: u32,
+        args_len: u32,
+        out_ptr: u32,
+        cap: u32,
+    ) -> u32 {
+        let reply = match (
+            memory::to_string(op_ptr, op_len, "host call name"),
+            memory::to_string(args_ptr, args_len, "host call arguments"),
+        ) {
+            (Ok(op), Ok(args)) => match litz_board::host::guest_call(chip, &op, &args) {
+                Ok(value) => format!(r#"{{"ok":true,"value":{value}}}"#),
+                Err(error) => serde_json::json!({ "ok": false, "error": error }).to_string(),
+            },
+            (Err(error), _) | (_, Err(error)) => {
+                serde_json::json!({ "ok": false, "error": error }).to_string()
+            }
+        };
+        memory::copy_out(out_ptr, cap, reply.as_bytes());
+        reply.len() as u32
     }
 
     /// Run one TLS 1.3 handshake inside this module.

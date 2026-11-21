@@ -843,17 +843,23 @@ impl Core {
     /// xpsr`), aligned down to eight bytes with the alignment flag in `xPSR`
     /// bit 9 the way hardware records it.
     pub fn enter_exception<B: Bus>(&mut self, bus: &mut B, vector: u16) -> Result<(), Fault> {
-        let frame = [
+        let mut frame = [
             self.r[0], self.r[1], self.r[2], self.r[3], self.r[12], self.r[14], self.r[15],
             self.xpsr,
         ];
         // Always MSP in handler mode, and handler mode is what this call
         // establishes.
         let mut sp = self.msp;
-        if !sp.is_multiple_of(8) {
+        let adjusted = !sp.is_multiple_of(8);
+        if adjusted {
             sp &= !7;
-            self.xpsr |= 1 << 9;
         }
+        // The flag describes this entry, not the one before it: bit 9 of the
+        // live xPSR survives an exception return, so copying it into the frame
+        // would make an aligned entry claim that four bytes were taken when
+        // they were not, and every such return would add four to SP.
+        frame[7] = (frame[7] & !(1 << 9)) | if adjusted { 1 << 9 } else { 0 };
+        self.xpsr = (self.xpsr & !(1 << 9)) | (frame[7] & (1 << 9));
         sp -= 32;
         for (i, word) in frame.iter().enumerate() {
             bus.write32(sp + 4 * i as u32, *word)?;
@@ -886,7 +892,6 @@ impl Core {
         for (i, word) in frame.iter_mut().enumerate() {
             *word = bus.read32(sp + 4 * i as u32)?;
         }
-        let aligned = sp;
         sp += 32 + if frame[7] & (1 << 9) != 0 { 4 } else { 0 };
         if use_psp {
             self.psp = sp;
@@ -902,7 +907,6 @@ impl Core {
         self.r[15] = frame[6] & !1;
         self.xpsr = (frame[7] & !psr::IPSR_MASK) | psr::T;
         self.exception = 0;
-        let _ = aligned;
         self.r[13] = if self.control & 2 != 0 {
             self.psp
         } else {
@@ -1369,6 +1373,67 @@ mod tests {
         assert_eq!(core.r[0], 0x1111_1111);
         assert_eq!(core.r[12], 0x5555_5555);
         assert_eq!(core.r[14], 0x6666_6666);
+    }
+
+    /// Put a `bx lr` handler on vector 11 and return the core positioned at
+    /// `0x100` with `msp` as the active stack.
+    fn svc_core(msp: u32) -> (Core, TestBus) {
+        let mut bus = TestBus::new();
+        let handler: u32 = 0x200;
+        bus.place(0x2c, &handler.to_le_bytes());
+        bus.place(handler, &hw(0x4770)); // bx lr
+        let mut core = core_at(0x100);
+        core.msp = msp;
+        core.r[13] = msp;
+        (core, bus)
+    }
+
+    #[test]
+    fn an_exception_landing_on_an_aligned_stack_restores_the_same_sp() {
+        let (mut core, mut bus) = svc_core(0x2000_1000);
+
+        for round in 0..4 {
+            core.enter_exception(&mut bus, 11).unwrap();
+            let stacked = bus.read32(core.msp + 28).unwrap();
+            assert_eq!(
+                stacked & (1 << 9),
+                0,
+                "round {round}: no alignment adjustment was made"
+            );
+            assert_eq!(core.step(&mut bus), Ok(2)); // bx lr
+            assert_eq!(core.msp, 0x2000_1000, "round {round}: SP is unchanged");
+            assert_eq!(core.r[13], 0x2000_1000);
+        }
+    }
+
+    #[test]
+    fn the_alignment_flag_describes_each_entry_not_the_one_before() {
+        let (mut core, mut bus) = svc_core(0x2000_1004);
+
+        // An unaligned entry takes four bytes and gives them back.
+        core.enter_exception(&mut bus, 11).unwrap();
+        let unaligned = bus.read32(core.msp + 28).unwrap();
+        assert_ne!(unaligned & (1 << 9), 0);
+        assert_eq!(core.step(&mut bus), Ok(2));
+        assert_eq!(core.msp, 0x2000_1004);
+
+        // The next entry is still unaligned, so it must also take four bytes;
+        // the flag left in the live xPSR must not make an aligned entry claim
+        // an adjustment it did not make.
+        core.enter_exception(&mut bus, 11).unwrap();
+        assert_eq!(core.msp, 0x2000_0fe0);
+        assert_eq!(core.step(&mut bus), Ok(2));
+        assert_eq!(core.r[13], 0x2000_1004);
+
+        // And an aligned entry now stacks without the flag and leaves SP
+        // alone, which is where the drift used to show up.
+        core.msp = 0x2000_1000;
+        core.r[13] = core.msp;
+        core.enter_exception(&mut bus, 11).unwrap();
+        let aligned = bus.read32(core.msp + 28).unwrap();
+        assert_eq!(aligned & (1 << 9), 0);
+        assert_eq!(core.step(&mut bus), Ok(2));
+        assert_eq!(core.msp, 0x2000_1000);
     }
 
     #[test]

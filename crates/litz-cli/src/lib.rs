@@ -1,5 +1,6 @@
 //! The `litz` command: run a firmware image against a diagram, check the
-//! diagram without running anything, or serve the browser simulator.
+//! diagram without running anything, or serve a directory over HTTP for a host
+//! that loads the wasm build.
 //!
 //! The engine — project loading, boot, the run loop, assertions, probes — lives
 //! in [`litz_engine`]. What stays here is what a command line owns: argument

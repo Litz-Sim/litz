@@ -9,9 +9,5 @@ examples/*/firmware/*
 !examples/pico-c-systick/firmware/pico-c-systick.bin
 !examples/pico-c-i2c/firmware/pico-c-i2c.bin
 !examples/uno-blink/firmware/uno-blink.hex
-web/litz_wasm.wasm
-web/workbench/litz_wasm.wasm
-web/demo/*.bin
-web/demo/*/*.bin
 js/litz_wasm.wasm
 .DS_Store

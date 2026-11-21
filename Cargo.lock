@@ -1366,6 +1366,8 @@ dependencies = [
  "litz-fixture",
  "litz-mcu-wit",
  "litz-net",
+ "serde",
+ "serde_json",
  "thiserror 2.0.21",
  "wasmtime",
  "wit-component 0.261.0",
@@ -1466,13 +1468,17 @@ dependencies = [
 name = "litz-wasm"
 version = "0.0.1"
 dependencies = [
+ "litz-board",
  "litz-core",
  "litz-diagram",
  "litz-engine",
  "litz-esp",
  "litz-fixture",
  "litz-mcu",
+ "litz-mcu-wasm",
  "litz-net",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

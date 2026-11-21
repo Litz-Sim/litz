@@ -176,6 +176,19 @@ pub trait Chip {
         None
     }
 
+    /// The first display on the board's buses as RGB565, with its width,
+    /// height and change counter. `None` when the circuit has no display, or
+    /// when this backend cannot reach the board's display devices.
+    fn display(&mut self) -> Option<(u32, u32, Vec<u16>, u64)> {
+        None
+    }
+
+    /// The change counter of the output of [`Chip::display`], without building
+    /// a frame. Zero when there is no display to ask.
+    fn display_version(&mut self) -> u64 {
+        0
+    }
+
     /// Write the simulated display to `path` as a PNG. A backend whose boards
     /// have no framebuffer says so instead of leaving an empty file.
     fn save_display(&mut self, _path: &std::path::Path) -> Result<(), String> {

@@ -33,7 +33,10 @@
 //! board.set_chip_output(8, litz_core::Drive::strong(litz_core::Level::High), 0);
 //! assert_eq!(board.state("led1"), Some(litz_core::PartState::Led { lit: true }));
 //! ```
-#![forbid(unsafe_code)]
+// The host bridge to JavaScript components declares `extern "C"` imports on
+// wasm32, which edition 2024 counts as unsafe code. It is the one module that
+// needs it; everything else stays safe.
+#![deny(unsafe_code)]
 
 pub mod analog;
 pub mod ble_parts;
@@ -43,6 +46,9 @@ pub mod chip;
 pub mod devices;
 pub mod displays;
 pub mod flatten;
+/// The JavaScript host bridge for custom parts and chips (wasm32 builds).
+#[cfg(target_arch = "wasm32")]
+pub mod host;
 pub mod ieee802154_parts;
 pub mod inputs;
 pub mod logic;

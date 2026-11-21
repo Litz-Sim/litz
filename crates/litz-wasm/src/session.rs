@@ -1,23 +1,23 @@
 //! One running machine plus the state the ABI exposes about it.
 //!
-//! Construction is [`litz_engine::machine::boot_c3`], the same path the CLI
+//! Construction is [`litz_engine::machine::boot`], the same path the CLI
 //! takes; the only difference is where the bytes come from. A browser holds
 //! them in host memory, a project holds them in files.
 //!
+//! The backend is chosen from the diagram's board manifest, so the ABI reaches
+//! every builtin chip: the ESP32 family, the ATmega328P and the RP2040.
+//!
 //! Everything the exports read back after that — simulated time, serial text,
-//! electrical conflicts, part state — lives on this struct.
+//! electrical conflicts, part state, the display — lives on this struct.
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use litz_board::{Board, Chip, Stop};
 use litz_core::PartState;
 use litz_diagram::Circuit;
 use litz_engine::config::DecodeSection;
-use litz_engine::machine::{self, Images};
-use litz_esp::backend::C3;
-
-/// 4 MiB of external flash, the devkit default.
-const FLASH_SIZE: usize = 4 * 1024 * 1024;
-/// Espressif's example MAC. Nothing in the simulation is MAC-specific yet, so
-/// a fixed value keeps two runs byte-identical.
-const DEFAULT_MAC: [u8; 6] = [0x24, 0x0a, 0xc4, 0x12, 0x34, 0x56];
+use litz_engine::machine::{self, BootOptions, Images};
 
 /// Serial text kept for the host. A runaway firmware can print without bound;
 /// past this many bytes the oldest output is dropped, because a browser tab
@@ -29,94 +29,126 @@ const SERIAL_CAP: usize = 1024 * 1024;
 const NO_NET: u16 = u16::MAX;
 
 pub(crate) struct Session {
-    mcu: C3,
-    circuit: Circuit,
-    /// UART0 bytes since the host last drained them.
+    chip: Box<dyn Chip>,
+    /// The same board the chip drives, kept so probes, the display and the
+    /// trace can be asked without another trait method for each.
+    board: Rc<RefCell<Board>>,
+    /// The parsed diagram, kept so part enumeration reports the ids the host
+    /// wrote, not the prefixed ids a board expansion invents.
+    diagram: Circuit,
+    /// Console bytes since the host last drained them.
     serial: Vec<u8>,
     /// Protocols the host asked to read off the probed channels, with the
     /// text it spelled them with, so the host can match its own list to the
     /// document even when two decoders share a label.
     decodes: Vec<(String, DecodeSection)>,
+    /// How the last `run` ended, which tells a halted firmware from one that
+    /// merely used its step budget.
+    stop: Stop,
 }
 
 impl Session {
-    /// Build the machine. All images are owned slices by the time this runs.
-    ///
-    /// The application is required: a session with an empty flash has nothing
-    /// to run. ROM and the bootloader/partition-table pair are optional; the
-    /// pair goes together or not at all, because the bootloader looks the
-    /// application up through the table.
+    /// Build the machine with default options. All images are borrowed; the
+    /// boot copies them before returning.
     pub(crate) fn new(
         diagram: &str,
         rom: &[u8],
         bootloader: &[u8],
-        ptable: &[u8],
+        partition_table: &[u8],
         app: &[u8],
     ) -> Result<Self, String> {
-        let (mcu, circuit) = machine::boot_c3(
+        Self::with_options(
             diagram,
             Images {
                 rom,
                 bootloader,
-                partition_table: ptable,
+                partition_table,
                 app,
             },
-            FLASH_SIZE,
-            DEFAULT_MAC,
-        )?;
-
-        Ok(Self {
-            mcu,
-            circuit,
-            serial: Vec::new(),
-            decodes: Vec::new(),
-        })
+            &BootOptions::default(),
+        )
     }
 
-    /// The parsed diagram. Kept so part enumeration reports the ids the host
-    /// wrote, not the prefixed ids a board expansion invents.
-    pub(crate) fn diagram(&self) -> &Circuit {
-        &self.circuit
+    /// Build the machine with the host's flash size, MAC and analog choice.
+    pub(crate) fn with_options(
+        diagram: &str,
+        images: Images<'_>,
+        options: &BootOptions,
+    ) -> Result<Self, String> {
+        let booted = machine::boot(diagram, images, options)?;
+        Ok(Self {
+            chip: booted.chip,
+            board: booted.board,
+            diagram: booted.circuit,
+            serial: Vec::new(),
+            decodes: Vec::new(),
+            stop: Stop::Budget,
+        })
     }
 
     /// Simulated milliseconds since reset, saturating at `u32::MAX`
     /// (about 49.7 days of simulated time).
     pub(crate) fn ms(&self) -> u32 {
-        (self.mcu.seconds() * 1000.0) as u32
+        (self.chip.seconds() * 1000.0) as u32
     }
 
-    /// Advance at most `steps` scheduling steps, collect UART0 and report the
-    /// clock. One scheduling step is not one instruction or one microsecond;
-    /// the host decides how much simulated time a call should cover by its
-    /// step budget.
+    /// Advance at most `steps` scheduling steps, collect the console and
+    /// report the clock. One scheduling step is not one instruction or one
+    /// microsecond; the host decides how much simulated time a call should
+    /// cover by its step budget.
     pub(crate) fn run(&mut self, steps: u32) -> u32 {
-        let _ = self.mcu.run(u64::from(steps));
-        let chunk = self.mcu.take_uart0();
+        let result = self.chip.run(u64::from(steps));
+        self.stop = result.stop;
+        let chunk = self.chip.take_console();
         append_capped(&mut self.serial, &chunk, SERIAL_CAP);
         self.ms()
     }
 
-    /// Remove up to `max` bytes from the front of the serial log.
-    /// Begin recording net transitions for the waveform export. Cheap enough
-    /// to leave on for a session; the host asks for the dump when it wants it.
-    pub(crate) fn start_trace(&mut self) {
-        if let Some(board) = self.mcu.board() {
-            board.borrow_mut().start_trace();
+    /// How the last run ended: 0 budget, 1 idle, 2 halted, 3 trap, 4 reset,
+    /// 5 breakpoint.
+    pub(crate) fn stop_code(&self) -> u32 {
+        match self.stop {
+            Stop::Budget => 0,
+            Stop::Idle => 1,
+            Stop::Halted => 2,
+            Stop::Trap => 3,
+            Stop::Reset => 4,
+            Stop::Breakpoint(_) => 5,
         }
     }
 
+    /// The backend's own explanation for a trap or fault, if it has one.
+    pub(crate) fn fault(&self) -> Option<String> {
+        self.chip.fault()
+    }
+
+    /// The chip's name, clock and flash layout, as the host spells them.
+    pub(crate) fn chip_info_json(&self) -> String {
+        let info = self.chip.info();
+        format!(
+            r#"{{"name":{},"cpuHz":{},"flash":{{"size":{},"bootloader":{},"partitionTable":{},"app":{}}}}}"#,
+            json_string(&info.name),
+            info.cpu_hz,
+            info.flash.size,
+            info.flash.bootloader,
+            info.flash.partition_table,
+            info.flash.app,
+        )
+    }
+
+    /// Begin recording net transitions for the waveform export. Cheap enough
+    /// to leave on for a session; the host asks for the dump when it wants it.
+    pub(crate) fn start_trace(&mut self) {
+        self.board.borrow_mut().start_trace();
+    }
+
     pub(crate) fn trace_len(&self) -> usize {
-        self.mcu
-            .board()
-            .map_or(0, |board| board.borrow().trace_len())
+        self.board.borrow().trace_len()
     }
 
     /// Watch a point in the circuit for the scope panel.
     pub(crate) fn add_probe(&mut self, name: &str, point: &str) -> Result<(), String> {
-        let Some(board) = self.mcu.board() else {
-            return Err("the session has no board".into());
-        };
-        board.borrow_mut().add_probe(name, point)
+        self.board.borrow_mut().add_probe(name, point)
     }
 
     /// Add a protocol decoder, spelled the way `--decode` spells it
@@ -124,47 +156,30 @@ impl Session {
     /// probe, so the host adds its probes first.
     pub(crate) fn add_decode(&mut self, spec: &str) -> Result<(), String> {
         let section: DecodeSection = spec.parse()?;
-        let Some(board) = self.mcu.board() else {
-            return Err("the session has no board".into());
-        };
-        litz_engine::decode::check(&section, board.borrow().probes())?;
+        litz_engine::decode::check(&section, self.board.borrow().probes())?;
         self.decodes.push((spec.to_string(), section));
         Ok(())
     }
 
-    /// Every probe's record and measurements, as JSON.
-    ///
-    /// One document per poll keeps the browser side free of a binary layout:
-    /// a channel is its name, the point it watches, the measurements, and two
-    /// arrays of `[tick_ns, value]` samples (levels as 0/1/2, volts as f64).
-    /// The document is small because a record only holds changes, not samples
-    /// on a fixed grid.
     /// The board's display as RGB565, with its size and change counter.
     pub(crate) fn display(&mut self) -> Option<(u32, u32, Vec<u16>, u64)> {
-        self.mcu.board_model().display()
+        self.chip.display()
     }
 
     /// The display's change counter, without building a frame.
     pub(crate) fn display_version(&mut self) -> u64 {
-        self.mcu.board_model().display_version()
+        self.chip.display_version()
     }
 
-    /// A touch at panel pixels. A board with no controller ignores it.
     /// Touch the panel at raw controller codes. False when the board has no
     /// touch controller, because a finger on a panel that is not there changes
     /// nothing and the host should not be told otherwise.
     pub(crate) fn touch(&mut self, x: u16, y: u16, down: bool) -> bool {
-        let Some(board) = self.mcu.board() else {
-            return false;
-        };
-        board.borrow_mut().touch_panel(x, y, down).is_ok()
+        self.board.borrow_mut().touch_panel(x, y, down).is_ok()
     }
 
     pub(crate) fn scope_json(&self) -> String {
-        let Some(board) = self.mcu.board() else {
-            return r#"{"ms":0,"probes":[],"decodes":[]}"#.to_string();
-        };
-        let board = board.borrow();
+        let board = self.board.borrow();
         let channels = board.scope();
         let mut out = format!(r#"{{"ms":{},"probes":["#, self.ms());
         for (index, channel) in channels.iter().enumerate() {
@@ -235,10 +250,7 @@ impl Session {
     }
 
     pub(crate) fn trace_vcd(&self) -> String {
-        self.mcu
-            .board()
-            .map(|board| board.borrow().vcd())
-            .unwrap_or_default()
+        self.board.borrow().vcd()
     }
 
     pub(crate) fn take_serial(&mut self, max: usize) -> Vec<u8> {
@@ -247,13 +259,13 @@ impl Session {
     }
 
     pub(crate) fn conflict_count(&self) -> u32 {
-        self.mcu.conflicts().len() as u32
+        self.chip.conflicts().len() as u32
     }
 
     /// Text for one conflict. A fault that belongs to no particular net (a
     /// board that would not settle) is reported without the `net` prefix.
     pub(crate) fn conflict_text(&self, index: u32) -> Option<String> {
-        let conflicts = self.mcu.conflicts();
+        let conflicts = self.chip.conflicts();
         let conflict = conflicts.get(index as usize)?;
         Some(if conflict.net == NO_NET {
             format!("board: {}", conflict.detail)
@@ -264,7 +276,7 @@ impl Session {
 
     /// Part-state code for the ABI, or `-1` when the diagram has no such part.
     pub(crate) fn state_of(&self, id: &str) -> i32 {
-        match self.mcu.state(id) {
+        match self.chip.state(id) {
             None => -1,
             Some(state) => state_code(state),
         }
@@ -272,17 +284,17 @@ impl Session {
 
     /// The number behind a state code, or `0` when the state has none.
     pub(crate) fn value_of(&self, id: &str) -> f64 {
-        self.mcu.state(id).map(state_value).unwrap_or(0.0)
+        self.chip.state(id).map(state_value).unwrap_or(0.0)
     }
 
     /// Number of parts the diagram declares. Board-expanded parts such as
     /// `esp/led_pwr` are readable by id but are not enumerated here.
     pub(crate) fn part_count(&self) -> u32 {
-        self.diagram().parts.len() as u32
+        self.diagram.parts.len() as u32
     }
 
     pub(crate) fn part_id(&self, index: u32) -> Option<String> {
-        self.diagram()
+        self.diagram
             .parts
             .get(index as usize)
             .map(|part| part.id.clone())
@@ -295,10 +307,10 @@ impl Session {
     /// the circuit routes the switch to a pin. That is why a switch in series
     /// with an LED lights it here as well.
     pub(crate) fn press(&mut self, id: &str, pressed: bool) -> Result<(), String> {
-        if self.mcu.state(id).is_none() {
+        if self.chip.state(id).is_none() {
             return Err(format!("no part {id:?} in the diagram"));
         }
-        if self.mcu.press(id, pressed) {
+        if self.chip.press(id, pressed) {
             Ok(())
         } else {
             Err(format!(
@@ -309,19 +321,53 @@ impl Session {
 
     /// Move a continuous control such as a potentiometer's knob.
     pub(crate) fn set_control(&mut self, id: &str, permille: u16) -> Result<(), String> {
-        if self.mcu.state(id).is_none() {
+        if self.chip.state(id).is_none() {
             return Err(format!("no part {id:?} in the diagram"));
         }
-        if self.mcu.set_control(id, permille) {
+        if self.chip.set_control(id, permille) {
             Ok(())
         } else {
             Err(format!("part {id:?} has no continuous control"))
         }
     }
 
-    /// Bytes typed into the serial monitor, straight into UART0's receive FIFO.
+    /// Set a named control (`temperature`, `lux`), which is how a scenario
+    /// drives a sensor that has no knob.
+    pub(crate) fn set_named_control(
+        &mut self,
+        id: &str,
+        name: &str,
+        value: &str,
+    ) -> Result<(), String> {
+        if self.chip.state(id).is_none() {
+            return Err(format!("no part {id:?} in the diagram"));
+        }
+        if self.chip.set_named_control(id, name, value) {
+            Ok(())
+        } else {
+            Err(format!("part {id:?} has no control {name:?}"))
+        }
+    }
+
+    /// The level on one of a part's own pins, when the part has it.
+    pub(crate) fn part_pin_level(&self, id: &str, pin: Option<&str>) -> Option<litz_core::Level> {
+        self.chip.part_pin_level(id, pin)
+    }
+
+    /// The level the chip sees on one of its own pads, by GPIO number.
+    pub(crate) fn gpio_level(&self, pin: u8) -> Option<litz_core::Level> {
+        self.chip.gpio_level(pin)
+    }
+
+    /// The firmware's own free-heap figure, when the backend can ask it.
+    pub(crate) fn sample_heap(&mut self) -> Result<u32, String> {
+        self.chip.sample_heap()
+    }
+
+    /// Bytes typed into the serial monitor, straight into the console's
+    /// receive path.
     pub(crate) fn write_serial(&mut self, data: &[u8]) {
-        self.mcu.write_serial(data);
+        self.chip.write_console(data);
     }
 }
 
@@ -374,7 +420,7 @@ fn append_capped(buffer: &mut Vec<u8>, bytes: &[u8], cap: usize) {
     }
 }
 
-/// A session driven the way the browser drives it: a fixed step budget per
+/// A session driven the way a browser drives it: a fixed step budget per
 /// call, serial drained between calls, part state read back by id. This is the
 /// native half of the ABI, so a failure here is a failure the page would hit.
 #[cfg(test)]
@@ -404,6 +450,21 @@ mod driven {
       "connections": [
         ["esp:GPIO0", "btn1:1.l", "", []],
         ["btn1:2.l", "esp:GND.1", "", []]
+      ]
+    }"#;
+
+    const PICO: &str = r#"{
+      "version": 1,
+      "parts": [
+        {"id": "pico", "type": "board-raspberry-pi-pico", "attrs": {}},
+        {"id": "r1", "type": "litz-resistor", "attrs": {"value": "330"}},
+        {"id": "led1", "type": "litz-led", "attrs": {"color": "green"}}
+      ],
+      "connections": [
+        ["pico:GP15", "r1:1", "", []],
+        ["r1:2", "led1:A", "", []],
+        ["led1:C", "pico:GND.1", "", []],
+        ["pico:GP0", "$serialMonitor:RX", "", []]
       ]
     }"#;
 
@@ -529,6 +590,43 @@ mod driven {
         };
         assert!(err.contains("must be supplied together"), "{err}");
     }
+
+    #[test]
+    fn a_pico_diagram_boots_the_rp2040_backend() {
+        let app = litz_fixture::pico_blink(15, 50);
+        let mut s = Session::new(PICO, &[], &[], &[], &app).expect("pico session");
+        let info = s.chip_info_json();
+        assert!(info.contains(r#""name":"rp2040""#), "{info}");
+        let mut serial = String::new();
+        for _ in 0..600 {
+            s.run(100_000);
+            serial.push_str(&String::from_utf8_lossy(&s.take_serial(SERIAL_CAP)));
+            if serial.contains("litz: pico") {
+                break;
+            }
+        }
+        assert!(serial.contains("litz: pico"), "serial was {serial:?}");
+    }
+
+    #[test]
+    fn the_chip_and_its_pins_are_readable() {
+        let s = session(BUTTON);
+        let info = s.chip_info_json();
+        assert!(info.contains(r#""name":"esp32c3""#), "{info}");
+        assert!(info.contains(r#""app":65536"#), "{info}");
+        assert!(
+            s.gpio_level(0).is_some(),
+            "GPIO0 is wired to the button, so the chip sees it"
+        );
+        assert!(s.part_pin_level("nope", None).is_none());
+    }
+
+    #[test]
+    fn a_stop_is_reported_for_the_last_run() {
+        let mut s = session(BLINKY);
+        s.run(1_000);
+        assert_eq!(s.stop_code(), 0, "a budget stop");
+    }
 }
 
 #[cfg(test)]
@@ -585,8 +683,9 @@ mod tests {
     }
 }
 
-/// A level as the scope JSON encodes it: low, high, high impedance.
-fn level_code(level: litz_core::Level) -> u8 {
+/// A level as the scope JSON and the pin exports encode it: low, high, high
+/// impedance.
+pub(crate) fn level_code(level: litz_core::Level) -> i32 {
     match level {
         litz_core::Level::Low => 0,
         litz_core::Level::High => 1,

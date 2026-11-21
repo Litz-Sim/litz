@@ -12,8 +12,10 @@ use litz_board::{Board, FlatBoard};
 use litz_catalog::Registry;
 use litz_core::{Level, PartState};
 use litz_diagram::{Circuit, Diagnostic, Severity};
-use litz_esp::backend::{C3, C6, Esp32, P4, S3, S31};
 use litz_net::{AccessPoint, NearbyNetwork, NetworkConfig, Service};
+
+use crate::machine::{Attachments, builtin_chip};
+
 // A wasm guest chip needs wasmtime, which cannot itself be built for a wasm32
 // host. The browser module uses `machine::boot_c3` only, so the runner's wasm
 // chip backend is compiled out there rather than dragging wasmtime along.
@@ -1884,79 +1886,6 @@ fn parse_bssid(text: &str) -> Result<[u8; 6], String> {
         .map_err(|_| format!("invalid BSSID {text:?}: expected six hex octets"))
 }
 
-/// The builtin backend a board's `chip` name selects, with the board attached.
-fn builtin_chip(
-    name: &str,
-    mac: [u8; 6],
-    flash: usize,
-    board: std::rc::Rc<std::cell::RefCell<Board>>,
-    index: u16,
-    attachments: Attachments<'_>,
-) -> Result<Box<dyn Chip>, String> {
-    let Attachments {
-        network,
-        bluetooth,
-        elf,
-        ble_controller,
-    } = attachments;
-    // A radio is part of the ESP32-family adapters, not of `Chip`; the macro
-    // attaches it before the machine is boxed and erased.
-    macro_rules! esp {
-        ($chip:expr) => {{
-            let mut chip = $chip;
-            if let Some(bytes) = elf {
-                chip = chip.with_elf(bytes)?;
-            }
-            if let Some(config) = network {
-                chip.attach_network(config)?;
-            }
-            if let Some(config) = bluetooth {
-                chip.attach_ble(config)?;
-            }
-            // A CircuitPython build ships with Bluetooth and brings the
-            // controller up on every boot. With no controller behind the
-            // registers the ROM's init asserts and the interpreter never
-            // reaches its own main loop, so the runtime choice carries the
-            // radio with it. `attach_ble` above still decides what is on air.
-            if ble_controller {
-                chip.enable_full_ble(false)?;
-            }
-            Box::new(chip)
-        }};
-    }
-    Ok(match name {
-        "esp32" => {
-            esp!(Esp32::new(mac, flash).with_shared_board(std::rc::Rc::clone(&board), index))
-        }
-        "esp32c3" => esp!(C3::new(mac, flash).with_shared_board(std::rc::Rc::clone(&board), index)),
-        "esp32c6" => esp!(C6::new(mac, flash).with_shared_board(std::rc::Rc::clone(&board), index)),
-        "esp32s3" => esp!(S3::new(mac, flash).with_shared_board(std::rc::Rc::clone(&board), index)),
-        "esp32p4" => esp!(P4::new(mac, flash).with_shared_board(std::rc::Rc::clone(&board), index)),
-        "esp32s31" => {
-            esp!(S31::new(mac, flash).with_shared_board(std::rc::Rc::clone(&board), index))
-        }
-        "atmega328p" => {
-            if network.is_some() {
-                return Err("atmega328p has no Wi-Fi radio; remove [sim] wifi".into());
-            }
-            if bluetooth.is_some() {
-                return Err("atmega328p has no Bluetooth radio; remove the beacon".into());
-            }
-            Box::new(litz_avr::Atmega328p::new().with_shared_board(board, index))
-        }
-        "rp2040" => {
-            if network.is_some() {
-                return Err("rp2040 has no radio; remove [sim] wifi".into());
-            }
-            if bluetooth.is_some() {
-                return Err("rp2040 has no Bluetooth radio; remove the beacon".into());
-            }
-            Box::new(litz_rp::Rp2040::new().with_shared_board(board, index))
-        }
-        other => return Err(format!("chip {other:?} is not built in")),
-    })
-}
-
 /// Build the boards, load each image and start every chip. A test and a
 /// scenario differ only in what they do once it is running.
 ///
@@ -2129,17 +2058,6 @@ fn touch_board(
         return Ok(Some(index));
     }
     Ok(None)
-}
-
-/// What a chip is given besides its own pins: the circuit's network, its
-/// advertisers, and the firmware's symbol table.
-struct Attachments<'a> {
-    network: Option<&'a NetworkConfig>,
-    bluetooth: Option<&'a litz_ble::BleConfig>,
-    elf: Option<&'a [u8]>,
-    /// Bring the Bluetooth controller up even when the project asks for no
-    /// beacons: a CircuitPython build initialises it on every boot.
-    ble_controller: bool,
 }
 
 /// One board's chip, attached to the shared board at its own index.

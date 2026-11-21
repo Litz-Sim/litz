@@ -9,7 +9,7 @@
 //! special cases.
 //!
 //! The application configures GP0 as UART0 TX and blinks a GPIO, which is
-//! enough for the CLI and the browser demo to show a Pico doing something.
+//! enough for the CLI and any wasm host to show a Pico doing something.
 
 use crate::thumb::{self, LR, Thumb};
 

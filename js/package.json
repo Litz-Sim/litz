@@ -1,6 +1,6 @@
 {
   "name": "@litz-sim/litz",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Deterministic electronics and firmware simulator in WebAssembly",
   "keywords": [
     "simulator",
@@ -33,6 +33,7 @@
   "files": [
     "index.js",
     "index.d.ts",
+    "src/",
     "litz_wasm.wasm",
     "README.md"
   ],
@@ -43,6 +44,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.js",
+    "example": "node examples/blinky.mjs",
     "prepublishOnly": "node scripts/build.mjs && node --test test/*.test.js"
   },
   "publishConfig": {

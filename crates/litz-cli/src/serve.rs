@@ -1,14 +1,14 @@
-//! `litz serve`: a static file server for the browser simulator.
+//! `litz serve`: a static file server for a generated site.
 //!
-//! The page is plain HTML and an ES module; the only thing a `file://` URL
-//! cannot do is fetch the wasm module and the demo firmware, so the whole
-//! job is to answer GET requests out of one directory with the right content
-//! types. It binds to loopback only: this is a development tool, and a
-//! directory server reachable from the network is a different product.
+//! A page that loads a wasm module or a firmware image cannot do so over
+//! `file://`, so this answers GET requests out of one directory with the
+//! right content types. It binds to loopback only: this is a development
+//! tool, and a directory server reachable from the network is a different
+//! product.
 //!
-//! Nothing here is asynchronous. A visitor to the page makes a handful of
-//! requests and then runs a simulation inside the browser, so a thread per
-//! connection costs less than the complexity of a runtime.
+//! Nothing here is asynchronous. A visitor makes a handful of requests and
+//! then works inside the page, so a thread per connection costs less than
+//! the complexity of a runtime.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -137,27 +137,27 @@ mod tests {
     #[test]
     fn a_bare_path_serves_the_index() {
         assert_eq!(
-            resolve(Path::new("web"), "/"),
-            Some(PathBuf::from("web/index.html"))
+            resolve(Path::new("site"), "/"),
+            Some(PathBuf::from("site/index.html"))
         );
         assert_eq!(
-            resolve(Path::new("web"), "/demo"),
-            Some(PathBuf::from("web/demo/index.html"))
+            resolve(Path::new("site"), "/demo"),
+            Some(PathBuf::from("site/demo/index.html"))
         );
     }
 
     #[test]
     fn a_file_path_is_kept_whole() {
         assert_eq!(
-            resolve(Path::new("web"), "/litz_wasm.wasm?v=2"),
-            Some(PathBuf::from("web/litz_wasm.wasm"))
+            resolve(Path::new("site"), "/litz_wasm.wasm?v=2"),
+            Some(PathBuf::from("site/litz_wasm.wasm"))
         );
     }
 
     #[test]
     fn climbing_out_of_the_root_is_refused() {
-        assert_eq!(resolve(Path::new("web"), "/../Cargo.toml"), None);
-        assert_eq!(resolve(Path::new("web"), "/demo/../../Cargo.toml"), None);
+        assert_eq!(resolve(Path::new("site"), "/../Cargo.toml"), None);
+        assert_eq!(resolve(Path::new("site"), "/demo/../../Cargo.toml"), None);
     }
 
     #[test]

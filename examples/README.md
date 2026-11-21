@@ -132,4 +132,4 @@ cargo run -p litz-cli -- test examples/mp-blink
 | `mp-traffic` | Three lamps run a timed red/amber/green cycle. |
 | `mp-uart-echo` | `machine.UART` returns bytes written to UART0. |
 
-`run` boots the firmware and streams its serial output, exiting 42 at the time limit; `test` runs the `[[test]]` entries and exits 0 or 1; `check` validates the diagram without running anything; `serve` serves the browser simulator (`web/`).
+`run` boots the firmware and streams its serial output, exiting 42 at the time limit; `test` runs the `[[test]]` entries and exits 0 or 1; `check` validates the diagram without running anything; `serve` serves a directory over HTTP, for a page that loads the wasm build.

@@ -2046,6 +2046,14 @@ pub mod backend {
             EspChip::enable_coverage(self);
         }
 
+        fn display(&mut self) -> Option<(u32, u32, Vec<u16>, u64)> {
+            self.machine.bus.board().display()
+        }
+
+        fn display_version(&mut self) -> u64 {
+            self.machine.bus.board().display_version()
+        }
+
         fn save_display(&mut self, path: &std::path::Path) -> Result<(), String> {
             crate::screenshot::capture(self, path)
         }

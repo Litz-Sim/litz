@@ -18,7 +18,10 @@
 //! stop reason instead.
 
 // The contract, as wit-bindgen sees it. Kept in its own module so the
-// generated names cannot collide with this crate's.
+// generated names cannot collide with this crate's. Component loading is a
+// native capability: the browser build runs transpiled components through
+// JavaScript instead, so the generated bindings and wasmtime stay out of it.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod bindings {
     wasmtime::component::bindgen!({
         path: "../litz-mcu-wit/wit",
@@ -29,6 +32,7 @@ pub mod bindings {
 /// The 0.2 world. It is a different package version, so it is a different
 /// component type: a 0.1 module and a 0.2 module cannot share a linker, and
 /// the manifest's `abi` says which one to build.
+#[cfg(not(target_arch = "wasm32"))]
 pub mod bindings_v2 {
     wasmtime::component::bindgen!({
         path: "../litz-mcu-wit/wit-v2",
@@ -36,55 +40,74 @@ pub mod bindings_v2 {
     });
 }
 
+/// The host answers a 0.2 guest asks for. Shared by the native loader and the
+/// browser bridge.
+mod host;
+
+pub use host::{
+    BleAdvertisement, GattCharacteristic, GattNotification, GattService, GattWrite, HostState,
+    RadioFrame, WifiLease, WifiNetwork,
+};
+
+/// In the browser the guest is a transpiled component driven by JavaScript;
+/// the chip bridge asks this host to answer the same calls the native
+/// bindings above answer.
+#[cfg(target_arch = "wasm32")]
+impl litz_board::host::GuestHost for HostState {
+    fn set_now(&mut self, ns: u64) {
+        HostState::set_now(self, ns);
+    }
+
+    fn call(&mut self, op: &str, args: &str) -> Result<String, String> {
+        HostState::call(self, op, args)
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 use bindings::Simulator;
+#[cfg(not(target_arch = "wasm32"))]
 use bindings::litz::mcu::types::{Image, Level as WitLevel, PinInput, Stop as WitStop};
+#[cfg(not(target_arch = "wasm32"))]
 use litz_board::chip::{Chip, ChipInfo, FlashLayout, ImageKind, Input, RunResult, Stop};
+#[cfg(not(target_arch = "wasm32"))]
 use litz_board::{Board, Conflict};
+#[cfg(not(target_arch = "wasm32"))]
 use litz_core::{Drive, Level, PartState};
+#[cfg(not(target_arch = "wasm32"))]
 use std::cell::RefCell;
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
+#[cfg(not(target_arch = "wasm32"))]
 use std::rc::Rc;
+#[cfg(not(target_arch = "wasm32"))]
 use wasmtime::component::{Component, Linker};
-use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
+#[cfg(not(target_arch = "wasm32"))]
+use wasmtime::{Config, Engine, Store, StoreLimitsBuilder};
 
 /// Guest memory ceiling. A chip is a few megabytes at most; anything past
 /// this is a bug or an attack, and either way the host should stop it.
+#[cfg(not(target_arch = "wasm32"))]
 const MAX_MEMORY: usize = 256 << 20;
 /// Fuel granted per component call. One fuel unit is roughly one instruction;
 /// a call only ever runs `budget` cycles, so this is a generous ceiling that
 /// still catches a guest that ignores its budget.
+#[cfg(not(target_arch = "wasm32"))]
 const FUEL_PER_CALL: u64 = 1 << 34;
 
-/// What the host provides to a chip module.
-struct HostState {
-    console: Vec<u8>,
-    fault: Option<String>,
-    limits: StoreLimits,
-    /// The board this chip is wired to, for the 0.2 peripheral and wireless
-    /// calls. `None` before `with_shared_board`, and for a bare chip.
-    board: Option<Rc<RefCell<Board>>>,
-    board_index: u16,
-    /// The tick the current `run` call started at. Host calls made during the
-    /// run use it for bus timestamps; the guest's `cycles` moves only after
-    /// the call returns.
-    now_ns: u64,
-    /// The deterministic network behind the circuit's access point, built
-    /// lazily when the guest first asks about Wi-Fi.
-    router: Option<litz_net::Router>,
-    joined: Option<String>,
-    /// Flow ids the router handed out, so an unknown id is an error rather
-    /// than an empty read.
-    flows: std::collections::BTreeSet<u32>,
-}
-
-/// The store's data *is* the host interface: one type, no projection.
+/// The host side of the contract, as wit-bindgen expects it. The work is done
+/// by `HostState` in `host`; these impls only translate between its plain
+/// types and the generated ones, which is what lets the browser bridge reuse
+/// the same answers without wasmtime.
+#[cfg(not(target_arch = "wasm32"))]
 impl wasmtime::component::HasData for HostState {
     type Data<'a> = &'a mut HostState;
 }
 
 /// The `types` interface declares data only, so the host side is empty.
+#[cfg(not(target_arch = "wasm32"))]
 impl bindings::litz::mcu::types::Host for HostState {}
 
+#[cfg(not(target_arch = "wasm32"))]
 impl bindings::litz::mcu::host::Host for HostState {
     fn console(&mut self, bytes: Vec<u8>) {
         self.console.extend_from_slice(&bytes);
@@ -97,49 +120,10 @@ impl bindings::litz::mcu::host::Host for HostState {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl bindings_v2::litz::mcu::types::Host for HostState {}
 
-/// The deterministic network a 0.2 guest joins. It is built from the board's
-/// `NetworkConfig` on first use; a circuit with no router has nothing to
-/// join, so every Wi-Fi call is an error rather than a silent success.
-impl HostState {
-    fn network(&mut self) -> Option<&mut litz_net::Router> {
-        if self.router.is_none() {
-            let config = {
-                let board = self.board.as_ref()?.borrow();
-                board.network().cloned()?
-            };
-            self.router = Some(litz_net::Router::new(&config));
-        }
-        let now = self.now_ns;
-        let router = self.router.as_mut()?;
-        router.set_now(now);
-        Some(router)
-    }
-
-    fn network_config(&self) -> Option<litz_net::NetworkConfig> {
-        self.board
-            .as_ref()
-            .and_then(|board| board.borrow().network().cloned())
-    }
-
-    /// Move the host clock past a transaction's wire time. A guest reports
-    /// cycles only when `run` returns, so without this every host call in one
-    /// run would be stamped at the same tick and their waveforms would
-    /// overlap. The advance is the bus rate the board records at.
-    fn spend(&mut self, ns: u64) {
-        self.now_ns = self.now_ns.saturating_add(ns);
-    }
-
-    fn flow(&self, id: u32) -> Result<(), String> {
-        if self.flows.contains(&id) {
-            Ok(())
-        } else {
-            Err(format!("no open flow {id}"))
-        }
-    }
-}
-
+#[cfg(not(target_arch = "wasm32"))]
 impl bindings_v2::litz::mcu::host::Host for HostState {
     fn console(&mut self, bytes: Vec<u8>) {
         self.console.extend_from_slice(&bytes);
@@ -152,9 +136,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
     }
 
     fn analog_read(&mut self, pin: u8) -> Option<u32> {
-        let board = self.board.as_ref()?.borrow();
-        let volts = board.node_voltage_gpio_on(self.board_index, pin)?;
-        Some((volts.max(0.0) * 1000.0).round() as u32)
+        HostState::analog_read(self, pin)
     }
 
     fn i2c_transfer(
@@ -164,33 +146,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         write: Vec<u8>,
         read_len: u32,
     ) -> Result<Vec<u8>, String> {
-        let at = self.now_ns;
-        let bytes = 1
-            + write.len()
-            + if read_len > 0 {
-                1 + read_len as usize
-            } else {
-                0
-            };
-        let mut board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?
-            .borrow_mut();
-        let hz = board.i2c_hz(self.board_index, controller);
-        let read = board
-            .i2c_write_read_at(
-                self.board_index,
-                controller,
-                address,
-                &write,
-                read_len as usize,
-                at,
-            )
-            .ok_or_else(|| format!("no I2C controller {controller} on this board"))?;
-        drop(board);
-        self.spend(bytes as u64 * 9 * (1_000_000_000 / u64::from(hz)));
-        Ok(read)
+        self.i2c_transfer(controller, address, &write, read_len)
     }
 
     fn spi_transfer(
@@ -200,77 +156,28 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         tx: Vec<u8>,
         read_len: u32,
     ) -> Result<Vec<u8>, String> {
-        let at = self.now_ns;
-        let mut board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?
-            .borrow_mut();
-        let hz = board.spi_hz(self.board_index, controller);
-        let period = 1_000_000_000 / u64::from(hz);
-        let rx = board.spi_transfer_at(
-            self.board_index,
-            controller,
-            chip_select,
-            &tx,
-            read_len as usize,
-            at,
-        );
-        drop(board);
-        self.spend(tx.len().max(read_len as usize) as u64 * 8 * period);
-        Ok(rx)
+        self.spi_transfer(controller, chip_select, &tx, read_len)
     }
 
     fn uart_write(&mut self, port: u8, bytes: Vec<u8>) -> bool {
-        let Some(board) = &self.board else {
-            return false;
-        };
-        let mut board = board.borrow_mut();
-        let baud = board.uart_baud(self.board_index, port);
-        let wired = board.uart_receive(self.board_index, port, self.now_ns, &bytes);
-        drop(board);
-        if wired {
-            self.spend(bytes.len() as u64 * 10 * (1_000_000_000 / u64::from(baud)));
-        }
-        wired
+        self.uart_write(port, &bytes)
     }
 
     fn uart_read(&mut self, port: u8) -> Vec<u8> {
-        let Some(board) = &self.board else {
-            return Vec::new();
-        };
-        let mut board = board.borrow_mut();
-        let baud = board.uart_baud(self.board_index, port);
-        let bytes = board.uart_poll(self.board_index, port, self.now_ns);
-        drop(board);
-        self.spend(bytes.len() as u64 * 10 * (1_000_000_000 / u64::from(baud)));
-        bytes
+        self.uart_read(port)
     }
 
     fn wifi_scan(&mut self) -> Vec<bindings_v2::litz::mcu::types::WifiNetwork> {
-        let Some(config) = self.network_config() else {
-            return Vec::new();
-        };
-        let mut networks = Vec::new();
-        for ap in &config.access_points {
-            networks.push(bindings_v2::litz::mcu::types::WifiNetwork {
-                ssid: ap.ssid.clone(),
-                channel: ap.channel,
-                rssi: -40,
-                secure: ap.psk.is_some(),
-                joined: self.joined.as_deref() == Some(ap.ssid.as_str()),
-            });
-        }
-        for nearby in &config.nearby {
-            networks.push(bindings_v2::litz::mcu::types::WifiNetwork {
-                ssid: nearby.ssid.clone(),
-                channel: nearby.channel,
-                rssi: nearby.rssi,
-                secure: nearby.secure,
-                joined: false,
-            });
-        }
-        networks
+        self.wifi_scan()
+            .into_iter()
+            .map(|network| bindings_v2::litz::mcu::types::WifiNetwork {
+                ssid: network.ssid,
+                channel: network.channel,
+                rssi: network.rssi,
+                secure: network.secure,
+                joined: network.joined,
+            })
+            .collect()
     }
 
     fn wifi_join(
@@ -278,186 +185,69 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         ssid: String,
         psk: Option<String>,
     ) -> Result<bindings_v2::litz::mcu::types::WifiLease, String> {
-        let config = self
-            .network_config()
-            .ok_or_else(|| "the circuit has no simulated access point".to_string())?;
-        let ap = config
-            .access_points
-            .iter()
-            .find(|ap| ap.ssid == ssid)
-            .ok_or_else(|| format!("no access point named {ssid:?}"))?;
-        if let Some(expected) = &ap.psk
-            && psk.as_deref() != Some(expected.as_str())
-        {
-            return Err(format!("wrong password for {ssid:?}"));
-        }
-        let mut router = litz_net::Router::new(&config);
-        router.set_now(self.now_ns);
-        router.set_station([10, 0, 2, 15]);
-        self.router = Some(router);
-        self.joined = Some(ssid);
-        self.flows.clear();
+        let lease = self.wifi_join(&ssid, psk.as_deref())?;
         Ok(bindings_v2::litz::mcu::types::WifiLease {
-            ip: [10, 0, 2, 15].to_vec(),
-            gateway: litz_net::GATEWAY_IP.to_vec(),
-            dns: litz_net::HOST_IP.to_vec(),
+            ip: lease.ip,
+            gateway: lease.gateway,
+            dns: lease.dns,
         })
     }
 
     fn wifi_leave(&mut self) {
-        self.joined = None;
-        self.router = None;
-        self.flows.clear();
+        self.wifi_leave();
     }
 
     fn wifi_resolve(&mut self, name: String) -> Result<Vec<u8>, String> {
-        if self.joined.is_none() {
-            return Err("not joined to a network".into());
-        }
-        let router = self.network().ok_or("not joined to a network")?;
-        let id = router
-            .resolve(&name, 1)
-            .ok_or_else(|| format!("{name:?} is not a name the router resolves"))?;
-        loop {
-            let (answer_id, answer) = router
-                .resolved()
-                .ok_or_else(|| format!("no answer for {name:?}"))?;
-            if answer_id != id {
-                continue;
-            }
-            return match answer {
-                litz_net::Answer::Addrs(addrs, _) => addrs
-                    .first()
-                    .map(|ip| ip.to_vec())
-                    .ok_or_else(|| format!("{name:?} has no IPv4 address")),
-                litz_net::Answer::Failed(code) => Err(format!("DNS failed with rcode {code}")),
-            };
-        }
+        self.wifi_resolve(&name)
     }
 
     fn tcp_connect(&mut self, host: Vec<u8>, port: u16) -> Result<u32, String> {
-        if host.len() != 4 {
-            return Err("an IPv4 host is four octets".into());
-        }
-        if self.joined.is_none() {
-            return Err("not joined to a network".into());
-        }
-        let router = self.network().ok_or("not joined to a network")?;
-        let id = router.tcp_connect(port);
-        if !router.connected(id) {
-            return Err(format!("connection to port {port} was refused"));
-        }
-        self.flows.insert(id);
-        Ok(id)
+        self.tcp_connect(&host, port)
     }
 
     fn tcp_write(&mut self, id: u32, bytes: Vec<u8>) -> Result<u32, String> {
-        self.flow(id)?;
-        let router = self.network().ok_or("not joined to a network")?;
-        router
-            .tcp_write(id, &bytes)
-            .map(|n| n as u32)
-            .ok_or_else(|| format!("flow {id} is closed"))
+        self.tcp_write(id, &bytes)
     }
 
     fn tcp_read(&mut self, id: u32, max: u32) -> Result<Vec<u8>, String> {
-        self.flow(id)?;
-        let max = max.min(64 * 1024) as usize;
-        let mut buf = vec![0; max];
-        let read = {
-            let router = self.network().ok_or("not joined to a network")?;
-            match router.tcp_read(id, &mut buf) {
-                Some(0) => {
-                    router.tcp_close(id);
-                    None
-                }
-                Some(n) => {
-                    buf.truncate(n);
-                    Some(buf)
-                }
-                None => Some(Vec::new()),
-            }
-        };
-        match read {
-            Some(bytes) => Ok(bytes),
-            None => {
-                self.flows.remove(&id);
-                Ok(Vec::new())
-            }
-        }
+        self.tcp_read(id, max)
     }
 
     fn tcp_close(&mut self, id: u32) {
-        if let Some(router) = self.network() {
-            router.tcp_close(id);
-        }
-        self.flows.remove(&id);
+        self.tcp_close(id);
     }
 
     fn udp_open(&mut self, port: u16) -> Result<u32, String> {
-        if self.joined.is_none() {
-            return Err("not joined to a network".into());
-        }
-        let router = self.network().ok_or("not joined to a network")?;
-        let id = router
-            .udp_open(port)
-            .ok_or_else(|| format!("no UDP service on port {port}"))?;
-        self.flows.insert(id);
-        Ok(id)
+        self.udp_open(port)
     }
 
     fn udp_send(
         &mut self,
         id: u32,
         host: Vec<u8>,
-        _port: u16,
+        port: u16,
         bytes: Vec<u8>,
     ) -> Result<u32, String> {
-        if host.len() != 4 {
-            return Err("an IPv4 host is four octets".into());
-        }
-        self.flow(id)?;
-        let router = self.network().ok_or("not joined to a network")?;
-        router
-            .udp_send(id, &bytes)
-            .map(|n| n as u32)
-            .ok_or_else(|| format!("flow {id} is closed"))
+        self.udp_send(id, &host, port, &bytes)
     }
 
     fn udp_read(&mut self, id: u32, max: u32) -> Result<Vec<u8>, String> {
-        self.flow(id)?;
-        let router = self.network().ok_or("not joined to a network")?;
-        let mut buf = vec![0; max.min(64 * 1024) as usize];
-        match router.udp_recv(id, &mut buf) {
-            Some(n) => {
-                buf.truncate(n);
-                Ok(buf)
-            }
-            None => Ok(Vec::new()),
-        }
+        self.udp_read(id, max)
     }
 
     fn udp_close(&mut self, id: u32) {
-        if let Some(router) = self.network() {
-            router.udp_close(id);
-        }
-        self.flows.remove(&id);
+        self.udp_close(id);
     }
 
     fn ble_scan(&mut self) -> Vec<bindings_v2::litz::mcu::types::BleAdvertisement> {
-        let Some(board) = &self.board else {
-            return Vec::new();
-        };
-        board
-            .borrow()
-            .ble_air(self.board_index)
+        self.ble_scan()
             .into_iter()
             .map(|beacon| bindings_v2::litz::mcu::types::BleAdvertisement {
-                address: beacon.address.to_vec(),
-                name: beacon.name.clone(),
+                address: beacon.address,
+                name: beacon.name,
                 rssi: beacon.rssi,
-                data: beacon.adv.clone(),
-                scan_response: beacon.scan_response.clone(),
+                data: beacon.data,
+                scan_response: beacon.scan_response,
             })
             .collect()
     }
@@ -468,96 +258,37 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         data: Vec<u8>,
         scan_response: Vec<u8>,
     ) -> Result<Vec<u8>, String> {
-        if data.len() > litz_ble::MAX_ADVERTISING_DATA {
-            return Err(format!(
-                "advertising data is {} octets; the limit is {}",
-                data.len(),
-                litz_ble::MAX_ADVERTISING_DATA
-            ));
-        }
-        if scan_response.len() > litz_ble::MAX_ADVERTISING_DATA {
-            return Err(format!(
-                "scan response is {} octets; the limit is {}",
-                scan_response.len(),
-                litz_ble::MAX_ADVERTISING_DATA
-            ));
-        }
-        let address = match address.as_slice() {
-            [] => litz_ble::derive_address(&data),
-            [a, b, c, d, e, f] => [*a, *b, *c, *d, *e, *f],
-            _ => return Err("a BLE address is six octets, least significant first".into()),
-        };
-        let Some(board) = &self.board else {
-            return Err("this chip is not attached to a board".into());
-        };
-        let gatt = board.borrow().gatt_table(self.board_index);
-        let beacon = litz_ble::Beacon {
-            name: litz_ble::ad::name(&data),
-            services: litz_ble::ad::services16(&data),
-            address,
-            rssi: -40,
-            adv: data,
-            scan_response,
-            gatt,
-        };
-        board.borrow().advertise(self.board_index, beacon)?;
-        Ok(address.to_vec())
+        self.ble_advertise(&address, &data, &scan_response)
     }
 
     fn ble_stop_advertising(&mut self, address: Vec<u8>) {
-        if let Some(board) = &self.board {
-            board.borrow().stop_advertising(self.board_index, &address);
-        }
+        self.ble_stop_advertising(&address);
     }
 
     fn ble_set_gatt(
         &mut self,
         services: Vec<bindings_v2::litz::mcu::types::GattService>,
     ) -> Result<(), String> {
-        let board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?;
-        let table = services.into_iter().map(gatt_service_ours).collect();
-        board.borrow().set_gatt(self.board_index, table)
+        self.ble_set_gatt(services.into_iter().map(gatt_service_in).collect())
     }
 
     fn ble_connect(&mut self, address: Vec<u8>) -> Result<u16, String> {
-        let board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?;
-        let handle = board.borrow().gatt_connect(self.board_index, &address)?;
-        // The connection is only usable once the first connection event has
-        // happened: the central scans, the peripheral answers, and both sides
-        // learn the channel map and the anchor.
-        let event = board
-            .borrow()
-            .gatt_advance(self.board_index, handle, self.now_ns);
-        self.spend(litz_board::CONNECTION_DELAY_NS + event);
-        Ok(handle)
+        self.ble_connect(&address)
     }
 
     fn ble_disconnect(&mut self, handle: u16) {
-        if let Some(board) = &self.board {
-            let _ = board.borrow().gatt_disconnect(self.board_index, handle);
-        }
+        self.ble_disconnect(handle);
     }
 
     fn ble_discover(
         &mut self,
         handle: u16,
     ) -> Result<Vec<bindings_v2::litz::mcu::types::GattService>, String> {
-        let board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?;
-        let table = board.borrow().gatt_discover(self.board_index, handle)?;
-        let wait = board
-            .borrow()
-            .gatt_advance(self.board_index, handle, self.now_ns);
-        self.spend(wait);
-        Ok(table.into_iter().map(gatt_service_wit).collect())
+        Ok(self
+            .ble_discover(handle)?
+            .into_iter()
+            .map(gatt_service_out)
+            .collect())
     }
 
     fn ble_read(
@@ -566,18 +297,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         service: u16,
         characteristic: u16,
     ) -> Result<Vec<u8>, String> {
-        let board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?;
-        let value = board
-            .borrow()
-            .gatt_read(self.board_index, handle, service, characteristic)?;
-        let wait = board
-            .borrow()
-            .gatt_advance(self.board_index, handle, self.now_ns);
-        self.spend(wait);
-        Ok(value)
+        self.ble_read(handle, service, characteristic)
     }
 
     fn ble_write(
@@ -587,18 +307,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         characteristic: u16,
         value: Vec<u8>,
     ) -> Result<(), String> {
-        let board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?;
-        board
-            .borrow()
-            .gatt_write(self.board_index, handle, service, characteristic, &value)?;
-        let wait = board
-            .borrow()
-            .gatt_advance(self.board_index, handle, self.now_ns);
-        self.spend(wait);
-        Ok(())
+        self.ble_write(handle, service, characteristic, &value)
     }
 
     fn ble_subscribe(
@@ -608,44 +317,14 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         characteristic: u16,
         enabled: bool,
     ) -> Result<(), String> {
-        let board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?;
-        board.borrow().gatt_subscribe(
-            self.board_index,
-            handle,
-            service,
-            characteristic,
-            enabled,
-        )?;
-        let wait = board
-            .borrow()
-            .gatt_advance(self.board_index, handle, self.now_ns);
-        self.spend(wait);
-        Ok(())
+        self.ble_subscribe(handle, service, characteristic, enabled)
     }
 
     fn ble_notifications(
         &mut self,
         handle: u16,
     ) -> Vec<bindings_v2::litz::mcu::types::GattNotification> {
-        let Some(board) = &self.board else {
-            return Vec::new();
-        };
-        let notifications = board
-            .borrow()
-            .gatt_notifications(self.board_index, handle)
-            .unwrap_or_default();
-        if !notifications.is_empty() {
-            // A notification is carried by a connection event; polling it
-            // costs the wait for that event, exactly like a read.
-            let wait = board
-                .borrow()
-                .gatt_advance(self.board_index, handle, self.now_ns);
-            self.spend(wait);
-        }
-        notifications
+        self.ble_notifications(handle)
             .into_iter()
             .map(
                 |notification| bindings_v2::litz::mcu::types::GattNotification {
@@ -658,12 +337,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
     }
 
     fn ble_take_writes(&mut self) -> Vec<bindings_v2::litz::mcu::types::GattWrite> {
-        let Some(board) = &self.board else {
-            return Vec::new();
-        };
-        board
-            .borrow()
-            .gatt_take_writes(self.board_index)
+        self.ble_take_writes()
             .into_iter()
             .map(|write| bindings_v2::litz::mcu::types::GattWrite {
                 service: write.service,
@@ -679,13 +353,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         characteristic: u16,
         value: Vec<u8>,
     ) -> Result<(), String> {
-        let board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?;
-        board
-            .borrow()
-            .gatt_notify(self.board_index, service, characteristic, &value)
+        self.ble_notify(service, characteristic, &value)
     }
 
     fn radio_configure(
@@ -694,13 +362,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         channel: u16,
         address: Vec<u8>,
     ) -> Result<(), String> {
-        let board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?;
-        board
-            .borrow()
-            .radio_configure(self.board_index, &network, channel, &address)
+        self.radio_configure(&network, channel, &address)
     }
 
     fn radio_send(
@@ -709,65 +371,43 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         to: Option<Vec<u8>>,
         airtime_ns: u64,
     ) -> Result<(), String> {
-        let board = self
-            .board
-            .as_ref()
-            .ok_or_else(|| "this chip is not attached to a board".to_string())?;
-        let at = self
-            .now_ns
-            .max(board.borrow().radio_clock())
-            .max(board.borrow().now());
-        board
-            .borrow()
-            .radio_send(self.board_index, &bytes, to.as_deref(), airtime_ns, at)?;
-        // The frame occupies the air until its last bit; a station that sends
-        // and then listens waits for that much simulated time.
-        self.spend(airtime_ns);
-        Ok(())
+        self.radio_send(&bytes, to.as_deref(), airtime_ns)
     }
 
     fn radio_receive(&mut self) -> Vec<bindings_v2::litz::mcu::types::RadioFrame> {
-        let Some(board) = &self.board else {
-            return Vec::new();
-        };
-        let at = self
-            .now_ns
-            .max(board.borrow().radio_clock())
-            .max(board.borrow().now());
-        board
-            .borrow()
-            .radio_receive(self.board_index, at)
+        self.radio_receive()
             .into_iter()
-            .map(
-                |(sender, packet)| bindings_v2::litz::mcu::types::RadioFrame {
-                    sender,
-                    to: packet.to.clone(),
-                    bytes: packet.bytes,
-                    sent_at: packet.sent_at_ns,
-                    airtime: packet.airtime_ns,
-                },
-            )
+            .map(|frame| bindings_v2::litz::mcu::types::RadioFrame {
+                sender: frame.sender,
+                to: frame.to,
+                bytes: frame.bytes,
+                sent_at: frame.sent_at,
+                airtime: frame.airtime,
+            })
             .collect()
     }
 }
 
-/// WIT table → the crate's table, so the board does not depend on bindings.
-fn gatt_service_ours(service: bindings_v2::litz::mcu::types::GattService) -> litz_ble::GattService {
-    litz_ble::GattService {
+/// WIT table → the crate's table.
+#[cfg(not(target_arch = "wasm32"))]
+fn gatt_service_in(service: bindings_v2::litz::mcu::types::GattService) -> GattService {
+    GattService {
         uuid: service.uuid,
         characteristics: service
             .characteristics
             .into_iter()
-            .map(|characteristic| litz_ble::GattCharacteristic {
+            .map(|characteristic| GattCharacteristic {
                 uuid: characteristic.uuid,
-                flags: characteristic.access,
+                access: characteristic.access,
                 value: characteristic.value,
             })
             .collect(),
     }
 }
 
-fn gatt_service_wit(service: litz_ble::GattService) -> bindings_v2::litz::mcu::types::GattService {
+/// The crate's table → the WIT table.
+#[cfg(not(target_arch = "wasm32"))]
+fn gatt_service_out(service: GattService) -> bindings_v2::litz::mcu::types::GattService {
     bindings_v2::litz::mcu::types::GattService {
         uuid: service.uuid,
         characteristics: service
@@ -776,7 +416,7 @@ fn gatt_service_wit(service: litz_ble::GattService) -> bindings_v2::litz::mcu::t
             .map(
                 |characteristic| bindings_v2::litz::mcu::types::GattCharacteristic {
                     uuid: characteristic.uuid,
-                    access: characteristic.flags,
+                    access: characteristic.access,
                     value: characteristic.value,
                 },
             )
@@ -787,12 +427,14 @@ fn gatt_service_wit(service: litz_ble::GattService) -> bindings_v2::litz::mcu::t
 /// Which contract version a loaded component speaks. A 0.1 module has only
 /// pins and console bytes; a 0.2 module also has the peripheral and wireless
 /// host calls.
+#[cfg(not(target_arch = "wasm32"))]
 enum Instance {
     V1(Simulator),
     V2(bindings_v2::Simulator),
 }
 
 /// A loaded chip module, ready to drive a board.
+#[cfg(not(target_arch = "wasm32"))]
 pub struct WasmChip {
     store: Store<HostState>,
     instance: Instance,
@@ -808,6 +450,7 @@ pub struct WasmChip {
     last_conflicts: Vec<Conflict>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl WasmChip {
     /// Load a component from a file.
     pub fn load(path: &Path) -> Result<Self, String> {
@@ -844,21 +487,9 @@ impl WasmChip {
         let component =
             Component::from_binary(&engine, bytes).map_err(|e| format!("{label}: {e}"))?;
 
-        let limits = StoreLimitsBuilder::new().memory_size(MAX_MEMORY).build();
-        let mut store = Store::new(
-            &engine,
-            HostState {
-                console: Vec::new(),
-                fault: None,
-                limits,
-                board: None,
-                board_index: 0,
-                now_ns: 0,
-                router: None,
-                joined: None,
-                flows: std::collections::BTreeSet::new(),
-            },
-        );
+        let mut state = HostState::new();
+        state.limits = StoreLimitsBuilder::new().memory_size(MAX_MEMORY).build();
+        let mut store = Store::new(&engine, state);
         store.limiter(|state| &mut state.limits);
         store.set_fuel(FUEL_PER_CALL).map_err(|e| e.to_string())?;
 
@@ -1100,6 +731,7 @@ impl WasmChip {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn wit_level(level: Level) -> WitLevel {
     match level {
         Level::Low => WitLevel::Low,
@@ -1108,6 +740,7 @@ fn wit_level(level: Level) -> WitLevel {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn our_level(level: WitLevel) -> Level {
     match level {
         WitLevel::Low => Level::Low,
@@ -1116,6 +749,7 @@ fn our_level(level: WitLevel) -> Level {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn wit_stop(stop: WitStop) -> Stop {
     match stop {
         WitStop::Budget => Stop::Budget,
@@ -1126,6 +760,7 @@ fn wit_stop(stop: WitStop) -> Stop {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn wit_image(kind: ImageKind) -> Image {
     match kind {
         ImageKind::Rom => Image::Rom,
@@ -1135,6 +770,7 @@ fn wit_image(kind: ImageKind) -> Image {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn wit_level_v2(level: WitLevel) -> bindings_v2::litz::mcu::types::Level {
     match level {
         WitLevel::Low => bindings_v2::litz::mcu::types::Level::Low,
@@ -1143,6 +779,7 @@ fn wit_level_v2(level: WitLevel) -> bindings_v2::litz::mcu::types::Level {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn our_level_v2(level: bindings_v2::litz::mcu::types::Level) -> Level {
     match level {
         bindings_v2::litz::mcu::types::Level::Low => Level::Low,
@@ -1151,6 +788,7 @@ fn our_level_v2(level: bindings_v2::litz::mcu::types::Level) -> Level {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn wit_stop_v2(stop: bindings_v2::litz::mcu::types::Stop) -> Stop {
     use bindings_v2::litz::mcu::types::Stop;
     match stop {
@@ -1162,6 +800,7 @@ fn wit_stop_v2(stop: bindings_v2::litz::mcu::types::Stop) -> Stop {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn wit_image_v2(kind: ImageKind) -> bindings_v2::litz::mcu::types::Image {
     use bindings_v2::litz::mcu::types::Image;
     match kind {
@@ -1172,6 +811,7 @@ fn wit_image_v2(kind: ImageKind) -> bindings_v2::litz::mcu::types::Image {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Chip for WasmChip {
     fn info(&self) -> ChipInfo {
         ChipInfo {
