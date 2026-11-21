@@ -147,8 +147,7 @@ impl AcSweep {
         out.push('\n');
         for point in &self.points {
             out.push_str(&format!("{:.6}", point.hz));
-            for node in 1..node_count {
-                let v = point.node_volts[node];
+            for v in point.node_volts.iter().take(node_count).skip(1) {
                 let db = 20.0 * v.magnitude().log10();
                 out.push_str(&format!(",{:.6},{:.6}", db, v.phase_deg()));
             }

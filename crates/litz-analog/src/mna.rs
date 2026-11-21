@@ -517,8 +517,14 @@ fn stamp_opamp(
 /// Extracts the solution vectors from a solved `x`.
 pub(crate) fn solution(netlist: &Netlist, system: &System, x: &[f64], mode: &Mode<'_>) -> Solution {
     let mut solution = Solution::blank(netlist.node_count(), netlist.len());
-    for node in 1..netlist.node_count() {
-        solution.node_volts[node] = node_voltage(x, node);
+    for (node, volts) in solution
+        .node_volts
+        .iter_mut()
+        .enumerate()
+        .take(netlist.node_count())
+        .skip(1)
+    {
+        *volts = node_voltage(x, node);
     }
 
     for index in 0..netlist.len() {
