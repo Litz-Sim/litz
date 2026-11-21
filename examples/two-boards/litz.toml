@@ -12,7 +12,7 @@ firmware = "firmware/hold-low.bin"
 
 [[board]]
 id = "b"
-firmware = "firmware/button.bin"
+firmware = "../button/firmware/button.bin"
 
 # Generated with
 #   cargo run -p litz-fixture -- low examples/two-boards/firmware/hold-low.bin

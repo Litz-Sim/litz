@@ -9,5 +9,7 @@ examples/*/firmware/*
 !examples/pico-c-systick/firmware/pico-c-systick.bin
 !examples/pico-c-i2c/firmware/pico-c-i2c.bin
 !examples/uno-blink/firmware/uno-blink.hex
+!examples/signal-generator/firmware/hello.bin
+!examples/two-boards/firmware/hold-low.bin
 js/litz_wasm.wasm
 .DS_Store
