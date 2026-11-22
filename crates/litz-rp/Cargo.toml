@@ -9,6 +9,6 @@ homepage.workspace = true
 description = "RP2040 (Raspberry Pi Pico) chip backend: an ARMv6-M Cortex-M0+ core and the peripherals a Pico firmware drives."
 
 [dependencies]
-litz-core = { path = "../litz-core" }
-litz-board = { path = "../litz-board" }
-litz-mcu = { path = "../litz-mcu" }
+litz-core = { version = "0.1.0", path = "../litz-core" }
+litz-board = { version = "0.1.0", path = "../litz-board" }
+litz-mcu = { version = "0.1.0", path = "../litz-mcu" }

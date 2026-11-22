@@ -29,4 +29,4 @@ toml = "1.2.1"
 litz-engine = { version = "0.1.0", path = "../litz-engine" }
 
 [dev-dependencies]
-litz-fixture = { path = "../litz-fixture" }
+litz-fixture = { version = "0.1.0", path = "../litz-fixture" }

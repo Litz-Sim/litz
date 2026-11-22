@@ -35,9 +35,9 @@ required-features = ["tooling"]
 tooling = ["dep:wit-component"]
 
 [dev-dependencies]
-litz-catalog = { path = "../litz-catalog" }
-litz-diagram = { path = "../litz-diagram" }
-litz-fixture = { path = "../litz-fixture" }
+litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
+litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
+litz-fixture = { version = "0.1.0", path = "../litz-fixture" }
 
 [dependencies.wit-component]
 version = "0.261.0"

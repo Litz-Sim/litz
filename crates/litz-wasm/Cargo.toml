@@ -25,7 +25,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 
 [dev-dependencies]
-litz-fixture = { path = "../litz-fixture" }
+litz-fixture = { version = "0.1.0", path = "../litz-fixture" }
 
 [features]
 # `litz_tls_probe`: an export `tools/tls-probe.mjs` calls on the built module
