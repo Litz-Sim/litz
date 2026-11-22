@@ -1,0 +1,19 @@
+[package]
+name = "litz-esp32p4"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Litz fork of esp32sim: ESP32-P4 SoC model: memory map, peripherals, machine"
+
+repository = "https://github.com/Litz-Sim/litz"
+homepage = "https://github.com/Litz-Sim/litz#readme"
+
+[lib]
+name = "esp32p4"
+
+[dependencies]
+litz-emu-core = { version = "0.1.0", path = "../emu-core" }
+litz-esp-periph = { version = "0.1.0", path = "../esp-periph" }
+litz-riscv-rv32 = { version = "0.1.0", path = "../riscv-rv32" }
+litz-esp-soc = { version = "0.1.0", path = "../esp-soc" }
+litz-esp32c6 = { version = "0.1.0", path = "../esp32c6" }

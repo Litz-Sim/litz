@@ -63,15 +63,36 @@ pub struct Ble {
 }
 
 impl Ble {
-    pub fn enable(&mut self, symbols: &HashMap<String, u32>, init_size: u32, idf_version: &str) -> Result<(), String> {
-        let get = |name: &str| symbols.get(name).copied().ok_or_else(|| format!("BLE requires ELF symbol {name}"));
+    pub fn enable(
+        &mut self,
+        symbols: &HashMap<String, u32>,
+        init_size: u32,
+        idf_version: &str,
+    ) -> Result<(), String> {
+        let get = |name: &str| {
+            symbols
+                .get(name)
+                .copied()
+                .ok_or_else(|| format!("BLE requires ELF symbol {name}"))
+        };
         let entry = get("esp_bt_controller_init")?;
-        if !supported_idf(idf_version) { return Err(format!("C6 BLE requires esp_app_desc.idf_ver v5.5.x, got {idf_version:?}")); }
+        if !supported_idf(idf_version) {
+            return Err(format!(
+                "C6 BLE requires esp_app_desc.idf_ver v5.5.x, got {idf_version:?}"
+            ));
+        }
         let base = entry.checked_add(3).ok_or("BLE invalid init address")? & !3;
         if !(FLASH_LOW..FLASH_HIGH).contains(&entry)
-            || entry.checked_add(init_size).is_none_or(|end| end.saturating_sub(base) < CODE.len() as u32)
-        { return Err("BLE controller init has no room for the guest task trampoline".into()); }
-        let mut next = Self { base, ..Self::default() };
+            || entry
+                .checked_add(init_size)
+                .is_none_or(|end| end.saturating_sub(base) < CODE.len() as u32)
+        {
+            return Err("BLE controller init has no room for the guest task trampoline".into());
+        }
+        let mut next = Self {
+            base,
+            ..Self::default()
+        };
         for (name, kind) in [
             ("esp_bt_controller_init", Hook::Init),
             ("esp_bt_controller_enable", Hook::Enable),
@@ -80,7 +101,9 @@ impl Ble {
             ("r_ble_hci_trans_buf_free", Hook::Free),
             ("ble_transport_to_ll_cmd_impl", Hook::Command),
             ("ble_transport_to_ll_acl_impl", Hook::Acl),
-        ] { next.kinds.insert(get(name)?, kind); }
+        ] {
+            next.kinds.insert(get(name)?, kind);
+        }
         for (name, kind) in [
             ("esp_bt_controller_disable", Hook::Disable),
             ("esp_bt_controller_deinit", Hook::Deinit),
@@ -89,7 +112,11 @@ impl Ble {
             ("esp_bt_mem_release", Hook::Release),
             ("esp_ble_tx_power_get", Hook::PowerGet),
             ("esp_ble_tx_power_set", Hook::PowerSet),
-        ] { if let Some(&pc) = symbols.get(name) { next.kinds.insert(pc, kind); } }
+        ] {
+            if let Some(&pc) = symbols.get(name) {
+                next.kinds.insert(pc, kind);
+            }
+        }
         for name in [
             "npl_freertos_funcs_init",
             "npl_freertos_funcs_get",
@@ -108,7 +135,9 @@ impl Ble {
             "r_os_mbuf_free_chain",
             "xTaskCreatePinnedToCore",
             "vTaskDelay",
-        ] { next.symbols.insert(name, get(name)?); }
+        ] {
+            next.symbols.insert(name, get(name)?);
+        }
         next.kinds.insert(base + INIT_NEXT, Hook::InitNext);
         next.kinds.insert(base + TASK_NEXT, Hook::TaskNext);
         next.hooks = next.kinds.keys().copied().collect();
@@ -126,54 +155,106 @@ impl Ble {
         self.init_step = 0;
     }
     pub fn command(&mut self, command: &str, cycles: u64) -> Result<(), String> {
-        if self.hooks.is_empty() { return Err("BLE requires --ble and the application ELF".into()); }
+        if self.hooks.is_empty() {
+            return Err("BLE requires --ble and the application ELF".into());
+        }
         self.session.advance_to(cycles);
         let result = self.session.command(command);
         self.log(cycles);
         result
     }
     /// The devices around the station (`--ble-nearby`), replacing the ones there were.
-    pub fn set_nearby(&mut self, list: Vec<esp_soc::ble::peer::Nearby>, cycles: u64) -> Result<(), String> {
-        if self.hooks.is_empty() { return Err("BLE requires --ble and the application ELF".into()); }
+    pub fn set_nearby(
+        &mut self,
+        list: Vec<esp_soc::ble::peer::Nearby>,
+        cycles: u64,
+    ) -> Result<(), String> {
+        if self.hooks.is_empty() {
+            return Err("BLE requires --ble and the application ELF".into());
+        }
         self.session.advance_to(cycles);
         self.session.set_nearby(list);
         self.log(cycles);
         Ok(())
     }
     fn log(&mut self, cycles: u64) {
-        for line in self.session.drain_log() { self.lines.note(format!("t={:.6}s {line}", cycles as f64 / crate::periph::CPU_HZ as f64)); }
+        for line in self.session.drain_log() {
+            self.lines.note(format!(
+                "t={:.6}s {line}",
+                cycles as f64 / crate::periph::CPU_HZ as f64
+            ));
+        }
     }
 }
 
 fn supported_idf(version: &str) -> bool {
-    let Some(patch) = version.strip_prefix("v5.5.").or_else(|| version.strip_prefix("5.5.")) else { return false };
-    let end = patch.find(|c: char| !c.is_ascii_digit()).unwrap_or(patch.len());
+    let Some(patch) = version
+        .strip_prefix("v5.5.")
+        .or_else(|| version.strip_prefix("5.5."))
+    else {
+        return false;
+    };
+    let end = patch
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(patch.len());
     end > 0 && (end == patch.len() || patch[end..].starts_with('-'))
 }
-fn ram(addr: u32, len: usize) -> bool { addr >= SRAM_LOW && addr.checked_add(len as u32).is_some_and(|end| end <= SRAM_HIGH) }
+fn ram(addr: u32, len: usize) -> bool {
+    addr >= SRAM_LOW
+        && addr
+            .checked_add(len as u32)
+            .is_some_and(|end| end <= SRAM_HIGH)
+}
 fn packet(bus: &mut SocBus, addr: u32, len: usize) -> Result<Vec<u8>, String> {
-    if len > 260 || !ram(addr, len) { return Err("BLE invalid packet pointer or length".into()); }
-    (0..len).map(|i| bus.read8_unpriced(addr + i as u32).map_err(|_| "BLE unmapped packet".into())).collect()
+    if len > 260 || !ram(addr, len) {
+        return Err("BLE invalid packet pointer or length".into());
+    }
+    (0..len)
+        .map(|i| {
+            bus.read8_unpriced(addr + i as u32)
+                .map_err(|_| "BLE unmapped packet".into())
+        })
+        .collect()
 }
 fn acl(bus: &mut SocBus, mut mbuf: u32) -> Result<Vec<u8>, String> {
     let mut bytes = vec![2];
     let mut seen = Vec::new();
     let mut total = 0;
     while mbuf != 0 {
-        if !ram(mbuf, 24) || seen.contains(&mbuf) || seen.len() == 16 { return Err("BLE invalid mbuf chain".into()); }
+        if !ram(mbuf, 24) || seen.contains(&mbuf) || seen.len() == 16 {
+            return Err("BLE invalid mbuf chain".into());
+        }
         if seen.is_empty() {
-            if bus.read8_unpriced(mbuf + 5).map_err(|_| "BLE mbuf header")? < 8 { return Err("BLE ACL requires a packet header".into()); }
-            total = bus.read16_unpriced(mbuf + 16).map_err(|_| "BLE mbuf length")? as usize;
-            if total > 260 { return Err("BLE ACL exceeds controller packet size".into()); }
+            if bus
+                .read8_unpriced(mbuf + 5)
+                .map_err(|_| "BLE mbuf header")?
+                < 8
+            {
+                return Err("BLE ACL requires a packet header".into());
+            }
+            total = bus
+                .read16_unpriced(mbuf + 16)
+                .map_err(|_| "BLE mbuf length")? as usize;
+            if total > 260 {
+                return Err("BLE ACL exceeds controller packet size".into());
+            }
         }
         seen.push(mbuf);
         let data = bus.read32_unpriced(mbuf).map_err(|_| "BLE mbuf data")?;
-        let len = bus.read16_unpriced(mbuf + 6).map_err(|_| "BLE mbuf length")? as usize;
-        if len > total.saturating_sub(bytes.len() - 1) { return Err("BLE inconsistent mbuf lengths".into()); }
+        let len = bus
+            .read16_unpriced(mbuf + 6)
+            .map_err(|_| "BLE mbuf length")? as usize;
+        if len > total.saturating_sub(bytes.len() - 1) {
+            return Err("BLE inconsistent mbuf lengths".into());
+        }
         bytes.extend(packet(bus, data, len)?);
-        mbuf = bus.read32_unpriced(mbuf + 12).map_err(|_| "BLE mbuf next")?;
+        mbuf = bus
+            .read32_unpriced(mbuf + 12)
+            .map_err(|_| "BLE mbuf next")?;
     }
-    if bytes.len() != total + 1 || total < 4 { return Err("BLE incomplete ACL packet".into()); }
+    if bytes.len() != total + 1 || total < 4 {
+        return Err("BLE incomplete ACL packet".into());
+    }
     Ok(bytes)
 }
 fn redirect(cpu: &mut Cpu, pc: u32) {
@@ -194,11 +275,15 @@ fn finish(cpu: &mut Cpu, bus: &mut SocBus, result: u32) {
 }
 fn install(bus: &mut SocBus) -> Result<(), String> {
     let base = bus.ble.base;
-    let off = bus.flash_off(base).ok_or("BLE init is not mapped to flash")?;
+    let off = bus
+        .flash_off(base)
+        .ok_or("BLE init is not mapped to flash")?;
     if bus.flash_off(base + CODE.len() as u32 - 1) != Some(off + CODE.len() - 1) {
         return Err("BLE init crosses a noncontiguous flash mapping".into());
     }
-    if bus.ble.original_flash.is_none() { bus.ble.original_flash = Some((off, bus.flash[off..off + CODE.len()].to_vec())); }
+    if bus.ble.original_flash.is_none() {
+        bus.ble.original_flash = Some((off, bus.flash[off..off + CODE.len()].to_vec()));
+    }
     bus.flash[off..off + CODE.len()].copy_from_slice(CODE);
     Ok(())
 }
@@ -206,7 +291,9 @@ fn init_next(cpu: &mut Cpu, bus: &mut SocBus) {
     let step = bus.ble.init_step;
     let result = cpu.x[10];
     if matches!(step, 3 | 4 | 8 | 9 | 10) && result != 0 {
-        bus.ble.lines.note(format!("native initialization step {step} failed: {result:#x}"));
+        bus.ble.lines.note(format!(
+            "native initialization step {step} failed: {result:#x}"
+        ));
         finish(cpu, bus, result);
         return;
     }
@@ -223,7 +310,12 @@ fn init_next(cpu: &mut Cpu, bus: &mut SocBus) {
         7 if ram(result, HEAP_SIZE as usize) && result & 3 == 0 => {
             bus.ble.heap = result;
             bus.load_bytes(result + 48, b"ble\0").unwrap();
-            call(cpu, bus, "r_os_mempool_init", &[result, 16, 288, result + 512, result + 48]);
+            call(
+                cpu,
+                bus,
+                "r_os_mempool_init",
+                &[result, 16, 288, result + 512, result + 48],
+            );
         }
         8 => {
             // ESP-IDF's r_os_msys_get_pkthdr selects pools with mp_flags bit 1 set.
@@ -231,21 +323,30 @@ fn init_next(cpu: &mut Cpu, bus: &mut SocBus) {
             call(cpu, bus, "r_os_mbuf_pool_init", &[heap + 32, heap, 288, 16]);
         }
         9 => call(cpu, bus, "r_os_msys_register", &[heap + 32]),
-        10 => call(cpu, bus, "xTaskCreatePinnedToCore", &[bus.ble.base + TASK, heap + 48, 4096, 0, 23, 0, 0]),
+        10 => call(
+            cpu,
+            bus,
+            "xTaskCreatePinnedToCore",
+            &[bus.ble.base + TASK, heap + 48, 4096, 0, 23, 0, 0],
+        ),
         11 if result == 1 => {
             bus.ble.task_created = true;
             bus.ble.status = 1;
             finish(cpu, bus, 0);
         }
         _ => {
-            bus.ble.lines.note(format!("native initialization step {step} returned invalid result {result:#x}"));
+            bus.ble.lines.note(format!(
+                "native initialization step {step} returned invalid result {result:#x}"
+            ));
             finish(cpu, bus, 0x101);
         }
     }
 }
 fn receive(cpu: &mut Cpu, bus: &mut SocBus, kind: u8, bytes: Vec<u8>) {
     if bytes.len() > 260 {
-        bus.ble.lines.note("native packet exceeds 260 bytes; dropping".into());
+        bus.ble
+            .lines
+            .note("native packet exceeds 260 bytes; dropping".into());
         bus.ble.receive = Receive::Poll;
         call(cpu, bus, "vTaskDelay", &[1]);
         return;
@@ -271,7 +372,9 @@ fn task_next(cpu: &mut Cpu, bus: &mut SocBus) {
         if let Some((name, ptr)) = owned {
             bus.ble.receive = Receive::Freed;
             call(cpu, bus, name, &[ptr]);
-        } else { call(cpu, bus, "vTaskDelay", &[1]); }
+        } else {
+            call(cpu, bus, "vTaskDelay", &[1]);
+        }
         return;
     }
     match state {
@@ -296,7 +399,12 @@ fn task_next(cpu: &mut Cpu, bus: &mut SocBus) {
             let scratch = bus.ble.heap + 64;
             bus.load_bytes(scratch, &bytes).unwrap();
             bus.ble.receive = Receive::Appended(result, bytes.len() as u32);
-            call(cpu, bus, "r_os_mbuf_append", &[result, scratch, bytes.len() as u32]);
+            call(
+                cpu,
+                bus,
+                "r_os_mbuf_append",
+                &[result, scratch, bytes.len() as u32],
+            );
             return;
         }
         Receive::Appended(mbuf, len) => {
@@ -308,7 +416,9 @@ fn task_next(cpu: &mut Cpu, bus: &mut SocBus) {
                 bus.ble.receive = Receive::Delivered;
                 redirect(cpu, cpu.x[1]);
             } else {
-                bus.ble.lines.note(format!("native ACL append failed: {result}"));
+                bus.ble
+                    .lines
+                    .note(format!("native ACL append failed: {result}"));
                 bus.ble.receive = Receive::Freed;
                 call(cpu, bus, "r_os_mbuf_free_chain", &[mbuf]);
             }
@@ -319,14 +429,21 @@ fn task_next(cpu: &mut Cpu, bus: &mut SocBus) {
             return;
         }
         Receive::Event(bytes) => {
-            bus.ble.lines.note("native event allocation failed; retrying".into());
+            bus.ble
+                .lines
+                .note("native event allocation failed; retrying".into());
             bus.ble.receive = Receive::Retry(4, bytes);
         }
         Receive::Acl(bytes) => {
-            bus.ble.lines.note("native ACL allocation failed; retrying".into());
+            bus.ble
+                .lines
+                .note("native ACL allocation failed; retrying".into());
             bus.ble.receive = Receive::Retry(2, bytes);
         }
-        Receive::Delivered if result != 0 => bus.ble.lines.note(format!("native receive callback failed: {result}")),
+        Receive::Delivered if result != 0 => bus
+            .ble
+            .lines
+            .note(format!("native receive callback failed: {result}")),
         _ => {}
     }
     // Let the host finish command processing before the next asynchronous event.
@@ -373,12 +490,16 @@ pub fn intercept(cpu: &mut Cpu, bus: &mut SocBus) -> bool {
                 result = INVALID_STATE;
             } else if arg != 1 {
                 result = INVALID_ARG;
-            } else { bus.ble.status = 2; }
+            } else {
+                bus.ble.status = 2;
+            }
         }
         Hook::Disable => {
             if bus.ble.status != 2 {
                 result = INVALID_STATE;
-            } else { bus.ble.status = 1; }
+            } else {
+                bus.ble.status = 1;
+            }
         }
         Hook::Deinit => {
             if bus.ble.status != 1 {
@@ -391,14 +512,20 @@ pub fn intercept(cpu: &mut Cpu, bus: &mut SocBus) -> bool {
         }
         Hook::Status => result = bus.ble.status,
         // retain the guest task and pool until reboot; teardown needs a guest task join.
-        Hook::Release => { if bus.ble.status != 0 { result = INVALID_STATE; } }
+        Hook::Release => {
+            if bus.ble.status != 0 {
+                result = INVALID_STATE;
+            }
+        }
         Hook::Register => {
             if arg & 1 != 0
                 || !((FLASH_LOW..FLASH_HIGH).contains(&arg) || (SRAM_LOW..SRAM_HIGH).contains(&arg))
                 || bus.fetch(arg).is_err()
             {
                 result = INVALID_ARG;
-            } else { bus.ble.callback = arg; }
+            } else {
+                bus.ble.callback = arg;
+            }
         }
         Hook::Alloc => {
             if (1..=3).contains(&arg) {
@@ -414,16 +541,20 @@ pub fn intercept(cpu: &mut Cpu, bus: &mut SocBus) -> bool {
         }
         Hook::Command | Hook::Acl => {
             let bytes = if matches!(hook, Hook::Command) {
-                packet(bus, arg, 3).and_then(|header| packet(bus, arg, 3 + header[2] as usize)).map(|mut p| {
-                    p.insert(0, 1);
-                    p
-                })
+                packet(bus, arg, 3)
+                    .and_then(|header| packet(bus, arg, 3 + header[2] as usize))
+                    .map(|mut p| {
+                        p.insert(0, 1);
+                        p
+                    })
             } else {
                 acl(bus, arg)
             };
             match bytes {
                 Ok(bytes) if bus.ble.status == 2 => {
-                    if bus.debug.has("ble") { eprintln!("[ble] tx {bytes:02x?}"); }
+                    if bus.debug.has("ble") {
+                        eprintln!("[ble] tx {bytes:02x?}");
+                    }
                     bus.ble.session.send(&bytes);
                     bus.ble.log(bus.cycles);
                 }
@@ -435,7 +566,11 @@ pub fn intercept(cpu: &mut Cpu, bus: &mut SocBus) -> bool {
             }
             // Both transport entry points consume the caller's allocation, even on failure.
             if ram(arg, if matches!(hook, Hook::Command) { 3 } else { 24 }) {
-                cpu.x[5] = bus.ble.symbols[if matches!(hook, Hook::Command) { "free" } else { "r_os_mbuf_free_chain" }];
+                cpu.x[5] = bus.ble.symbols[if matches!(hook, Hook::Command) {
+                    "free"
+                } else {
+                    "r_os_mbuf_free_chain"
+                }];
                 cpu.x[11] = result;
                 redirect(cpu, bus.ble.base + FREE_CMD);
                 return true;
@@ -449,13 +584,14 @@ pub fn intercept(cpu: &mut Cpu, bus: &mut SocBus) -> bool {
 }
 
 const CODE: &[u8] = &[
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x13, 0x01, 0x01,
-    0xff, 0x23, 0x26, 0x11, 0x00, 0xef, 0x00, 0x80, 0x05, 0x63, 0x86, 0x02, 0x00, 0xe7, 0x80, 0x02, 0x00, 0x6f, 0xf0,
-    0x5f, 0xff, 0x83, 0x20, 0xc1, 0x00, 0x13, 0x01, 0x01, 0x01, 0x67, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xef, 0x00, 0x40, 0x03, 0xe7, 0x80, 0x02, 0x00, 0x6f, 0xf0, 0x9f, 0xff,
-    0x00, 0x00, 0x00, 0x00, 0x13, 0x01, 0x01, 0xff, 0x23, 0x26, 0x11, 0x00, 0x23, 0x24, 0xb1, 0x00, 0xe7, 0x80, 0x02,
-    0x00, 0x03, 0x25, 0x81, 0x00, 0x83, 0x20, 0xc1, 0x00, 0x13, 0x01, 0x01, 0x01, 0x67, 0x80, 0x00, 0x00, 0x67, 0x80,
-    0x00, 0x00, 0x67, 0x80, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x13, 0x01, 0x01, 0xff, 0x23, 0x26, 0x11, 0x00, 0xef, 0x00, 0x80, 0x05, 0x63, 0x86, 0x02, 0x00,
+    0xe7, 0x80, 0x02, 0x00, 0x6f, 0xf0, 0x5f, 0xff, 0x83, 0x20, 0xc1, 0x00, 0x13, 0x01, 0x01, 0x01,
+    0x67, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xef, 0x00, 0x40, 0x03, 0xe7, 0x80, 0x02, 0x00, 0x6f, 0xf0, 0x9f, 0xff, 0x00, 0x00, 0x00, 0x00,
+    0x13, 0x01, 0x01, 0xff, 0x23, 0x26, 0x11, 0x00, 0x23, 0x24, 0xb1, 0x00, 0xe7, 0x80, 0x02, 0x00,
+    0x03, 0x25, 0x81, 0x00, 0x83, 0x20, 0xc1, 0x00, 0x13, 0x01, 0x01, 0x01, 0x67, 0x80, 0x00, 0x00,
+    0x67, 0x80, 0x00, 0x00, 0x67, 0x80, 0x00, 0x00,
 ];
 
 #[cfg(test)]
@@ -494,8 +630,11 @@ mod tests {
             "xTaskCreatePinnedToCore",
             "vTaskDelay",
         ];
-        let mut symbols: HashMap<String, u32> =
-            names.into_iter().enumerate().map(|(i, name)| (name.into(), FLASH_LOW + 0x200 + i as u32 * 4)).collect();
+        let mut symbols: HashMap<String, u32> = names
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| (name.into(), FLASH_LOW + 0x200 + i as u32 * 4))
+            .collect();
         symbols.insert("esp_bt_controller_init".into(), ENTRY);
         bus.ble.enable(&symbols, 0x200, "v5.5.4").unwrap();
         (bus, symbols)
@@ -532,7 +671,10 @@ mod tests {
     fn missing_ble_symbols_precede_version_errors() {
         let mut ble = Ble::default();
         for version in ["", "v5.5.4"] {
-            assert_eq!(ble.enable(&HashMap::new(), 0, version).unwrap_err(), "BLE requires ELF symbol esp_bt_controller_init");
+            assert_eq!(
+                ble.enable(&HashMap::new(), 0, version).unwrap_err(),
+                "BLE requires ELF symbol esp_bt_controller_init"
+            );
         }
     }
 
@@ -542,12 +684,16 @@ mod tests {
         let mut cpu = caller(ENTRY, SRAM_LOW + 0x100);
         let mut calls = Vec::new();
         for _ in 0..150 {
-            if cpu.pc == RETURN { break; }
+            if cpu.pc == RETURN {
+                break;
+            }
             if !intercept(&mut cpu, &mut bus) {
                 if let Some((name, _)) = symbols.iter().find(|(_, pc)| **pc == cpu.pc) {
                     calls.push(name.as_str());
                     let result = match name.as_str() {
-                        "npl_freertos_funcs_get" | "nimble_port_get_dflt_eventq" => SRAM_LOW + 0x200,
+                        "npl_freertos_funcs_get" | "nimble_port_get_dflt_eventq" => {
+                            SRAM_LOW + 0x200
+                        }
                         "calloc" => {
                             assert_eq!(&cpu.x[10..12], &[1, HEAP_SIZE]);
                             HEAP
@@ -562,13 +708,18 @@ mod tests {
                             0
                         }
                         "xTaskCreatePinnedToCore" => {
-                            assert_eq!(&cpu.x[10..17], &[bus.ble.base + TASK, HEAP + 48, 4096, 0, 23, 0, 0]);
+                            assert_eq!(
+                                &cpu.x[10..17],
+                                &[bus.ble.base + TASK, HEAP + 48, 4096, 0, 23, 0, 0]
+                            );
                             1
                         }
                         _ => 0,
                     };
                     cpu.return_from_stub(&mut bus, result);
-                } else { assert!(cpu.step(&mut bus).trap().is_none()); }
+                } else {
+                    assert!(cpu.step(&mut bus).trap().is_none());
+                }
             }
         }
         assert_eq!(
@@ -620,7 +771,9 @@ mod tests {
                 assert_eq!(cpu.x[10], 1);
                 yielded = true;
                 break;
-            } else if !intercept(&mut cpu, &mut bus) { assert!(cpu.step(&mut bus).trap().is_none()); }
+            } else if !intercept(&mut cpu, &mut bus) {
+                assert!(cpu.step(&mut bus).trap().is_none());
+            }
         }
         assert!(delivered && yielded);
         bus.ble.receive = Receive::Acl(vec![1, 0x20, 0, 0]);
@@ -631,7 +784,10 @@ mod tests {
         cpu = caller(bus.ble.base + TASK_NEXT, 1);
         assert!(intercept(&mut cpu, &mut bus));
         assert_eq!(cpu.x[5], symbols["r_os_mbuf_free_chain"]);
-        assert_eq!(cpu.x[10], event, "failed append must return mbuf to its guest pool");
+        assert_eq!(
+            cpu.x[10], event,
+            "failed append must return mbuf to its guest pool"
+        );
     }
 
     #[test]
@@ -651,7 +807,9 @@ mod tests {
                 cpu.return_from_stub(&mut bus, 0xdeadbeef);
             } else if cpu.pc == RETURN {
                 break;
-            } else { assert!(cpu.step(&mut bus).trap().is_none()); }
+            } else {
+                assert!(cpu.step(&mut bus).trap().is_none());
+            }
         }
         assert!(freed);
         assert_eq!(cpu.x[10], 0, "free's return register is not an HCI status");
@@ -719,9 +877,15 @@ mod tests {
         bus.load_bytes(HEAP, &SRAM_HIGH.to_le_bytes()).unwrap();
         bus.load_bytes(HEAP + 4, &[0, 8, 5, 0]).unwrap();
         bus.load_bytes(HEAP + 16, &4u16.to_le_bytes()).unwrap();
-        assert_eq!(acl(&mut bus, HEAP).unwrap_err(), "BLE inconsistent mbuf lengths");
+        assert_eq!(
+            acl(&mut bus, HEAP).unwrap_err(),
+            "BLE inconsistent mbuf lengths"
+        );
         bus.load_bytes(HEAP + 16, &261u16.to_le_bytes()).unwrap();
-        assert_eq!(acl(&mut bus, HEAP).unwrap_err(), "BLE ACL exceeds controller packet size");
+        assert_eq!(
+            acl(&mut bus, HEAP).unwrap_err(),
+            "BLE ACL exceeds controller packet size"
+        );
     }
     #[test]
     fn native_tx_errors_free_owned_buffers_and_preserve_status() {
@@ -730,19 +894,28 @@ mod tests {
         bus.load_bytes(HEAP, &[3, 12, 0]).unwrap();
         for (name, free, status, expected) in [
             ("ble_transport_to_ll_cmd_impl", "free", 0, INVALID_STATE),
-            ("ble_transport_to_ll_acl_impl", "r_os_mbuf_free_chain", 2, INVALID_ARG),
+            (
+                "ble_transport_to_ll_acl_impl",
+                "r_os_mbuf_free_chain",
+                2,
+                INVALID_ARG,
+            ),
         ] {
             bus.ble.status = status;
             let mut cpu = caller(symbols[name], HEAP);
             assert!(intercept(&mut cpu, &mut bus));
             let mut frees = 0;
             for _ in 0..12 {
-                if cpu.pc == RETURN { break; }
+                if cpu.pc == RETURN {
+                    break;
+                }
                 if cpu.pc == symbols[free] {
                     assert_eq!(cpu.x[10], HEAP);
                     frees += 1;
                     cpu.return_from_stub(&mut bus, 0xdeadbeef);
-                } else { assert!(cpu.step(&mut bus).trap().is_none()); }
+                } else {
+                    assert!(cpu.step(&mut bus).trap().is_none());
+                }
             }
             assert_eq!(frees, 1);
             assert_eq!(cpu.pc, RETURN);
@@ -764,12 +937,32 @@ mod tests {
     #[test]
     fn native_enable_checks_version_and_symbol_extent() {
         let (mut bus, symbols) = fixture();
-        for version in ["", "v4.4.7", "v5.4.1", "v5.50.0", "v5.5.", "v5.5.x", "v5.5.4garbage", "v6.0.0"] {
-            assert!(bus.ble.enable(&symbols, 512, version).unwrap_err().contains("idf_ver"));
+        for version in [
+            "",
+            "v4.4.7",
+            "v5.4.1",
+            "v5.50.0",
+            "v5.5.",
+            "v5.5.x",
+            "v5.5.4garbage",
+            "v6.0.0",
+        ] {
+            assert!(bus
+                .ble
+                .enable(&symbols, 512, version)
+                .unwrap_err()
+                .contains("idf_ver"));
         }
         for version in ["v5.5.0", "v5.5.4", "5.5.4", "v5.5.4-12-gabcd"] {
-            assert!(bus.ble.enable(&symbols, CODE.len() as u32 + 2, version).is_ok());
+            assert!(bus
+                .ble
+                .enable(&symbols, CODE.len() as u32 + 2, version)
+                .is_ok());
         }
-        assert!(bus.ble.enable(&symbols, CODE.len() as u32 + 1, "v5.5.4").unwrap_err().contains("room"));
+        assert!(bus
+            .ble
+            .enable(&symbols, CODE.len() as u32 + 1, "v5.5.4")
+            .unwrap_err()
+            .contains("room"));
     }
 }

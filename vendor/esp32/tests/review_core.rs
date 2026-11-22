@@ -1,5 +1,5 @@
-use esp_soc::SocBus as _;
 use emu_core::bus::Bus as _;
+use esp_soc::SocBus as _;
 
 #[test]
 fn clock_fraction_and_lact_follow_frequency_changes() {
@@ -9,7 +9,10 @@ fn clock_fraction_and_lact_follow_frequency_changes() {
     bus.tick(1);
     assert_eq!(bus.cycles, 1);
     bus.tick(1);
-    assert_eq!(bus.cycles, 3, "160 MHz half ticks must not be discarded per call");
+    assert_eq!(
+        bus.cycles, 3,
+        "160 MHz half ticks must not be discarded per call"
+    );
     bus.write32(0x3ff0_003c, 2).unwrap();
     bus.tick(2);
     assert_eq!(bus.cycles, 5);
@@ -21,10 +24,15 @@ fn clock_fraction_and_lact_follow_frequency_changes() {
         let mut bus = esp32::bus::SocBus::new(4 << 20, [0; 6]);
         bus.write32(0x3ff4_8070, 1 << 27).unwrap();
         bus.write32(0x3ff0_003c, period).unwrap();
-        bus.write32(0x3ff5_f070, (1 << 31) | (1 << 30) | (40 << 13)).unwrap();
+        bus.write32(0x3ff5_f070, (1 << 31) | (1 << 30) | (40 << 13))
+            .unwrap();
         bus.tick(cycles);
         bus.write32(0x3ff5_f080, 1).unwrap();
-        assert_eq!(bus.read32(0x3ff5_f078).unwrap(), 2_000, "LACT/esp_timer has advanced 1 ms");
+        assert_eq!(
+            bus.read32(0x3ff5_f078).unwrap(),
+            2_000,
+            "LACT/esp_timer has advanced 1 ms"
+        );
         assert_eq!(bus.cycles, 240_000);
     }
 }
@@ -35,18 +43,26 @@ fn xtal_apb_lact_prescaler_counts_real_milliseconds() {
     for (source, cpu_cycles, divider) in [(0, 40_000, 20), (1, 240_000, 40), (0, 40_000, 20)] {
         bus.write32(0x3ff4_8070, source << 27).unwrap();
         bus.write32(0x3ff0_003c, 2).unwrap();
-        bus.write32(0x3ff5_f070, (1 << 31) | (1 << 30) | (divider << 13)).unwrap();
+        bus.write32(0x3ff5_f070, (1 << 31) | (1 << 30) | (divider << 13))
+            .unwrap();
         bus.write32(0x3ff5_f080, 1).unwrap();
         let before = bus.read32(0x3ff5_f078).unwrap();
         bus.tick(cpu_cycles);
         bus.write32(0x3ff5_f080, 1).unwrap();
-        assert_eq!(bus.read32(0x3ff5_f078).unwrap() - before, 2_000, "source={source}");
+        assert_eq!(
+            bus.read32(0x3ff5_f078).unwrap() - before,
+            2_000,
+            "source={source}"
+        );
     }
 }
 
 #[test]
 fn clock_conversion_bounds_stop_and_peripheral_deadlines() {
-    for code in [&[0x06, 0xff, 0xff][..], &[0x00, 0x70, 0x00, 0x06, 0xff, 0xff][..]] {
+    for code in [
+        &[0x06, 0xff, 0xff][..],
+        &[0x00, 0x70, 0x00, 0x06, 0xff, 0xff][..],
+    ] {
         let mut m = esp32::machine([0; 6], 4 << 20);
         m.bus.load_bytes(0x4008_0000, code).unwrap();
         m.cores[0].pc = 0x4008_0000;
@@ -62,7 +78,11 @@ fn clock_conversion_bounds_stop_and_peripheral_deadlines() {
     let mut bus = esp32::bus::SocBus::new(4 << 20, [0; 6]);
     bus.write32(0x3ff0_003c, 1).unwrap();
     bus.write32(0x3ff4_8070, 1 << 27).unwrap();
-    bus.write32(0x3ff5_f000, (1 << 31) | (1 << 30) | (1 << 11) | (1 << 10) | (2 << 13)).unwrap();
+    bus.write32(
+        0x3ff5_f000,
+        (1 << 31) | (1 << 30) | (1 << 11) | (1 << 10) | (2 << 13),
+    )
+    .unwrap();
     bus.write32(0x3ff5_f010, 10).unwrap();
     bus.write32(0x3ff5_f098, 1).unwrap();
     // The shared device clock returns a conservative deadline (before the alarm).
@@ -75,7 +95,10 @@ fn clock_conversion_bounds_stop_and_peripheral_deadlines() {
 #[test]
 fn selected_cpu_clock_scales_instruction_and_idle_time() {
     for (source, period, master_cycles) in [(0, 2, 1200), (1, 0, 600), (1, 1, 300), (1, 2, 200)] {
-        for code in [&[0x06, 0xff, 0xff][..], &[0x00, 0x70, 0x00, 0x06, 0xff, 0xff][..]] {
+        for code in [
+            &[0x06, 0xff, 0xff][..],
+            &[0x00, 0x70, 0x00, 0x06, 0xff, 0xff][..],
+        ] {
             let mut m = esp32::machine([0; 6], 4 << 20);
             m.bus.load_bytes(0x4008_0000, code).unwrap();
             m.cores[0].pc = 0x4008_0000;
@@ -85,7 +108,10 @@ fn selected_cpu_clock_scales_instruction_and_idle_time() {
             m.bus.write32(0x3ff4_8070, source << 27).unwrap();
             assert!(matches!(m.run(200), esp32::Stop::MaxInsns));
             assert_eq!(m.cores[0].ccount, 200);
-            assert_eq!(m.bus.cycles, master_cycles, "source={source}, period={period}");
+            assert_eq!(
+                m.bus.cycles, master_cycles,
+                "source={source}, period={period}"
+            );
         }
     }
 }
@@ -104,7 +130,9 @@ fn wakeup_state_cannot_alias_reset_cause() {
 fn gpio23_is_visible_but_unbonded_or_invalid_pins_are_hidden() {
     let bus = esp32::bus::SocBus::new(4 << 20, [0; 6]);
     assert!(bus.gpio_state(23).is_some());
-    for pin in [20, 24, 28, 29, 30, 31, 40, 255] { assert!(bus.gpio_state(pin).is_none()); }
+    for pin in [20, 24, 28, 29, 30, 31, 40, 255] {
+        assert!(bus.gpio_state(pin).is_none());
+    }
 }
 
 #[test]

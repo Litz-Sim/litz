@@ -7,10 +7,14 @@ use esp_periph::{AnalogInputs, Device, RegRam, WriteEffect};
 
 const ADC1_PINS: [u8; 8] = [36, 37, 38, 39, 32, 33, 34, 35];
 const ADC2_PINS: [u8; 10] = [4, 0, 2, 15, 13, 12, 14, 27, 25, 26];
-pub fn valid_pin(pin: u8) -> bool { ADC1_PINS.contains(&pin) || ADC2_PINS.contains(&pin) }
+pub fn valid_pin(pin: u8) -> bool {
+    ADC1_PINS.contains(&pin) || ADC2_PINS.contains(&pin)
+}
 
 const TOUCH_PINS: [u8; 10] = [4, 0, 2, 15, 13, 12, 14, 27, 33, 32];
-pub fn touch_pin(pin: u8) -> bool { TOUCH_PINS.contains(&pin) }
+pub fn touch_pin(pin: u8) -> bool {
+    TOUCH_PINS.contains(&pin)
+}
 // GPIO, RTC_IO register, RTC mux bit (ESP-IDF rtc_io_desc).
 const PADS: [(u8, u32, u32); 18] = [
     (36, 0x7c, 27),
@@ -35,7 +39,9 @@ const PADS: [(u8, u32, u32); 18] = [
 /// SENS registers, mounted through the chip's `device_set!` table so MMIO probes and
 /// `log_all` tracing see them.
 impl Device for ClassicAdc {
-    fn read(&mut self, off: u32) -> u32 { self.read_sens(off) }
+    fn read(&mut self, off: u32) -> u32 {
+        self.read_sens(off)
+    }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
         self.write_sens(off, v);
         WriteEffect::NONE
@@ -137,9 +143,11 @@ impl ClassicAdc {
         match off {
             0x54 | 0x94 => {
                 let old = self.sens.read(off);
-                let out = esp_periph::sar_adc::sens_oneshot(old,
+                let out = esp_periph::sar_adc::sens_oneshot(
+                    old,
                     (value & !0xffff) | (old & 0xffff),
-                    || self.convert(usize::from(off == 0x94), value, old & 0xffff));
+                    || self.convert(usize::from(off == 0x94), value, old & 0xffff),
+                );
                 self.sens.write(off, out);
             }
             0x70..=0x80 => {}
@@ -182,11 +190,14 @@ impl ClassicAdc {
             ];
             let offsets = [[75, 78, 107, 142], [63, 66, 89, 128]];
             let slope = 1100 * scales[unit][attenuation] / 4096;
-            raw = self.analog.convert(pins[channel], self.now_cycles, |volts| {
-            let mv = ((volts.clamp(0.0, 3.3) * 1000.0).round() as u32)
-                .saturating_sub(offsets[unit][attenuation]);
-            ((mv * 65536 + slope / 2) / slope).min(4095)
-            }) >> (12 - width);
+            raw = self
+                .analog
+                .convert(pins[channel], self.now_cycles, |volts| {
+                    let mv = ((volts.clamp(0.0, 3.3) * 1000.0).round() as u32)
+                        .saturating_sub(offsets[unit][attenuation]);
+                    ((mv * 65536 + slope / 2) / slope).min(4095)
+                })
+                >> (12 - width);
             if control & (1 << (28 + unit)) == 0 {
                 raw ^= (1 << width) - 1;
             }

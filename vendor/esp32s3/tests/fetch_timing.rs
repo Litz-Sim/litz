@@ -1,6 +1,6 @@
 use emu_core::Bus;
-use esp_soc::{Soc, SocBus};
 use esp32s3::bus::{IBUS_LOW, MMU_TABLE, PAGE};
+use esp_soc::{Soc, SocBus};
 
 #[test]
 fn fetch_cache_cold_after_remap_and_chip_reset_keeps_core_reset() {
@@ -27,13 +27,21 @@ fn fetch_cache_cold_after_remap_and_chip_reset_keeps_core_reset() {
 
     m.bus.write32(MMU_TABLE, 1).unwrap();
     m.run(8);
-    assert_eq!(m.cores[0].icache_misses, warm_misses + 1, "a remapped physical line is not warm");
+    assert_eq!(
+        m.cores[0].icache_misses,
+        warm_misses + 1,
+        "a remapped physical line is not warm"
+    );
 
     SocBus::reboot(&mut m.bus, [1, 2, 3, 4, 5, 6]);
     m.bus.write32(MMU_TABLE, 0).unwrap();
     park(&mut m);
     m.run(8);
-    assert_eq!(m.cores[0].icache_misses, warm_misses + 2, "a post-reset refill is not warm");
+    assert_eq!(
+        m.cores[0].icache_misses,
+        warm_misses + 2,
+        "a post-reset refill is not warm"
+    );
 
     SocBus::load_bytes(&mut m.bus, IBUS_LOW, &SPIN).unwrap();
     m.run(8);
@@ -41,35 +49,56 @@ fn fetch_cache_cold_after_remap_and_chip_reset_keeps_core_reset() {
     esp32s3::S3::reset_core(&mut m.cores[0], 0);
     park(&mut m);
     m.run(8);
-    assert_eq!(m.cores[0].icache_misses, warm_misses + 2, "a core reset keeps the shared fetch cache");
+    assert_eq!(
+        m.cores[0].icache_misses,
+        warm_misses + 2,
+        "a core reset keeps the shared fetch cache"
+    );
 }
 
 #[test]
 fn fetch_cache_is_shared_by_cores_but_isolated_between_machines() {
     let mut first = esp32s3::machine([1; 6]);
-    for core in &mut first.cores { core.icache_fill = 7; }
+    for core in &mut first.cores {
+        core.icache_fill = 7;
+    }
     first.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
     first.cores[1].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
     assert_eq!(first.cores[0].icache_misses, 1);
-    assert_eq!(first.cores[1].icache_misses, 0, "core 1 shares core 0's warm line");
+    assert_eq!(
+        first.cores[1].icache_misses, 0,
+        "core 1 shares core 0's warm line"
+    );
 
     // Constructing another machine must neither borrow nor invalidate first's tags.
     let mut second = esp32s3::machine([2; 6]);
     second.cores[0].icache_fill = 7;
     second.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
-    assert_eq!(second.cores[0].icache_misses, 1, "a new machine starts cold");
+    assert_eq!(
+        second.cores[0].icache_misses, 1,
+        "a new machine starts cold"
+    );
     first.cores[1].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
     assert_eq!(first.cores[1].icache_misses, 0);
 
     second.bus.write32(MMU_TABLE, 0).unwrap();
     first.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
-    assert_eq!(first.cores[0].icache_misses, 1, "another machine's remap leaves this one warm");
+    assert_eq!(
+        first.cores[0].icache_misses, 1,
+        "another machine's remap leaves this one warm"
+    );
     second.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
-    assert_eq!(second.cores[0].icache_misses, 2, "a remap invalidates its own machine");
+    assert_eq!(
+        second.cores[0].icache_misses, 2,
+        "a remap invalidates its own machine"
+    );
 
     SocBus::reboot(&mut second.bus, [2; 6]);
     first.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
-    assert_eq!(first.cores[0].icache_misses, 1, "another machine's reset leaves this one warm");
+    assert_eq!(
+        first.cores[0].icache_misses, 1,
+        "another machine's reset leaves this one warm"
+    );
     second.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
     assert_eq!(second.cores[0].icache_misses, 3);
     assert_eq!(first.cores[0].timing_extra, 7);

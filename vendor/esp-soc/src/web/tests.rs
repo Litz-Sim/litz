@@ -12,17 +12,24 @@ impl Connection {
     fn new(web: &WebServer) -> Self {
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
         let socket = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-        socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+        socket
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .unwrap();
         let shared = web.shared.clone();
         let handler = std::thread::spawn(move || {
             let (stream, _) = listener.accept().unwrap();
             handle_client(stream, shared);
         });
-        Self { socket, handler: Some(handler) }
+        Self {
+            socket,
+            handler: Some(handler),
+        }
     }
 
     fn handshake(&mut self, origin: Option<&str>) {
-        let origin = origin.map(|o| format!("Origin: {o}\r\n")).unwrap_or_default();
+        let origin = origin
+            .map(|o| format!("Origin: {o}\r\n"))
+            .unwrap_or_default();
         write!(self.socket, "GET /ws HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n{origin}\r\n").unwrap();
     }
 
@@ -69,25 +76,50 @@ fn masked_frame(opcode: u8, payload: &[u8]) -> Vec<u8> {
 
 #[test]
 fn websocket_key_header_matches_any_case() {
-    for line in ["Sec-WebSocket-Key: abc==", "sec-websocket-key: abc==", "SEC-WEBSOCKET-KEY:abc==", "Sec-Websocket-Key :  abc==  "] {
+    for line in [
+        "Sec-WebSocket-Key: abc==",
+        "sec-websocket-key: abc==",
+        "SEC-WEBSOCKET-KEY:abc==",
+        "Sec-Websocket-Key :  abc==  ",
+    ] {
         let head = format!("GET /ws HTTP/1.1\r\nHost: x\r\n{line}\r\nUpgrade: websocket\r\n\r\n");
         assert_eq!(header(&head, "Sec-WebSocket-Key"), Some("abc=="), "{line}");
     }
-    assert_eq!(header("GET / HTTP/1.1\r\nHost: x\r\n\r\n", "Sec-WebSocket-Key"), None);
-    assert_eq!(header("GET /Sec-WebSocket-Key: HTTP/1.1\r\n\r\n", "GET /Sec-WebSocket-Key"), None);
+    assert_eq!(
+        header("GET / HTTP/1.1\r\nHost: x\r\n\r\n", "Sec-WebSocket-Key"),
+        None
+    );
+    assert_eq!(
+        header(
+            "GET /Sec-WebSocket-Key: HTTP/1.1\r\n\r\n",
+            "GET /Sec-WebSocket-Key"
+        ),
+        None
+    );
     assert_eq!(header("GET / HTTP/1.1\r\n\r\nOrigin: fake", "Origin"), None);
 }
 
 #[test]
 fn websocket_accept_matches_rfc_6455_example() {
     let key = "dGhlIHNhbXBsZSBub25jZQ==";
-    assert_eq!(b64(&sha1(format!("{}258EAFA5-E914-47DA-95CA-C5AB0DC85B11", key).as_bytes())), "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=");
+    assert_eq!(
+        b64(&sha1(
+            format!("{}258EAFA5-E914-47DA-95CA-C5AB0DC85B11", key).as_bytes()
+        )),
+        "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
+    );
 }
 
 #[test]
 fn json_fields_are_top_level_and_strings_decode_unicode() {
-    assert_eq!(json_str(r#"{"nested":{"t":"knob"},"t":"serial"}"#, "t").as_deref(), Some("serial"));
-    assert_eq!(json_str(r#"{"t":"serial","line":"\uD83D\uDE80"}"#, "line").as_deref(), Some("🚀"));
+    assert_eq!(
+        json_str(r#"{"nested":{"t":"knob"},"t":"serial"}"#, "t").as_deref(),
+        Some("serial")
+    );
+    assert_eq!(
+        json_str(r#"{"t":"serial","line":"\uD83D\uDE80"}"#, "line").as_deref(),
+        Some("🚀")
+    );
     assert_eq!(json_str(r#"{"line":"unfinished}"#, "line"), None);
     assert_eq!(json_str(r#"{"d":1e2}"#, "d").as_deref(), Some("100"));
 }
@@ -95,13 +127,32 @@ fn json_fields_are_top_level_and_strings_decode_unicode() {
 #[test]
 fn websocket_origin_requires_this_loopback_port_when_present() {
     for origin in ["http://127.0.0.1:8766", "http://localhost:8766"] {
-        assert!(local_origin(&format!("GET / HTTP/1.1\r\nOrigin: {origin}\r\n\r\n"), 8766));
+        assert!(local_origin(
+            &format!("GET / HTTP/1.1\r\nOrigin: {origin}\r\n\r\n"),
+            8766
+        ));
     }
-    for origin in ["null", "https://localhost:8766", "http://localhost:8765", "http://localhost.evil:8766", "http://127.0.0.1:8766/", "http://127.0.0.1:8766@evil"] {
-        assert!(!local_origin(&format!("GET / HTTP/1.1\r\nOrigin: {origin}\r\n\r\n"), 8766), "{origin}");
+    for origin in [
+        "null",
+        "https://localhost:8766",
+        "http://localhost:8765",
+        "http://localhost.evil:8766",
+        "http://127.0.0.1:8766/",
+        "http://127.0.0.1:8766@evil",
+    ] {
+        assert!(
+            !local_origin(&format!("GET / HTTP/1.1\r\nOrigin: {origin}\r\n\r\n"), 8766),
+            "{origin}"
+        );
     }
-    assert!(local_origin("GET / HTTP/1.1\r\n\r\n", 8766), "native tools omit Origin");
-    assert!(local_origin("GET / HTTP/1.1\r\nOrigin: http://localhost\r\n\r\n", 80));
+    assert!(
+        local_origin("GET / HTTP/1.1\r\n\r\n", 8766),
+        "native tools omit Origin"
+    );
+    assert!(local_origin(
+        "GET / HTTP/1.1\r\nOrigin: http://localhost\r\n\r\n",
+        80
+    ));
 }
 
 #[test]
@@ -118,12 +169,20 @@ fn websocket_snapshot_precedes_live_frames_and_ping_gets_pong() {
     let web = socket_web();
     web.set_hello(vec![frame(1, b"board"), frame(2, b"snapshot")]);
     let mut connection = Connection::new(&web);
-    let origin = format!("http://localhost:{}", connection.socket.peer_addr().unwrap().port());
+    let origin = format!(
+        "http://localhost:{}",
+        connection.socket.peer_addr().unwrap().port()
+    );
     connection.handshake(Some(&origin));
-    assert!(connection.head().starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
+    assert!(connection
+        .head()
+        .starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
     connection.expect_frame(1, b"board");
     web.send_text("live");
-    connection.socket.write_all(&masked_frame(9, b"ping payload")).unwrap();
+    connection
+        .socket
+        .write_all(&masked_frame(9, b"ping payload"))
+        .unwrap();
     connection.socket.write_all(&masked_frame(9, b"")).unwrap();
     connection.expect_frame(2, b"snapshot");
     connection.expect_frame(1, b"live");
@@ -139,7 +198,9 @@ fn websocket_preserves_frame_received_with_http_head() {
     let mut request = b"GET / HTTP/1.1\r\nSec-WebSocket-Key: abc==\r\n\r\n".to_vec();
     request.extend(masked_frame(9, b"already buffered"));
     connection.socket.write_all(&request).unwrap();
-    assert!(connection.head().starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
+    assert!(connection
+        .head()
+        .starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
     connection.expect_frame(10, b"already buffered");
 }
 
@@ -149,7 +210,9 @@ fn slow_snapshot_client_does_not_hold_emulator_mutex() {
     web.set_hello(vec![frame(2, &vec![0x5a; 16 << 20])]);
     let mut connection = Connection::new(&web);
     connection.handshake(None);
-    assert!(connection.head().starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
+    assert!(connection
+        .head()
+        .starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
     let mut frame_header = [0; 10];
     connection.socket.read_exact(&mut frame_header).unwrap();
     assert_eq!(frame_header[0], 0x82);
@@ -157,7 +220,9 @@ fn slow_snapshot_client_does_not_hold_emulator_mutex() {
     // emulator; its state and bounded live queue must remain usable.
     let (tx, rx) = mpsc::channel();
     let emulator = std::thread::spawn(move || {
-        for _ in 0..300 { web.send_text("live"); }
+        for _ in 0..300 {
+            web.send_text("live");
+        }
         web.push_incoming("input".into());
         tx.send(web.poll_incoming()).unwrap();
     });
@@ -177,11 +242,15 @@ impl StaticRoot {
         std::fs::create_dir_all(path.join("public")).unwrap();
         Self(path)
     }
-    fn public(&self) -> String { self.0.join("public").to_string_lossy().into_owned() }
+    fn public(&self) -> String {
+        self.0.join("public").to_string_lossy().into_owned()
+    }
 }
 
 impl Drop for StaticRoot {
-    fn drop(&mut self) { std::fs::remove_dir_all(&self.0).unwrap(); }
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).unwrap();
+    }
 }
 
 #[test]
@@ -195,7 +264,10 @@ fn static_files_stay_in_root_and_unknown_content_is_not_html() {
     let web = socket_web();
     web.shared.lock().unwrap().web_dir = root.public();
     let mut connection = Connection::new(&web);
-    connection.socket.write_all(b"GET /blob.bin HTTP/1.1\r\n\r\n").unwrap();
+    connection
+        .socket
+        .write_all(b"GET /blob.bin HTTP/1.1\r\n\r\n")
+        .unwrap();
     let head = connection.head();
     assert!(head.starts_with("HTTP/1.1 200 OK\r\n"));
     assert!(head.contains("Content-Type: application/octet-stream\r\n"));
@@ -215,18 +287,36 @@ fn static_symlinks_cannot_escape_root() {
     std::os::unix::fs::symlink("../secret", root.0.join("public/leak.txt")).unwrap();
     std::os::unix::fs::symlink("data.txt", root.0.join("public/alias.txt")).unwrap();
     assert_eq!(static_file(&root.public(), "/leak.txt"), None);
-    assert_eq!(static_file(&root.public(), "/alias.txt"), Some(b"public".to_vec()));
+    assert_eq!(
+        static_file(&root.public(), "/alias.txt"),
+        Some(b"public".to_vec())
+    );
 }
 
 #[test]
 fn websocket_origin_accepts_matching_forwarded_loopback_host() {
-    for host in ["localhost:9000", "127.0.0.1:9000", "[::1]:9000", "localhost"] {
+    for host in [
+        "localhost:9000",
+        "127.0.0.1:9000",
+        "[::1]:9000",
+        "localhost",
+    ] {
         let request = format!("GET /ws HTTP/1.1\r\nHost: {host}\r\nOrigin: http://{host}\r\n\r\n");
         assert!(local_origin(&request, 8080), "{host}");
     }
-    for host in ["localhost.evil:9000", "evil:9000", "127.0.0.1:9000@evil", "localhost:65536", "localhost:", "localhost:+80"] {
+    for host in [
+        "localhost.evil:9000",
+        "evil:9000",
+        "127.0.0.1:9000@evil",
+        "localhost:65536",
+        "localhost:",
+        "localhost:+80",
+    ] {
         let request = format!("GET /ws HTTP/1.1\r\nHost: {host}\r\nOrigin: http://{host}\r\n\r\n");
         assert!(!local_origin(&request, 8080), "{host}");
     }
-    assert!(!local_origin("GET /ws HTTP/1.1\r\nHost: localhost:9000\r\nOrigin: http://localhost:9001\r\n\r\n", 8080));
+    assert!(!local_origin(
+        "GET /ws HTTP/1.1\r\nHost: localhost:9000\r\nOrigin: http://localhost:9001\r\n\r\n",
+        8080
+    ));
 }

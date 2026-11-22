@@ -5,9 +5,16 @@ use std::sync::{Arc, Mutex};
 struct InputBoard(Arc<Mutex<Vec<Picture>>>);
 
 impl BoardModel for InputBoard {
-    fn name(&self) -> &'static str { "input-test" }
-    fn encoder(&self) -> Option<(u8, u8)> { Some((1, 2)) }
-    fn set_camera_picture(&mut self, picture: Picture) -> Result<(), &'static str> { self.0.lock().unwrap().push(picture); Ok(()) }
+    fn name(&self) -> &'static str {
+        "input-test"
+    }
+    fn encoder(&self) -> Option<(u8, u8)> {
+        Some((1, 2))
+    }
+    fn set_camera_picture(&mut self, picture: Picture) -> Result<(), &'static str> {
+        self.0.lock().unwrap().push(picture);
+        Ok(())
+    }
 }
 
 fn fixture() -> (esp32s3::Machine, WebServer, Arc<Mutex<Vec<Picture>>>) {
@@ -59,7 +66,9 @@ fn knob_extreme_deltas_have_bounded_work_and_keep_their_direction() {
         assert!(matches!(machine.run(0), Stop::MaxInsns));
         assert_eq!(machine.script.events.len(), 64 * 4);
         let first_pin = if delta > 0 { 1 } else { 2 };
-        assert!(matches!(machine.script.events[0].1, ScriptAction::Gpio(pin, false) if pin == first_pin));
+        assert!(
+            matches!(machine.script.events[0].1, ScriptAction::Gpio(pin, false) if pin == first_pin)
+        );
         assert_eq!(machine.bus.cycles, 0);
         assert!(web.poll_incoming().is_empty());
     }
@@ -74,14 +83,27 @@ fn ordinary_knob_deltas_preserve_edges_spacing_and_queue_order() {
     assert!(matches!(machine.run(0), Stop::MaxInsns));
     let step = 240_000_000 / 500;
     let expected = [
-        (1, 1, false), (2, 2, false), (3, 1, true), (4, 2, true),
-        (9, 1, false), (10, 2, false), (11, 1, true), (12, 2, true),
-        (17, 2, false), (18, 1, false), (19, 2, true), (20, 1, true),
+        (1, 1, false),
+        (2, 2, false),
+        (3, 1, true),
+        (4, 2, true),
+        (9, 1, false),
+        (10, 2, false),
+        (11, 1, true),
+        (12, 2, true),
+        (17, 2, false),
+        (18, 1, false),
+        (19, 2, true),
+        (20, 1, true),
     ];
     assert_eq!(machine.script.events.len(), expected.len());
-    for ((cycle, action), (phase, expected_pin, expected_level)) in machine.script.events.iter().zip(expected) {
+    for ((cycle, action), (phase, expected_pin, expected_level)) in
+        machine.script.events.iter().zip(expected)
+    {
         assert_eq!(*cycle, phase * step);
-        assert!(matches!(action, ScriptAction::Gpio(pin, level) if *pin == expected_pin && *level == expected_level));
+        assert!(
+            matches!(action, ScriptAction::Gpio(pin, level) if *pin == expected_pin && *level == expected_level)
+        );
     }
 }
 
@@ -89,9 +111,19 @@ fn ordinary_knob_deltas_preserve_edges_spacing_and_queue_order() {
 fn camera_plain_input_channel_needs_no_web_server() {
     let (mut machine, _, pictures) = fixture();
     machine.web = None;
-    machine.camera_input = Some(Arc::new(Mutex::new(Some(Picture { w: 1, h: 1, rgb: vec![1, 2, 3] }))));
+    machine.camera_input = Some(Arc::new(Mutex::new(Some(Picture {
+        w: 1,
+        h: 1,
+        rgb: vec![1, 2, 3],
+    }))));
     machine.run(0);
     assert_eq!(pictures.lock().unwrap()[0].rgb, [1, 2, 3]);
-    assert!(machine.camera_input.as_ref().unwrap().lock().unwrap().is_none());
+    assert!(machine
+        .camera_input
+        .as_ref()
+        .unwrap()
+        .lock()
+        .unwrap()
+        .is_none());
     assert!(machine.web.is_none());
 }

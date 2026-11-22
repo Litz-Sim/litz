@@ -12,7 +12,7 @@ fn loss_restore(b: &mut SocBus, cause: usize) {
         3 => Some((0x3ff4_4010, 1)),
         4 => Some((0x3ff4_4530, 256)),
         6 => Some((0x3ff0_00c0, 1 << 11)), // I2S gated, LEDC retained
-        7 => Some((0x3ff0_00c0, 1 << 4)), // LEDC gated, I2S retained
+        7 => Some((0x3ff0_00c0, 1 << 4)),  // LEDC gated, I2S retained
         _ => None,
     };
     if let Some((addr, bad)) = reg {
@@ -31,7 +31,8 @@ fn cancellation(cause: usize, partial: bool) {
     for mode in [1, 3] {
         let mut b = setup(mode);
         let size = if mode == 1 { 64 } else { 128 };
-        descriptor(&mut b, 0, size, 0); arm(&mut b, size / 4);
+        descriptor(&mut b, 0, size, 0);
+        arm(&mut b, size / 4);
         if partial {
             begin(&mut b);
             tick_bus(&mut b, (FRAME_CYCLES - VSYNC_CYCLES) / 4);
@@ -51,45 +52,84 @@ fn cancellation(cause: usize, partial: bool) {
         let conf = b.read32(I + 8).unwrap();
         put(&mut b, I + 8, conf);
         for _ in 0..2 {
-            begin(&mut b); tick_bus(&mut b, FRAME_CYCLES - VSYNC_CYCLES);
+            begin(&mut b);
+            tick_bus(&mut b, FRAME_CYCLES - VSYNC_CYCLES);
             assert_eq!(raw(&mut b), 0, "no continued IRQ cause {cause}");
-            assert_eq!(bytes(&mut b, B, size), before, "no continued bytes cause {cause}");
-            assert_eq!(bytes(&mut b, D, 12), desc, "no descriptor writeback cause {cause}");
+            assert_eq!(
+                bytes(&mut b, B, size),
+                before,
+                "no continued bytes cause {cause}"
+            );
+            assert_eq!(
+                bytes(&mut b, D, 12),
+                desc,
+                "no descriptor writeback cause {cause}"
+            );
             assert_eq!(b.read32(I + 0x3c).unwrap(), eof_desc);
         }
-        descriptor(&mut b, 0, size, 0); arm(&mut b, size / 4);
-        begin(&mut b); tick_bus(&mut b, FRAME_CYCLES - VSYNC_CYCLES);
-        assert_eq!(raw(&mut b), DONE | EOF, "fresh rearm recovers cause {cause}");
+        descriptor(&mut b, 0, size, 0);
+        arm(&mut b, size / 4);
+        begin(&mut b);
+        tick_bus(&mut b, FRAME_CYCLES - VSYNC_CYCLES);
+        assert_eq!(
+            raw(&mut b),
+            DONE | EOF,
+            "fresh rearm recovers cause {cause}"
+        );
         assert_eq!(b.read32(D).unwrap(), size | (size << 12) | (1 << 30));
-        let pattern = if mode == 1 { vec![0, 0, 248, 0] } else { vec![0, 0, 248, 0, 0, 0, 0, 0] };
+        let pattern = if mode == 1 {
+            vec![0, 0, 248, 0]
+        } else {
+            vec![0, 0, 248, 0, 0, 0, 0, 0]
+        };
         assert_eq!(bytes(&mut b, B, size), pattern.repeat(16));
     }
 }
 
 #[test]
-fn cancellation_matrix() { cancellation(0, true); }
+fn cancellation_matrix() {
+    cancellation(0, true);
+}
 #[test]
-fn cancellation_iomux() { cancellation(1, true); }
+fn cancellation_iomux() {
+    cancellation(1, true);
+}
 #[test]
-fn cancellation_rtc() { cancellation(2, true); }
+fn cancellation_rtc() {
+    cancellation(2, true);
+}
 #[test]
-fn cancellation_power() { cancellation(3, true); }
+fn cancellation_power() {
+    cancellation(3, true);
+}
 #[test]
-fn cancellation_xclk() { cancellation(4, true); }
+fn cancellation_xclk() {
+    cancellation(4, true);
+}
 #[test]
-fn cancellation_streaming() { cancellation(5, true); }
+fn cancellation_streaming() {
+    cancellation(5, true);
+}
 #[test]
-fn cancellation_i2s_gate() { cancellation(6, true); }
+fn cancellation_i2s_gate() {
+    cancellation(6, true);
+}
 #[test]
-fn cancellation_ledc_gate() { cancellation(7, true); }
+fn cancellation_ledc_gate() {
+    cancellation(7, true);
+}
 #[test]
 fn cancellation_qualified_waiting() {
-    for cause in 0..8 { cancellation(cause, false); }
+    for cause in 0..8 {
+        cancellation(cause, false);
+    }
 }
 #[test]
 fn cancellation_valid_changes_preserve_active_capture() {
     let mut b = setup(1);
-    descriptor(&mut b, 0, 64, 0); arm(&mut b, 16); begin(&mut b);
+    descriptor(&mut b, 0, 64, 0);
+    arm(&mut b, 16);
+    begin(&mut b);
     tick_bus(&mut b, (FRAME_CYCLES - VSYNC_CYCLES) / 4);
     // Unrelated pad, unrelated RTC bit, pullup, and valid inverted PWM.
     put(&mut b, 0x3ff4_9060, 2 << 12);

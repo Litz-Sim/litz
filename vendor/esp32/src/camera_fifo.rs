@@ -22,7 +22,10 @@ pub struct CameraFifo {
 impl CameraFifo {
     pub fn new(mode: u8) -> Result<Self, UnsupportedCameraFifoMode> {
         match mode {
-            1 | 3 => Ok(Self { mode, pending: None }),
+            1 | 3 => Ok(Self {
+                mode,
+                pending: None,
+            }),
             _ => Err(UnsupportedCameraFifoMode(mode)),
         }
     }
@@ -67,26 +70,42 @@ mod tests {
         out
     }
     fn extract(mode: u8, packed: &[u8]) -> Vec<u8> {
-        packed.as_chunks::<4>().0.iter().flat_map(|w| {
-            if mode == 1 { vec![w[2], w[0]] } else { vec![w[2]] }
-        }).collect()
+        packed
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .flat_map(|w| {
+                if mode == 1 {
+                    vec![w[2], w[0]]
+                } else {
+                    vec![w[2]]
+                }
+            })
+            .collect()
     }
     #[test]
     fn camera_fifo_exact_little_endian_words() {
         let wire = [0x12, 0xa5, 0x34, 0xfe];
         assert_eq!(pack(1, &wire), [0xa5, 0, 0x12, 0, 0xfe, 0, 0x34, 0]);
-        assert_eq!(pack(3, &wire), [0, 0, 0x12, 0, 0, 0, 0xa5, 0, 0, 0, 0x34, 0, 0, 0, 0xfe, 0]);
+        assert_eq!(
+            pack(3, &wire),
+            [0, 0, 0x12, 0, 0, 0, 0xa5, 0, 0, 0, 0x34, 0, 0, 0, 0xfe, 0]
+        );
     }
     #[test]
     fn camera_fifo_rgb565_yuv_and_grayscale() {
         // RGB565 wire byte order is retained, not converted to host pixel order.
-        for wire in [[0xf8, 0, 7, 0xe0, 0, 0x1f, 0xff, 0xff],
-                     [16, 128, 32, 64, 48, 192, 64, 32]] {
+        for wire in [
+            [0xf8, 0, 7, 0xe0, 0, 0x1f, 0xff, 0xff],
+            [16, 128, 32, 64, 48, 192, 64, 32],
+        ] {
             for mode in [1, 3] {
                 let recovered = extract(mode, &pack(mode, &wire));
                 assert_eq!(recovered, wire);
-                assert_eq!(recovered.iter().step_by(2).copied().collect::<Vec<_>>(),
-                    [wire[0], wire[2], wire[4], wire[6]]);
+                assert_eq!(
+                    recovered.iter().step_by(2).copied().collect::<Vec<_>>(),
+                    [wire[0], wire[2], wire[4], wire[6]]
+                );
             }
         }
     }
@@ -123,7 +142,9 @@ mod tests {
             expected.extend(pack(mode, &[1, 2, 3]));
             expected.extend(pack(mode, &[4, 5]));
             assert_eq!(out, expected);
-            if mode == 1 { assert_eq!(&out[5..9], &[0, 0, 3, 0]); }
+            if mode == 1 {
+                assert_eq!(&out[5..9], &[0, 0, 3, 0]);
+            }
             assert_eq!(extract(mode, &pack(mode, &[1, 2, 3]))[..3], [1, 2, 3]);
         }
     }
@@ -154,7 +175,11 @@ mod tests {
     #[test]
     fn camera_fifo_rejects_every_unsupported_mode() {
         for mode in 0..=u8::MAX {
-            assert_eq!(CameraFifo::new(mode).is_ok(), mode == 1 || mode == 3, "mode {mode}");
+            assert_eq!(
+                CameraFifo::new(mode).is_ok(),
+                mode == 1 || mode == 3,
+                "mode {mode}"
+            );
         }
     }
 }

@@ -40,6 +40,9 @@ fn software_drive_respects_mux_route_enable_and_inversion() {
     gpio.enable = 1u64 << 48;
     gpio.out = gpio.enable;
     mux.write(4 + 4 * 48, 1 << 12);
-    assert_eq!(ChipPins::S3.routes(&gpio, &mux).software_output(48), Some(true));
+    assert_eq!(
+        ChipPins::S3.routes(&gpio, &mux).software_output(48),
+        Some(true)
+    );
     assert_eq!(ChipPins::C3.routes(&gpio, &mux).software_output(48), None);
 }

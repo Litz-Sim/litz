@@ -4,10 +4,10 @@
 //! - `UlanziTc001` — the Ulanzi TC001 pixel clock: a 32×8 WS2812 matrix on RMT, three buttons
 //! - `NoBoard` — a bare module (`none`, `bare`, `esp32dev`): nothing on the pins, console only
 //! - `esp32dev-loopback` — the SPI loopback fixture in `crate::spi`
-pub mod tdisplay;
 pub mod aithinker;
-pub mod ulanzi;
 pub mod cyd;
+pub mod tdisplay;
+pub mod ulanzi;
 
 pub use tdisplay::*;
 
@@ -26,7 +26,24 @@ pub fn make_board(name: &str) -> Option<esp_soc::Board> {
 mod tests {
     #[test]
     fn classic_boards_reject_s3_names() {
-        for name in ["none", "bare", "esp32dev", "ttgo-tdisplay", "tdisplay", "ulanzi-tc001", "tc001"] { assert!(super::make_board(name).is_some()); }
-        for name in ["waveshare-amoled18-v2", "waveshare-lcd4b", "atech14", "waveshare-c6-lcd147"] { assert!(super::make_board(name).is_none()); }
+        for name in [
+            "none",
+            "bare",
+            "esp32dev",
+            "ttgo-tdisplay",
+            "tdisplay",
+            "ulanzi-tc001",
+            "tc001",
+        ] {
+            assert!(super::make_board(name).is_some());
+        }
+        for name in [
+            "waveshare-amoled18-v2",
+            "waveshare-lcd4b",
+            "atech14",
+            "waveshare-c6-lcd147",
+        ] {
+            assert!(super::make_board(name).is_none());
+        }
     }
 }

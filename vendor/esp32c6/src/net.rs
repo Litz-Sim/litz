@@ -26,8 +26,12 @@ use esp_soc::{RunUntil, SocBus};
 /// 160 MHz: 25/4 ns per cycle, exactly (the same mapping `--cooja` uses).
 const NS_NUM: u64 = 25;
 const NS_DEN: u64 = 4;
-pub fn ns_of_cycle(c: u64) -> u64 { c * NS_NUM / NS_DEN }
-pub fn cycle_of_ns(ns: u64) -> u64 { (ns * NS_DEN).div_ceil(NS_NUM) }
+pub fn ns_of_cycle(c: u64) -> u64 {
+    c * NS_NUM / NS_DEN
+}
+pub fn cycle_of_ns(ns: u64) -> u64 {
+    (ns * NS_DEN).div_ceil(NS_NUM)
+}
 
 /// How far a node runs before the medium looks again. Shorter is more exact and slower; a frame
 /// is ~1 ms on the air, so 100 µs keeps a collision a collision.
@@ -55,8 +59,12 @@ pub struct Node {
 
 impl Node {
     /// This node's own position on the network clock.
-    pub fn now_ns(&self) -> u64 { self.start_ns + ns_of_cycle(self.m.bus.cycles()) }
-    fn running(&self, now_ns: u64) -> bool { self.booted && !self.halted && now_ns >= self.start_ns }
+    pub fn now_ns(&self) -> u64 {
+        self.start_ns + ns_of_cycle(self.m.bus.cycles())
+    }
+    fn running(&self, now_ns: u64) -> bool {
+        self.booted && !self.halted && now_ns >= self.start_ns
+    }
 }
 
 pub struct Network {
@@ -69,34 +77,70 @@ pub struct Network {
     pub collisions: u64,
 }
 
-impl Default for Network { fn default() -> Self { Self::new() } }
+impl Default for Network {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Network {
     pub fn new() -> Self {
-        Network { nodes: Vec::new(), now_ns: 0, slice_ns: DEFAULT_SLICE_NS, range: f64::INFINITY, frames: 0, collisions: 0 }
+        Network {
+            nodes: Vec::new(),
+            now_ns: 0,
+            slice_ns: DEFAULT_SLICE_NS,
+            range: f64::INFINITY,
+            frames: 0,
+            collisions: 0,
+        }
     }
 
     /// Add a node. `mac` is what its efuses report, so two nodes must not share one: Contiki
     /// derives its link-layer address from it and drops a frame that appears to come from itself.
     /// Unknown board names return an error without adding a node.
-    pub fn add(&mut self, mac: [u8; 6], flash_bytes: usize, start_ns: u64, x: f64, y: f64, board: &str) -> Result<usize, String> {
-        let board = crate::board::make_board(board).ok_or_else(|| format!("unknown ESP32-C6 board: {board:?}"))?;
+    pub fn add(
+        &mut self,
+        mac: [u8; 6],
+        flash_bytes: usize,
+        start_ns: u64,
+        x: f64,
+        y: f64,
+        board: &str,
+    ) -> Result<usize, String> {
+        let board = crate::board::make_board(board)
+            .ok_or_else(|| format!("unknown ESP32-C6 board: {board:?}"))?;
         let mut m = machine(mac, flash_bytes);
         m.bus.set_flash_size(flash_bytes);
         m.bus.board = board;
         m.bus.attach_board_devices();
         m.console.capture = true;
-        m.console.mask = 2;                              // UART0, where the IDF console goes
-        self.nodes.push(Node { m, start_ns, booted: false, halted: false, console: Vec::new(), x, y, tx: 0, rx: 0, rx_dropped: 0 });
+        m.console.mask = 2; // UART0, where the IDF console goes
+        self.nodes.push(Node {
+            m,
+            start_ns,
+            booted: false,
+            halted: false,
+            console: Vec::new(),
+            x,
+            y,
+            tx: 0,
+            rx: 0,
+            rx_dropped: 0,
+        });
         Ok(self.nodes.len() - 1)
     }
 
     pub fn boot(&mut self) {
-        for n in &mut self.nodes { n.m.boot_rom(); n.booted = true; }
+        for n in &mut self.nodes {
+            n.m.boot_rom();
+            n.booted = true;
+        }
     }
 
     fn in_range(&self, a: usize, b: usize) -> bool {
-        if !self.range.is_finite() { return true; }
+        if !self.range.is_finite() {
+            return true;
+        }
         let (p, q) = (&self.nodes[a], &self.nodes[b]);
         ((p.x - q.x).powi(2) + (p.y - q.y).powi(2)).sqrt() <= self.range
     }
@@ -119,12 +163,22 @@ impl Network {
                 self.frames += 1;
                 self.nodes[src].tx += 1;
                 for j in 0..self.nodes.len() {
-                    if j == src || !self.nodes[j].running(target) || !self.in_range(src, j) { continue; }
+                    if j == src || !self.nodes[j].running(target) || !self.in_range(src, j) {
+                        continue;
+                    }
                     // the receiver has run to the slice end, so the frame started this long ago
                     let ago = cycle_of_ns(self.nodes[j].now_ns().saturating_sub(t));
-                    let taken = self.nodes[j].m.bus.radio_receive(&frame, RSSI_DBM, LQI, Some(ago));
+                    let taken = self.nodes[j]
+                        .m
+                        .bus
+                        .radio_receive(&frame, RSSI_DBM, LQI, Some(ago));
                     self.nodes[j].m.sync_irq();
-                    if taken { self.nodes[j].rx += 1; } else { self.nodes[j].rx_dropped += 1; self.collisions += 1; }
+                    if taken {
+                        self.nodes[j].rx += 1;
+                    } else {
+                        self.nodes[j].rx_dropped += 1;
+                        self.collisions += 1;
+                    }
                 }
             }
             self.now_ns = target;
@@ -139,7 +193,9 @@ impl Network {
         let target = cycle_of_ns(target_ns.saturating_sub(start_ns));
         let r = n.m.run_until_cycle(target);
         let streams = n.m.bus.console_take();
-        if let Some(uart0) = streams.get(1) { n.console.extend_from_slice(uart0); }
+        if let Some(uart0) = streams.get(1) {
+            n.console.extend_from_slice(uart0);
+        }
         match r {
             RunUntil::Reached => None,
             RunUntil::Yield => {
@@ -148,7 +204,11 @@ impl Network {
                 Some((start_ns + ns_of_cycle(n.m.bus.cycles()), ch, frame))
             }
             RunUntil::Stop(stop) => {
-                if let esp_soc::Stop::SwReset = stop { n.m.reboot(); } else { n.halted = true; }
+                if let esp_soc::Stop::SwReset = stop {
+                    n.m.reboot();
+                } else {
+                    n.halted = true;
+                }
                 None
             }
         }
@@ -156,14 +216,22 @@ impl Network {
 
     /// The node's single WS2812, packed 0xRRGGBB, and how many times it has changed.
     pub fn led(&self, i: usize) -> (u32, u64) {
-        self.nodes.get(i).and_then(|n| esp_soc::SocBus::board_ref(&n.m.bus).leds().map(|(l, v)| {
-            let c = l.first().copied().unwrap_or([0, 0, 0]);
-            ((c[0] as u32) << 16 | (c[1] as u32) << 8 | c[2] as u32, v)
-        })).unwrap_or((0, 0))
+        self.nodes
+            .get(i)
+            .and_then(|n| {
+                esp_soc::SocBus::board_ref(&n.m.bus).leds().map(|(l, v)| {
+                    let c = l.first().copied().unwrap_or([0, 0, 0]);
+                    ((c[0] as u32) << 16 | (c[1] as u32) << 8 | c[2] as u32, v)
+                })
+            })
+            .unwrap_or((0, 0))
     }
 
     /// Console bytes node `i` has produced since the last call.
     pub fn take_console(&mut self, i: usize) -> Vec<u8> {
-        self.nodes.get_mut(i).map(|n| std::mem::take(&mut n.console)).unwrap_or_default()
+        self.nodes
+            .get_mut(i)
+            .map(|n| std::mem::take(&mut n.console))
+            .unwrap_or_default()
     }
 }

@@ -33,7 +33,9 @@ const FRACTION: u32 = 4;
 const DUTY_MASK: u32 = 0x1ff_ffff;
 
 /// The group whose register block holds `address`.
-pub fn group(address: u32) -> Option<usize> { BASE.iter().position(|&b| address & !0xfff == b) }
+pub fn group(address: u32) -> Option<usize> {
+    BASE.iter().position(|&b| address & !0xfff == b)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Fade {
@@ -55,11 +57,20 @@ pub struct Group {
 }
 
 impl Default for Group {
-    fn default() -> Self { Self { regs: vec![0; 0x400], duty_r: [0; 8], fade: [None; 8], raw: 0 } }
+    fn default() -> Self {
+        Self {
+            regs: vec![0; 0x400],
+            duty_r: [0; 8],
+            fade: [None; 8],
+            raw: 0,
+        }
+    }
 }
 
 impl Group {
-    fn reg(&self, off: u32) -> u32 { self.regs[(off as usize >> 2) & 0x3ff] }
+    fn reg(&self, off: u32) -> u32 {
+        self.regs[(off as usize >> 2) & 0x3ff]
+    }
 
     pub fn read(&self, off: u32) -> u32 {
         match off {
@@ -83,12 +94,16 @@ impl Group {
                     // puts DUTY in effect, unless an update is already running.
                     0x0 => {
                         self.regs[idx] = value & !(1 << 4);
-                        if value & 1 << 4 != 0 && self.fade[ch].is_none() { self.duty_r[ch] = self.reg(o + 8) & DUTY_MASK; }
+                        if value & 1 << 4 != 0 && self.fade[ch].is_none() {
+                            self.duty_r[ch] = self.reg(o + 8) & DUTY_MASK;
+                        }
                     }
                     // CONF1: DUTY_START (bit 31) clears itself and starts the duty change.
                     0xc => {
                         self.regs[idx] = value & !(1 << 31);
-                        if value & 1 << 31 != 0 { self.start(ch); }
+                        if value & 1 << 31 != 0 {
+                            self.start(ch);
+                        }
                     }
                     0x10 => {}
                     _ => self.regs[idx] = value,
@@ -104,23 +119,40 @@ impl Group {
         let base = ch as u32 * 0x14;
         self.duty_r[ch] = self.reg(base + 8) & DUTY_MASK;
         let ranges = (self.reg(GAMMA_CONF + ch as u32 * 4) & 0x1f).max(1);
-        self.fade[ch] = Some(Fade { range: 0, ranges, steps: self.range(ch, 0).3, elapsed: 0 });
+        self.fade[ch] = Some(Fade {
+            range: 0,
+            ranges,
+            steps: self.range(ch, 0).3,
+            elapsed: 0,
+        });
         self.finish_empty_ranges(ch);
     }
 
     /// (increase, cycles, scale, steps) of range `r`.
     fn range(&self, ch: usize, r: u32) -> (bool, u32, u32, u32) {
         let w = self.reg(GAMMA_RAM + ch as u32 * 0x40 + r * 4);
-        (w & 1 != 0, (w >> 1) & 0x3ff, (w >> 11) & 0x3ff, (w >> 21) & 0x3ff)
+        (
+            w & 1 != 0,
+            (w >> 1) & 0x3ff,
+            (w >> 11) & 0x3ff,
+            (w >> 21) & 0x3ff,
+        )
     }
 
     /// Moves past ranges with no steps left; the last one ends the change.
     fn finish_empty_ranges(&mut self, ch: usize) {
         while let Some(f) = self.fade[ch] {
-            if f.steps != 0 { return; }
+            if f.steps != 0 {
+                return;
+            }
             if f.range + 1 < f.ranges {
                 let next = f.range + 1;
-                self.fade[ch] = Some(Fade { range: next, steps: self.range(ch, next).3, elapsed: 0, ..f });
+                self.fade[ch] = Some(Fade {
+                    range: next,
+                    steps: self.range(ch, next).3,
+                    elapsed: 0,
+                    ..f
+                });
             } else {
                 self.fade[ch] = None;
                 self.raw |= 1 << (4 + ch);
@@ -133,10 +165,15 @@ impl Group {
     fn period_cycles(&self, ch: usize, source_hz: u64, cpu_hz: u64) -> Option<u64> {
         let timer = self.reg(ch as u32 * 0x14) & 3;
         let conf = self.reg(0xa0 + timer * 8);
-        if conf & (3 << 23) != 0 || source_hz == 0 { return None; }
+        if conf & (3 << 23) != 0 || source_hz == 0 {
+            return None;
+        }
         let (res, div) = (conf & 0x1f, u64::from((conf >> 5) & 0x3_ffff));
-        if res == 0 || div < 256 { return None; }
-        let cycles = (u128::from(cpu_hz) * (1u128 << res) * u128::from(div)).div_ceil(256 * u128::from(source_hz));
+        if res == 0 || div < 256 {
+            return None;
+        }
+        let cycles = (u128::from(cpu_hz) * (1u128 << res) * u128::from(div))
+            .div_ceil(256 * u128::from(source_hz));
         Some((cycles as u64).max(1))
     }
 
@@ -144,8 +181,12 @@ impl Group {
     pub fn advance(&mut self, cycles: u64, source_hz: u64, cpu_hz: u64) -> bool {
         let raw = self.raw;
         for ch in 0..8 {
-            if self.fade[ch].is_none() { continue; }
-            let Some(period) = self.period_cycles(ch, source_hz, cpu_hz) else { continue };
+            if self.fade[ch].is_none() {
+                continue;
+            }
+            let Some(period) = self.period_cycles(ch, source_hz, cpu_hz) else {
+                continue;
+            };
             // Cycles left over at the end of a range carry into the next one.
             let mut budget = cycles;
             while let Some(mut f) = self.fade[ch] {
@@ -153,13 +194,23 @@ impl Group {
                 let every = period * u64::from(cyc.max(1));
                 f.elapsed += std::mem::take(&mut budget);
                 let due = (f.elapsed / every).min(u64::from(f.steps)) as u32;
-                if due == 0 { self.fade[ch] = Some(f); break; }
+                if due == 0 {
+                    self.fade[ch] = Some(f);
+                    break;
+                }
                 let delta = u64::from(scale << FRACTION) * u64::from(due);
                 let duty = u64::from(self.duty_r[ch]);
-                self.duty_r[ch] = if inc { (duty + delta).min(u64::from(DUTY_MASK)) } else { duty.saturating_sub(delta) } as u32;
+                self.duty_r[ch] = if inc {
+                    (duty + delta).min(u64::from(DUTY_MASK))
+                } else {
+                    duty.saturating_sub(delta)
+                } as u32;
                 f.elapsed -= every * u64::from(due);
                 f.steps -= due;
-                if f.steps != 0 { self.fade[ch] = Some(f); break; }
+                if f.steps != 0 {
+                    self.fade[ch] = Some(f);
+                    break;
+                }
                 budget = std::mem::take(&mut f.elapsed);
                 self.fade[ch] = Some(f);
                 self.finish_empty_ranges(ch);
@@ -170,15 +221,22 @@ impl Group {
 
     /// CPU cycles until the next duty step of a running change.
     pub fn cycles_until_step(&self, source_hz: u64, cpu_hz: u64) -> Option<u64> {
-        (0..8).filter_map(|ch| {
-            let f = self.fade[ch]?;
-            let every = self.period_cycles(ch, source_hz, cpu_hz)? * u64::from(self.range(ch, f.range).1.max(1));
-            Some(every.saturating_sub(f.elapsed).max(1))
-        }).min()
+        (0..8)
+            .filter_map(|ch| {
+                let f = self.fade[ch]?;
+                let every = self.period_cycles(ch, source_hz, cpu_hz)?
+                    * u64::from(self.range(ch, f.range).1.max(1));
+                Some(every.saturating_sub(f.elapsed).max(1))
+            })
+            .min()
     }
 
-    pub fn irq(&self) -> bool { self.raw & self.reg(INT_ENA) != 0 }
-    pub fn running(&self) -> bool { self.fade.iter().any(Option::is_some) }
+    pub fn irq(&self) -> bool {
+        self.raw & self.reg(INT_ENA) != 0
+    }
+    pub fn running(&self) -> bool {
+        self.fade.iter().any(Option::is_some)
+    }
 }
 
 /// Both groups and the source clock their timers count.
@@ -190,10 +248,19 @@ pub struct Ledc {
 impl Ledc {
     /// The group's source clock from HP_SYS_CLKRST LEDC_CTRL0 (`clk_ctrl`).
     pub fn source_hz(group: usize, clk_ctrl: u32, rc_fast_hz: u64) -> u64 {
-        match (clk_ctrl >> if group == 0 { 3 } else { 9 }) & 3 { 0 => 40_000_000, 1 => rc_fast_hz, 2 => 80_000_000, _ => 0 }
+        match (clk_ctrl >> if group == 0 { 3 } else { 9 }) & 3 {
+            0 => 40_000_000,
+            1 => rc_fast_hz,
+            2 => 80_000_000,
+            _ => 0,
+        }
     }
-    pub fn running(&self) -> bool { self.groups.iter().any(Group::running) }
-    pub fn irqs(&self) -> [bool; 2] { [self.groups[0].irq(), self.groups[1].irq()] }
+    pub fn running(&self) -> bool {
+        self.groups.iter().any(Group::running)
+    }
+    pub fn irqs(&self) -> [bool; 2] {
+        [self.groups[0].irq(), self.groups[1].irq()]
+    }
 }
 
 #[cfg(test)]
@@ -224,7 +291,7 @@ mod tests {
         g.write(GAMMA_RAM + 0x40, 1 | (19 << 1) | (1 << 11) | (255 << 21));
         g.write(0x14 + 0xc, 1 << 31);
         assert_eq!(g.read(0x14 + 0xc) >> 31, 0, "DUTY_START clears itself");
-        g.write(0x14, 1 | (1 << 2) | (1 << 4));                     // PARA_UP: does not restart
+        g.write(0x14, 1 | (1 << 2) | (1 << 4)); // PARA_UP: does not restart
         assert!(g.running());
         assert!(!g.advance(19 * period - 1, 80_000_000, CPU));
         assert_eq!(g.read(0x14 + 0x10), 0);
@@ -258,7 +325,7 @@ mod tests {
         assert_eq!(g.read(INT_RAW), 1 << 5);
         g.write(INT_CLR, 1 << 5);
         g.write(GAMMA_CONF + 4, 2);
-        g.write(GAMMA_RAM + 0x40, (2 << 1) | (10 << 11) | (3 << 21));   // down 3 x 10, every 2 periods
+        g.write(GAMMA_RAM + 0x40, (2 << 1) | (10 << 11) | (3 << 21)); // down 3 x 10, every 2 periods
         g.write(GAMMA_RAM + 0x44, 1 | (1 << 1) | (5 << 11) | (2 << 21)); // up 2 x 5, every period
         g.write(0x14 + 0xc, 1 << 31);
         assert!(!g.advance(6 * period, 80_000_000, CPU));

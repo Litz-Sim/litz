@@ -13,16 +13,38 @@ pub fn intercept(cpu: &mut xtensa_lx7::Cpu, bus: &mut SocBus) -> bool {
 }
 
 impl VhciBus for SocBus {
-    fn abi() -> Abi { Abi { code: CODE, ram: DRAM_LOW..DRAM_HIGH, hz: crate::periph::CPU_HZ, config_mode: None } }
-    fn ble(&mut self) -> &mut Ble { &mut self.ble }
-    fn valid_callback(&mut self, pc: u32) -> bool { self.fetch(pc).is_ok_and(|bytes| decode(pc, bytes).op == Op::Entry) }
-    fn flash_offset(&mut self, pc: u32) -> Option<usize> { self.flash_off(pc) }
-    fn ble_debug(&self) -> bool { self.debug.has("ble") }
+    fn abi() -> Abi {
+        Abi {
+            code: CODE,
+            ram: DRAM_LOW..DRAM_HIGH,
+            hz: crate::periph::CPU_HZ,
+            config_mode: None,
+        }
+    }
+    fn ble(&mut self) -> &mut Ble {
+        &mut self.ble
+    }
+    fn valid_callback(&mut self, pc: u32) -> bool {
+        self.fetch(pc)
+            .is_ok_and(|bytes| decode(pc, bytes).op == Op::Entry)
+    }
+    fn flash_offset(&mut self, pc: u32) -> Option<usize> {
+        self.flash_off(pc)
+    }
+    fn ble_debug(&self) -> bool {
+        self.debug.has("ble")
+    }
     fn valid_packet_range(&self, address: u32, len: usize) -> bool {
-        use crate::bus::{DBUS_LOW, DBUS_HIGH, MMU_INVALID, MMU_SPIRAM};
-        let Some(end) = address.checked_add(len as u32) else { return false };
-        if address >= DRAM_LOW && end <= DRAM_HIGH { return true; }
-        if len == 0 || address < DBUS_LOW || end > DBUS_HIGH { return false; }
+        use crate::bus::{DBUS_HIGH, DBUS_LOW, MMU_INVALID, MMU_SPIRAM};
+        let Some(end) = address.checked_add(len as u32) else {
+            return false;
+        };
+        if address >= DRAM_LOW && end <= DRAM_HIGH {
+            return true;
+        }
+        if len == 0 || address < DBUS_LOW || end > DBUS_HIGH {
+            return false;
+        }
         let first = ((address - DBUS_LOW) >> 16) as usize;
         let last = ((end - 1 - DBUS_LOW) >> 16) as usize;
         self.mmu[first..=last].iter().all(|entry| {
@@ -64,8 +86,12 @@ mod tests {
         .into_iter()
         .map(|(n, a)| (n.into(), a))
         .collect();
-        for &pc in symbols.values().filter(|&&pc| pc >= BASE) { bus.load_bytes(pc, &[0x36, 0x41, 0, 0x90, 0, 0]).unwrap(); }
-        for pc in [SEND_CB, RECV_CB] { bus.load_bytes(pc, &[0x36, 0x41, 0, 0x90, 0, 0]).unwrap(); }
+        for &pc in symbols.values().filter(|&&pc| pc >= BASE) {
+            bus.load_bytes(pc, &[0x36, 0x41, 0, 0x90, 0, 0]).unwrap();
+        }
+        for pc in [SEND_CB, RECV_CB] {
+            bus.load_bytes(pc, &[0x36, 0x41, 0, 0x90, 0, 0]).unwrap();
+        }
         bus.ble.enable(&symbols, 0x400, &SocBus::abi()).unwrap();
         (bus, symbols)
     }
@@ -89,14 +115,22 @@ mod tests {
         assert!(intercept(&mut cpu, &mut bus));
         let mut created = false;
         for _ in 0..100 {
-            if cpu.pc == RETURN { break; }
+            if cpu.pc == RETURN {
+                break;
+            }
             if cpu.pc == bus.ble.create {
                 let args: Vec<u32> = (0..6).map(|n| cpu.arg(&mut bus, n)).collect();
                 assert_eq!(args, [BASE + TASK, bus.ble.buffer + 4, 4096, 0, 23, 0]);
-                assert_eq!(bus.read32_unpriced(cpu.get_ar(1)).unwrap(), 0, "core ID is seventh stack argument");
+                assert_eq!(
+                    bus.read32_unpriced(cpu.get_ar(1)).unwrap(),
+                    0,
+                    "core ID is seventh stack argument"
+                );
                 cpu.return_from_stub(&mut bus, 1);
                 created = true;
-            } else if !intercept(&mut cpu, &mut bus) { assert!(cpu.step(&mut bus).trap().is_none()); }
+            } else if !intercept(&mut cpu, &mut bus) {
+                assert!(cpu.step(&mut bus).trap().is_none());
+            }
         }
         assert!(created);
         assert_eq!(cpu.pc, RETURN);
@@ -115,12 +149,22 @@ mod tests {
     /// which the S3 builds too), so its enable takes 1 and nothing else (bt.c:2073).
     #[test]
     fn enable_takes_ble_only() {
-        let call = |bus: &mut SocBus, pc: u32, arg: u32| { let mut cpu = caller(pc, arg); assert!(intercept(&mut cpu, bus)); cpu.get_ar(10) };
+        let call = |bus: &mut SocBus, pc: u32, arg: u32| {
+            let mut cpu = caller(pc, arg);
+            assert!(intercept(&mut cpu, bus));
+            cpu.get_ar(10)
+        };
         let (mut bus, symbols) = fixture();
         bus.ble.task_created = true;
         assert_eq!(call(&mut bus, BASE, DRAM_LOW), 0);
         assert_eq!(bus.ble.mode, 1);
-        for mode in [0, 2, 3] { assert_eq!(call(&mut bus, symbols["esp_bt_controller_enable"], mode), INVALID_ARG, "enable {mode}"); }
+        for mode in [0, 2, 3] {
+            assert_eq!(
+                call(&mut bus, symbols["esp_bt_controller_enable"], mode),
+                INVALID_ARG,
+                "enable {mode}"
+            );
+        }
         assert_eq!(bus.ble.status, 1);
         assert_eq!(call(&mut bus, symbols["esp_bt_controller_enable"], 1), 0);
         assert_eq!(bus.ble.status, 2);
@@ -139,7 +183,9 @@ mod tests {
         for _ in 0..100 {
             if cpu.pc == RECV_CB {
                 let (ptr, len) = (cpu.arg(&mut bus, 0), cpu.arg(&mut bus, 1));
-                let bytes: Vec<u8> = (0..len).map(|i| bus.read8_unpriced(ptr + i).unwrap()).collect();
+                let bytes: Vec<u8> = (0..len)
+                    .map(|i| bus.read8_unpriced(ptr + i).unwrap())
+                    .collect();
                 assert_eq!(bytes, [4, 14, 4, 1, 3, 12, 0]);
                 cpu.return_from_stub(&mut bus, 0);
                 received = true;
@@ -150,9 +196,13 @@ mod tests {
             } else if cpu.pc == bus.ble.delay {
                 assert_eq!(cpu.arg(&mut bus, 0), 1);
                 delayed = true;
-                if ready { break; }
+                if ready {
+                    break;
+                }
                 cpu.return_from_stub(&mut bus, 0);
-            } else if !intercept(&mut cpu, &mut bus) { assert!(cpu.step(&mut bus).trap().is_none()); }
+            } else if !intercept(&mut cpu, &mut bus) {
+                assert!(cpu.step(&mut bus).trap().is_none());
+            }
         }
         assert!(received && ready && delayed);
     }
@@ -168,24 +218,38 @@ mod tests {
         bus.load_bytes(table + 4, &RECV_CB.to_le_bytes()).unwrap();
         let mut cpu = caller(symbols["esp_vhci_host_register_callback"], table);
         assert!(intercept(&mut cpu, &mut bus));
-        assert_eq!(cpu.get_ar(10), 0, "a static callback table can live in DROM");
+        assert_eq!(
+            cpu.get_ar(10),
+            0,
+            "a static callback table can live in DROM"
+        );
         assert_eq!(bus.ble.callbacks, [SEND_CB, RECV_CB]);
         symbols.remove("vTaskDelay");
-        assert!(bus.ble.enable(&symbols, 0x400, &SocBus::abi()).unwrap_err().contains("vTaskDelay"));
+        assert!(bus
+            .ble
+            .enable(&symbols, 0x400, &SocBus::abi())
+            .unwrap_err()
+            .contains("vTaskDelay"));
     }
 
     #[test]
     fn machine_dispatches_chip_hooks_as_function_boundaries() {
         struct SingleStep;
         impl esp_soc::Observer<crate::S3> for SingleStep {
-            fn name(&self) -> &'static str { "single-step" }
-            fn wants(&self) -> esp_soc::Wants { esp_soc::Wants::INSN }
+            fn name(&self) -> &'static str {
+                "single-step"
+            }
+            fn wants(&self) -> esp_soc::Wants {
+                esp_soc::Wants::INSN
+            }
         }
         for single_step in [false, true] {
             let (bus, symbols) = fixture();
             let mut m = esp_soc::Machine::<crate::S3>::new([0; 6], bus);
             m.quantum = 1;
-            if single_step { m.add_observer(Box::new(SingleStep)); }
+            if single_step {
+                m.add_observer(Box::new(SingleStep));
+            }
             m.bus.ble.status = 2;
             m.cores[0] = caller(symbols["esp_bt_controller_get_status"], 0);
             assert!(matches!(m.run(1), esp_soc::Stop::MaxInsns));
@@ -200,7 +264,16 @@ mod tests {
         let init = crate::bus::IBUS_LOW;
         let symbols = symbols
             .into_iter()
-            .map(|(name, address)| (name, if address >= BASE { address - BASE + init } else { address }))
+            .map(|(name, address)| {
+                (
+                    name,
+                    if address >= BASE {
+                        address - BASE + init
+                    } else {
+                        address
+                    },
+                )
+            })
             .collect();
         bus.ble.enable(&symbols, 0x400, &SocBus::abi()).unwrap();
         let slot = ((init & 0x1ff_ffff) >> 16) as usize;
@@ -259,7 +332,10 @@ mod tests {
         let mut cpu = caller(symbols["esp_vhci_host_send_packet"], data);
         cpu.set_ar(11, 497);
         assert!(intercept(&mut cpu, &mut bus));
-        assert_eq!(bus.ble_log_take().as_deref(), Some("rejected invalid VHCI packet pointer, length or controller state"));
+        assert_eq!(
+            bus.ble_log_take().as_deref(),
+            Some("rejected invalid VHCI packet pointer, length or controller state")
+        );
         assert_eq!(bus.ble_log_take(), None);
     }
     #[test]
@@ -277,7 +353,9 @@ mod tests {
         ] {
             bus.write32(crate::bus::MMU_TABLE, first).unwrap();
             bus.write32(crate::bus::MMU_TABLE + 4, second).unwrap();
-            if accepted { bus.load_bytes(data, &[1, 3, 12, 0]).unwrap(); }
+            if accepted {
+                bus.load_bytes(data, &[1, 3, 12, 0]).unwrap();
+            }
             bus.ble.send_ready = false;
             let mut cpu = caller(symbols["esp_vhci_host_send_packet"], data);
             cpu.set_ar(11, 4);
@@ -294,7 +372,10 @@ mod tests {
         let (mut bus, mut symbols) = fixture();
         symbols.insert("esp_bt_controller_init".into(), BASE + 2);
         let required = INIT + CODE.len() as u32 + 2;
-        assert!(bus.ble.enable(&symbols, required - 1, &SocBus::abi()).is_err());
+        assert!(bus
+            .ble
+            .enable(&symbols, required - 1, &SocBus::abi())
+            .is_err());
         assert!(bus.ble.enable(&symbols, 0, &SocBus::abi()).is_err());
         assert!(bus.ble.enable(&symbols, required, &SocBus::abi()).is_ok());
     }

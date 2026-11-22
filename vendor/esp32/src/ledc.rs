@@ -12,53 +12,108 @@ pub struct ClassicLedc {
     #[cfg(test)]
     pub(crate) tick_calls: u64,
 }
-impl Default for ClassicLedc { fn default() -> Self { Self::new() } }
+impl Default for ClassicLedc {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl ClassicLedc {
     pub fn new() -> Self {
-        Self { groups: std::array::from_fn(|_| Ledc::new_classic()), regs: RegRam::new(), dirty: u16::MAX, clock_enabled: false,
-            #[cfg(test)] tick_calls: 0 }
+        Self {
+            groups: std::array::from_fn(|_| Ledc::new_classic()),
+            regs: RegRam::new(),
+            dirty: u16::MAX,
+            clock_enabled: false,
+            #[cfg(test)]
+            tick_calls: 0,
+        }
     }
     fn source(apb: bool, conf: u32) -> u64 {
-        if conf & (1 << 25) == 0 { 1_000_000 } else if apb { APB_HZ } else { 8_500_000 }
+        if conf & (1 << 25) == 0 {
+            1_000_000
+        } else if apb {
+            APB_HZ
+        } else {
+            8_500_000
+        }
     }
-    fn channel(off: u32) -> Option<(usize, u32)> { (off < 0x140).then_some(((off / 0xa0) as usize, off % 0xa0)) }
-    fn timer(off: u32) -> Option<(usize, u32)> { (0x140..0x180).contains(&off).then(|| (((off - 0x140) / 0x20) as usize, 0xa0 + (off - 0x140) % 0x20)) }
+    fn channel(off: u32) -> Option<(usize, u32)> {
+        (off < 0x140).then_some(((off / 0xa0) as usize, off % 0xa0))
+    }
+    fn timer(off: u32) -> Option<(usize, u32)> {
+        (0x140..0x180)
+            .contains(&off)
+            .then(|| (((off - 0x140) / 0x20) as usize, 0xa0 + (off - 0x140) % 0x20))
+    }
     fn raw(&mut self, off: u32) -> u32 {
         let hs = self.groups[0].read(off);
         let ls = self.groups[1].read(off);
         (hs & 15) | ((ls & 15) << 4) | ((hs & 0xff0) << 4) | ((ls & 0xff0) << 12)
     }
-    pub fn take_signal_updates(&mut self) -> u16 { std::mem::take(&mut self.dirty) }
-    pub fn signal_level(&self, channel: usize) -> (bool, bool) { self.groups[channel / 8].signal_level(channel % 8) }
+    pub fn take_signal_updates(&mut self) -> u16 {
+        std::mem::take(&mut self.dirty)
+    }
+    pub fn signal_level(&self, channel: usize) -> (bool, bool) {
+        self.groups[channel / 8].signal_level(channel % 8)
+    }
     pub fn pwm(&self, signal: usize) -> Option<(f64, u32)> {
         let ch = signal.checked_sub(71)?;
-        if ch >= 16 || !self.clock_enabled { return None; }
+        if ch >= 16 || !self.clock_enabled {
+            return None;
+        }
         let group = ch / 8;
         let timer = self.groups[group].channel_timer(ch % 8);
-        let hz = Self::source(group == 0 || self.regs.read(0x190) & 1 != 0, self.groups[group].timer_conf(timer));
+        let hz = Self::source(
+            group == 0 || self.regs.read(0x190) & 1 != 0,
+            self.groups[group].timer_conf(timer),
+        );
         self.groups[group].channel_output(ch % 8, hz)
     }
 }
 impl Device for ClassicLedc {
     fn read(&mut self, off: u32) -> u32 {
         if let Some((g, o)) = Self::channel(off) {
-            return if o % 0x14 == 0x10 { self.groups[g].read(o) } else { self.regs.read(off) };
+            return if o % 0x14 == 0x10 {
+                self.groups[g].read(o)
+            } else {
+                self.regs.read(off)
+            };
         }
         if let Some((g, o)) = Self::timer(off) {
-            return if o % 8 == 4 { self.groups[g].read(o) } else { self.regs.read(off) };
+            return if o % 8 == 4 {
+                self.groups[g].read(o)
+            } else {
+                self.regs.read(off)
+            };
         }
-        match off { 0x180 => self.raw(0xc0), 0x184 => self.raw(0xc4), 0x188 => self.raw(0xc8), 0x18c => 0, _ => self.regs.read(off) }
+        match off {
+            0x180 => self.raw(0xc0),
+            0x184 => self.raw(0xc4),
+            0x188 => self.raw(0xc8),
+            0x18c => 0,
+            _ => self.regs.read(off),
+        }
     }
     fn write(&mut self, off: u32, value: u32) -> WriteEffect {
         if let Some((g, o)) = Self::channel(off) {
             let reg = o % 0x14;
-            if reg == 16 { return WriteEffect::NONE; }
-            let value = value & match reg { 0 => 0x8000001f, 4 => 0xfffff, 8 => 0x1ffffff, _ => u32::MAX };
+            if reg == 16 {
+                return WriteEffect::NONE;
+            }
+            let value = value
+                & match reg {
+                    0 => 0x8000001f,
+                    4 => 0xfffff,
+                    8 => 0x1ffffff,
+                    _ => u32::MAX,
+                };
             self.regs.write(off, value);
             if g == 0 || reg == 0 && value & 16 != 0 {
                 let base = off - reg;
                 let local = o - reg;
-                for r in [4, 8, 12] { self.groups[g].write(local + r, self.regs.read(base + r)); }
+                for r in [4, 8, 12] {
+                    self.groups[g].write(local + r, self.regs.read(base + r));
+                }
                 self.groups[g].write(local, self.regs.read(base) | 16);
                 self.regs.write(base, self.regs.read(base) & !16);
                 self.dirty |= 1 << (g * 8 + local as usize / 0x14);
@@ -68,43 +123,66 @@ impl Device for ClassicLedc {
                 self.regs.write(off, value & 0x07ffffff & !(1 << 26));
                 if g == 0 || value & (1 << 26) != 0 {
                     self.groups[g].write(o, value | (1 << 26));
-                    if value & (1 << 24) != 0 { self.groups[g].write(o, (value & !(1 << 24)) | (1 << 26)); }
+                    if value & (1 << 24) != 0 {
+                        self.groups[g].write(o, (value & !(1 << 24)) | (1 << 26));
+                    }
                 }
             }
         } else if matches!(off, 0x188 | 0x18c) {
             let target = if off == 0x188 { 0xc8 } else { 0xcc };
             self.groups[0].write(target, (value & 15) | ((value >> 4) & 0xff0));
             self.groups[1].write(target, ((value >> 4) & 15) | ((value >> 12) & 0xff0));
-        } else if !matches!(off, 0x180 | 0x184) { self.regs.write(off, value); }
+        } else if !matches!(off, 0x180 | 0x184) {
+            self.regs.write(off, value);
+        }
         WriteEffect::NONE
     }
-    fn irq_sources(&self) -> u64 { self.groups.iter().any(|g| g.irq_sources() != 0) as u64 }
+    fn irq_sources(&self) -> u64 {
+        self.groups.iter().any(|g| g.irq_sources() != 0) as u64
+    }
     fn clock(&self) -> Option<ClockDomain> {
-        (self.clock_enabled && self.groups.iter().any(|g| g.any_timer())).then_some(ClockDomain::Apb)
+        (self.clock_enabled && self.groups.iter().any(|g| g.any_timer()))
+            .then_some(ClockDomain::Apb)
     }
     fn tick(&mut self, ticks: u64) {
-        #[cfg(test)] { self.tick_calls += 1; }
-        if !self.clock_enabled { return; }
+        #[cfg(test)]
+        {
+            self.tick_calls += 1;
+        }
+        if !self.clock_enabled {
+            return;
+        }
         for (g, group) in self.groups.iter_mut().enumerate() {
             let apb = g == 0 || self.regs.read(0x190) & 1 != 0;
             let before: [u32; 8] = std::array::from_fn(|ch| group.read(ch as u32 * 0x14 + 12));
             group.tick_with_source(ticks, |_, conf| Self::source(apb, conf));
             for ch in 0..8 {
                 let base = g as u32 * 0xa0 + ch * 0x14;
-                if before[ch as usize] & (1 << 31) != 0 && group.read(ch * 0x14 + 12) & (1 << 31) == 0 {
-                    self.regs.write(base + 12, self.regs.read(base + 12) & !(1 << 31));
+                if before[ch as usize] & (1 << 31) != 0
+                    && group.read(ch * 0x14 + 12) & (1 << 31) == 0
+                {
+                    self.regs
+                        .write(base + 12, self.regs.read(base + 12) & !(1 << 31));
                     self.dirty |= 1 << (g * 8 + ch as usize);
                 }
             }
         }
     }
-    fn has_deadline(&self) -> bool { true }
+    fn has_deadline(&self) -> bool {
+        true
+    }
     fn next_deadline(&self) -> Option<u64> {
-        if !self.clock_enabled { return None; }
-        self.groups.iter().enumerate().filter_map(|(g, group)| {
-            let apb = g == 0 || self.regs.read(0x190) & 1 != 0;
-            group.next_wrap(|_, conf| Self::source(apb, conf))
-        }).min()
+        if !self.clock_enabled {
+            return None;
+        }
+        self.groups
+            .iter()
+            .enumerate()
+            .filter_map(|(g, group)| {
+                let apb = g == 0 || self.regs.read(0x190) & 1 != 0;
+                group.next_wrap(|_, conf| Self::source(apb, conf))
+            })
+            .min()
     }
 }
 #[cfg(test)]
@@ -183,7 +261,11 @@ mod tests {
         ledc.write(0xa8, 128 << 4);
         ledc.write(0xac, duty_start);
         ledc.tick(16000);
-        assert_eq!(ledc.read(0xb0), 64 << 4, "channel shadow has not been latched");
+        assert_eq!(
+            ledc.read(0xb0),
+            64 << 4,
+            "channel shadow has not been latched"
+        );
         ledc.write(0xa0, 4 | (1 << 4));
         assert_eq!(ledc.read(0xa0) & (1 << 4), 0);
         assert_eq!(ledc.read(0x160) & (1 << 26), 0);

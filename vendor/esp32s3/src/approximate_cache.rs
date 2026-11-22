@@ -75,9 +75,14 @@ impl CacheTiming {
     }
     /// Fixed-geometry prototype; other configurations retain the helper path.
     pub fn inline_view(&mut self) -> Option<FastCache> {
-        (matches!(self.config.capacity_bytes, 32768 | 65536) && self.config.line_bytes == 64
-            && self.config.ways == 8 && self.config.hit_cycles == 0)
-            .then_some(FastCache { lines: self.lines.as_mut_ptr(), hits: &mut self.stats.hits })
+        (matches!(self.config.capacity_bytes, 32768 | 65536)
+            && self.config.line_bytes == 64
+            && self.config.ways == 8
+            && self.config.hit_cycles == 0)
+            .then_some(FastCache {
+                lines: self.lines.as_mut_ptr(),
+                hits: &mut self.stats.hits,
+            })
     }
     pub fn reset(&mut self) {
         self.lines.fill(Line::default());
@@ -92,7 +97,13 @@ impl CacheTiming {
     }
 
     /// Override only demand-fill readiness; geometry, hit cost and writeback cost are unchanged.
-    pub fn access_with_fill_cycles(&mut self, address: u32, width: u32, is_write: bool, fill_cycles: u32) -> CacheAccess {
+    pub fn access_with_fill_cycles(
+        &mut self,
+        address: u32,
+        width: u32,
+        is_write: bool,
+        fill_cycles: u32,
+    ) -> CacheAccess {
         let mut result = CacheAccess::default();
         if width == 0 {
             return result;
@@ -104,7 +115,10 @@ impl CacheTiming {
             let set = tag as usize % self.next_way.len();
             let start = set * self.config.ways;
             let ways = &mut self.lines[start..start + self.config.ways];
-            if let Some(line) = ways.iter_mut().find(|line| line.valid != 0 && line.tag == tag) {
+            if let Some(line) = ways
+                .iter_mut()
+                .find(|line| line.valid != 0 && line.tag == tag)
+            {
                 line.dirty |= u32::from(is_write);
                 result.hits += 1;
                 result.extra_cycles += self.config.hit_cycles as u64;
@@ -116,8 +130,8 @@ impl CacheTiming {
                 let dirty = ways[victim].valid != 0 && ways[victim].dirty != 0;
                 result.line_fills += 1;
                 result.dirty_writebacks += u64::from(dirty);
-                result.extra_cycles += fill_cycles as u64
-                    + u64::from(dirty) * self.config.writeback_cycles as u64;
+                result.extra_cycles +=
+                    fill_cycles as u64 + u64::from(dirty) * self.config.writeback_cycles as u64;
                 ways[victim] = Line {
                     tag,
                     dirty: u32::from(is_write),

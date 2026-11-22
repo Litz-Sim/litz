@@ -13,12 +13,17 @@ pub struct BleLog {
 
 impl BleLog {
     /// Keep the lines from now on instead of printing them.
-    pub fn keep(&mut self) { self.kept.get_or_insert_with(VecDeque::new); }
+    pub fn keep(&mut self) {
+        self.kept.get_or_insert_with(VecDeque::new);
+    }
 
     pub fn note(&mut self, line: String) {
         match &mut self.kept {
             Some(kept) => {
-                if kept.len() >= KEPT_MAX { kept.pop_front(); self.dropped += 1; }
+                if kept.len() >= KEPT_MAX {
+                    kept.pop_front();
+                    self.dropped += 1;
+                }
                 kept.push_back(line);
             }
             None => eprintln!("[ble] {line}"),
@@ -27,7 +32,9 @@ impl BleLog {
 
     /// The oldest kept line. Lines lost to the bound come first as one `dropped=N` line.
     pub fn take(&mut self) -> Option<String> {
-        if self.dropped > 0 { return Some(format!("dropped={}", std::mem::take(&mut self.dropped))); }
+        if self.dropped > 0 {
+            return Some(format!("dropped={}", std::mem::take(&mut self.dropped)));
+        }
         self.kept.as_mut()?.pop_front()
     }
 }
@@ -42,13 +49,25 @@ mod tests {
         log.note("to stderr".into());
         assert_eq!(log.take(), None, "nothing is kept before keep()");
         log.keep();
-        for i in 0..KEPT_MAX + 2 { log.note(format!("line {i}")); }
+        for i in 0..KEPT_MAX + 2 {
+            log.note(format!("line {i}"));
+        }
         assert_eq!(log.take().as_deref(), Some("dropped=2"));
         assert_eq!(log.take().as_deref(), Some("line 2"));
-        assert_eq!((0..KEPT_MAX - 1).filter_map(|_| log.take()).last().as_deref(), Some(format!("line {}", KEPT_MAX + 1).as_str()));
+        assert_eq!(
+            (0..KEPT_MAX - 1)
+                .filter_map(|_| log.take())
+                .last()
+                .as_deref(),
+            Some(format!("line {}", KEPT_MAX + 1).as_str())
+        );
         assert_eq!(log.take(), None);
         log.keep();
         log.note("still kept".into());
-        assert_eq!(log.take().as_deref(), Some("still kept"), "a second keep() keeps the queue");
+        assert_eq!(
+            log.take().as_deref(),
+            Some("still kept"),
+            "a second keep() keeps the queue"
+        );
     }
 }

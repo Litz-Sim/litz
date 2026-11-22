@@ -88,11 +88,15 @@ fn calibration_and_mac_events_follow_c3_registers() {
 #[test]
 fn gdma_interrupt_bits_and_mmio_observers() {
     let mut p = esp32c3::periph::Peripherals::new(STATION);
-    p.misc.mmio_log = Some(Vec::new()); p.misc.cur_pc = 0x42000000;
+    p.misc.mmio_log = Some(Vec::new());
+    p.misc.cur_pc = 0x42000000;
     // C3 gdma_reg.h: DONE, SUC_EOF, ERR_EOF, DSCR_ERR, DSCR_EMPTY, FIFO_OVF, FIFO_UDF.
     for ch in 0..3 {
         let base = 0x6003f000 + ch as u32 * 16;
-        for (input, bits) in [(true, &[0, 1, 2, 5, 7, 9, 10][..]), (false, &[3, 4, 6, 8, 11, 12][..])] {
+        for (input, bits) in [
+            (true, &[0, 1, 2, 5, 7, 9, 10][..]),
+            (false, &[3, 4, 6, 8, 11, 12][..]),
+        ] {
             for (logical, bit) in bits.iter().enumerate() {
                 p.gdma.gdma.inp[ch].int_raw = if input { 1 << logical } else { 0 };
                 p.gdma.gdma.out[ch].int_raw = if input { 0 } else { 1 << logical };
@@ -100,8 +104,14 @@ fn gdma_interrupt_bits_and_mmio_observers() {
                 assert_eq!(p.read32(base), 1 << bit);
                 assert_eq!(p.read32(base + 4), 0);
                 p.write32(base + 8, 1 << bit);
-                assert_eq!(p.gdma.gdma.inp[ch].int_ena, if input { 1 << logical } else { 0 });
-                assert_eq!(p.gdma.gdma.out[ch].int_ena, if input { 0 } else { 1 << logical });
+                assert_eq!(
+                    p.gdma.gdma.inp[ch].int_ena,
+                    if input { 1 << logical } else { 0 }
+                );
+                assert_eq!(
+                    p.gdma.gdma.out[ch].int_ena,
+                    if input { 0 } else { 1 << logical }
+                );
                 assert_eq!(p.read32(base + 8), 1 << bit);
                 assert_eq!(p.read32(base + 4), 1 << bit);
                 assert_ne!(p.source_status()[1] & (1 << (12 + ch)), 0);
@@ -120,14 +130,23 @@ fn gdma_interrupt_bits_and_mmio_observers() {
 fn iq_completion_is_polled_without_a_clock_or_deadline() {
     use esp_periph::Device;
     let mut p = esp32c3::periph::Peripherals::new(STATION);
-    assert_eq!(p.fe_iq.clock(), None); assert!(!p.fe_iq.has_deadline());
-    p.tick(1000); p.write32(0x60006144, 3);
-    assert_eq!(p.fe_iq.clock(), None); assert!(!p.fe_iq.has_deadline());
-    p.tick(159); assert_eq!(p.read32(0x60006174), 0);
-    p.tick(1); assert_eq!(p.read32(0x60006174), 1 << 16);
-    p.tick(1); p.write32(0x60006144, 0); p.write32(0x60006144, 3);
-    p.tick(158); assert_eq!(p.read32(0x60006174), 0);
-    p.tick(1); assert_eq!(p.read32(0x60006174), 1 << 16); // 80 APB edges, even with an odd start cycle
+    assert_eq!(p.fe_iq.clock(), None);
+    assert!(!p.fe_iq.has_deadline());
+    p.tick(1000);
+    p.write32(0x60006144, 3);
+    assert_eq!(p.fe_iq.clock(), None);
+    assert!(!p.fe_iq.has_deadline());
+    p.tick(159);
+    assert_eq!(p.read32(0x60006174), 0);
+    p.tick(1);
+    assert_eq!(p.read32(0x60006174), 1 << 16);
+    p.tick(1);
+    p.write32(0x60006144, 0);
+    p.write32(0x60006144, 3);
+    p.tick(158);
+    assert_eq!(p.read32(0x60006174), 0);
+    p.tick(1);
+    assert_eq!(p.read32(0x60006174), 1 << 16); // 80 APB edges, even with an odd start cycle
 }
 
 #[test]
@@ -140,7 +159,10 @@ fn idle_rounds_skip_feature_work() {
     assert!(m.bus.periph.work_pending);
     m.bus.tick(160);
     assert_eq!(m.bus.periph.wifi.link.tx_frames(), 1);
-    assert!(!m.bus.periph.work_pending, "the completed TX leaves no idle work");
+    assert!(
+        !m.bus.periph.work_pending,
+        "the completed TX leaves no idle work"
+    );
     assert_eq!(m.bus.periph.source_status()[0] & 1, 1);
     m.bus.write32(0x60033c40, u32::MAX).unwrap();
     assert_eq!(m.bus.periph.source_status()[0] & 1, 0);
@@ -150,7 +172,13 @@ fn idle_rounds_skip_feature_work() {
 fn configured_ap_keeps_work_scheduled_across_reboot() {
     use esp_soc::SocBus;
     let mut m = esp32c3::machine(STATION, 4 << 20);
-    m.bus.periph.wifi.link.attach(Some(esp_soc::wifi::VirtualAp::new(esp_soc::wifi::ApConfig::parse("").unwrap(), false)), None);
+    m.bus.periph.wifi.link.attach(
+        Some(esp_soc::wifi::VirtualAp::new(
+            esp_soc::wifi::ApConfig::parse("").unwrap(),
+            false,
+        )),
+        None,
+    );
     m.bus.periph.refresh_work();
     assert!(m.bus.periph.work_pending);
     m.bus.reboot(STATION);

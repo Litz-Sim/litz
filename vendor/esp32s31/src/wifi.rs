@@ -34,8 +34,21 @@ pub struct ModemBb {
     pub chan_index: u32,
     pub chan_switches: u32,
 }
-impl Default for ModemBb { fn default() -> Self { Self::new() } }
-impl ModemBb { pub fn new() -> Self { ModemBb { ram: RegRam::new(), chan_done: false, chan_index: 0, chan_switches: 0 } } }
+impl Default for ModemBb {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl ModemBb {
+    pub fn new() -> Self {
+        ModemBb {
+            ram: RegRam::new(),
+            chan_done: false,
+            chan_index: 0,
+            chan_switches: 0,
+        }
+    }
+}
 
 const FREQ_CHAN: u32 = 0x1c;
 const FREQ_CHAN_START: u32 = 1 << 19;
@@ -52,16 +65,38 @@ const IQ_EST_DONE: u32 = 1 << 16;
 impl Device for ModemBb {
     fn read(&mut self, off: u32) -> u32 {
         match off {
-            FREQ_STATUS => self.ram.read(off) & !FREQ_STATUS_DONE | if self.chan_done { FREQ_STATUS_DONE } else { 0 },
-            TXDC => self.ram.read(off) & 0x003f_ffff | (u32::from(self.ram.read(off) & 1 != 0) << 22),
-            PWDET_STATUS => self.ram.read(off) & !(7 << 14) | if self.ram.read(PWDET) & 1 != 0 { 7 << 14 } else { 0 },
-            IQ_EST_STATUS => self.ram.read(off) & !IQ_EST_DONE | if self.ram.read(IQ_EST) & IQ_EST_START != 0 { IQ_EST_DONE } else { 0 },
+            FREQ_STATUS => {
+                self.ram.read(off) & !FREQ_STATUS_DONE
+                    | if self.chan_done { FREQ_STATUS_DONE } else { 0 }
+            }
+            TXDC => {
+                self.ram.read(off) & 0x003f_ffff | (u32::from(self.ram.read(off) & 1 != 0) << 22)
+            }
+            PWDET_STATUS => {
+                self.ram.read(off) & !(7 << 14)
+                    | if self.ram.read(PWDET) & 1 != 0 {
+                        7 << 14
+                    } else {
+                        0
+                    }
+            }
+            IQ_EST_STATUS => {
+                self.ram.read(off) & !IQ_EST_DONE
+                    | if self.ram.read(IQ_EST) & IQ_EST_START != 0 {
+                        IQ_EST_DONE
+                    } else {
+                        0
+                    }
+            }
             _ => self.ram.read(off),
         }
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
-        if off == FREQ_CHAN && v & FREQ_CHAN_START != 0 && self.ram.read(off) & FREQ_CHAN_START == 0 {
-            self.chan_index = v & 0xff; self.chan_switches += 1; self.chan_done = true;
+        if off == FREQ_CHAN && v & FREQ_CHAN_START != 0 && self.ram.read(off) & FREQ_CHAN_START == 0
+        {
+            self.chan_index = v & 0xff;
+            self.chan_switches += 1;
+            self.chan_done = true;
         }
         self.ram.write(off, v);
         WriteEffect::NONE
@@ -94,12 +129,19 @@ pub struct WifiMac {
     ram: RegRam,
     pub log: bool,
     pub events: u32,
-    pub rx_base: u32, pub rx_next: u32, pub rx_last: u32,
-    pub txq_complete: u32, pub tx_pending: Vec<(u8, u32)>,
+    pub rx_base: u32,
+    pub rx_next: u32,
+    pub rx_last: u32,
+    pub txq_complete: u32,
+    pub tx_pending: Vec<(u8, u32)>,
     /// the access point, the network and the counts, shared with the other chips
     pub link: esp_soc::wifi::StationLink,
 }
-impl Default for WifiMac { fn default() -> Self { Self::new() } }
+impl Default for WifiMac {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 const MAC_INIT: u32 = 0xde0;
 const MAC_INIT_READY: u32 = 1;
@@ -122,24 +164,46 @@ const SRAM_HIGH: u32 = 0x2f00_0000;
 
 impl WifiMac {
     pub fn new() -> Self {
-        WifiMac { ram: RegRam::new(), log: false, events: 0, rx_base: 0, rx_next: 0, rx_last: 0, txq_complete: 0, tx_pending: Vec::new(), link: Default::default() }
+        WifiMac {
+            ram: RegRam::new(),
+            log: false,
+            events: 0,
+            rx_base: 0,
+            rx_next: 0,
+            rx_last: 0,
+            txq_complete: 0,
+            tx_pending: Vec::new(),
+            link: Default::default(),
+        }
     }
     /// A descriptor address from the 20 bits a register holds.
-    pub fn addr(&self, low: u32) -> u32 { SRAM_HIGH | (low & 0xf_ffff) }
+    pub fn addr(&self, low: u32) -> u32 {
+        SRAM_HIGH | (low & 0xf_ffff)
+    }
     fn txq_of(off: u32) -> Option<u8> {
-        (off <= TXQ0 && (TXQ0 - off).is_multiple_of(TXQ_STRIDE) && (TXQ0 - off) / TXQ_STRIDE < TXQ_COUNT).then(|| ((TXQ0 - off) / TXQ_STRIDE) as u8)
+        (off <= TXQ0
+            && (TXQ0 - off).is_multiple_of(TXQ_STRIDE)
+            && (TXQ0 - off) / TXQ_STRIDE < TXQ_COUNT)
+            .then(|| ((TXQ0 - off) / TXQ_STRIDE) as u8)
     }
     /// The hardware sent the frame in `queue`.
     pub fn tx_done(&mut self, queue: u8) {
-        self.txq_complete |= 1 << queue; self.events |= EVENT_TX_DONE;
+        self.txq_complete |= 1 << queue;
+        self.events |= EVENT_TX_DONE;
         let off = TXQ0 - TXQ_STRIDE * queue as u32;
-        let v = self.ram.read(off); self.ram.write(off, v & !(3 << 30));
+        let v = self.ram.read(off);
+        self.ram.write(off, v & !(3 << 30));
     }
     /// The hardware filled `desc` and moved on to `next`.
     pub fn rx_filled(&mut self, desc: u32, next: u32) {
-        self.rx_last = desc & 0xf_ffff; self.rx_next = next & 0xf_ffff; self.link.rx_delivered(desc); self.events |= EVENT_RX;
+        self.rx_last = desc & 0xf_ffff;
+        self.rx_next = next & 0xf_ffff;
+        self.link.rx_delivered(desc);
+        self.events |= EVENT_RX;
     }
-    pub fn irq(&self) -> bool { self.events != 0 }
+    pub fn irq(&self) -> bool {
+        self.events != 0
+    }
 }
 
 impl Device for WifiMac {
@@ -147,49 +211,80 @@ impl Device for WifiMac {
         let v = match off {
             MAC_INIT => self.ram.read(off) | MAC_INIT_READY,
             MAC_EVENTS => self.events,
-            RX_BASE => self.rx_base & 0xf_ffff, RX_NEXT => self.rx_next & 0xf_ffff, RX_LAST => self.rx_last,
+            RX_BASE => self.rx_base & 0xf_ffff,
+            RX_NEXT => self.rx_next & 0xf_ffff,
+            RX_LAST => self.rx_last,
             TXQ_COMPLETE => self.txq_complete,
-            ADDR_HIGH => if self.link.last_rx_desc() != 0 { self.link.last_rx_desc() } else { SRAM_HIGH },
+            ADDR_HIGH => {
+                if self.link.last_rx_desc() != 0 {
+                    self.link.last_rx_desc()
+                } else {
+                    SRAM_HIGH
+                }
+            }
             TXQ_COMPLETE_CLR => 0,
             _ => self.ram.read(off),
         };
-        if self.log { eprintln!("[wifi] rd +{:#05x} -> {:#010x}", off, v); }
+        if self.log {
+            eprintln!("[wifi] rd +{:#05x} -> {:#010x}", off, v);
+        }
         v
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
-        if self.log { eprintln!("[wifi] wr +{:#05x} <- {:#010x}", off, v); }
+        if self.log {
+            eprintln!("[wifi] wr +{:#05x} <- {:#010x}", off, v);
+        }
         match off {
             MAC_EVENTS_CLR => self.events &= !v,
             RX_BASE => {
                 self.rx_base = v & 0xf_ffff;
-                if self.rx_next == 0 { self.rx_next = self.rx_base; }
+                if self.rx_next == 0 {
+                    self.rx_next = self.rx_base;
+                }
                 self.ram.write(off, v);
             }
             RX_RELOAD => {
-                if v & 1 != 0 && self.rx_next == 0 { self.rx_next = self.rx_base; }
+                if v & 1 != 0 && self.rx_next == 0 {
+                    self.rx_next = self.rx_base;
+                }
                 self.ram.write(off, v & !1);
             }
             TXQ_COMPLETE_CLR => self.txq_complete &= !v,
             o if Self::txq_of(o).is_some() => {
                 self.ram.write(off, v);
-                if v & (1 << 31) != 0 { self.tx_pending.push((Self::txq_of(o).unwrap(), v & 0xf_ffff)); }
+                if v & (1 << 31) != 0 {
+                    self.tx_pending
+                        .push((Self::txq_of(o).unwrap(), v & 0xf_ffff));
+                }
             }
             _ => self.ram.write(off, v),
         }
         WriteEffect::NONE
     }
-    fn irq_sources(&self) -> u64 { self.irq() as u64 }
-    fn debug(&mut self, on: bool) { self.log = on; }
+    fn irq_sources(&self) -> u64 {
+        self.irq() as u64
+    }
+    fn debug(&mut self, on: bool) {
+        self.log = on;
+    }
 }
 
 /// Sub-word access to a word device: read-modify-write of the containing word.
 pub fn read_sized(d: &mut impl Device, off: u32, bytes: usize) -> u32 {
     let w = d.read(off & !3);
-    if bytes == 4 { w } else { (w >> ((off & 3) * 8)) & ((1u32 << (bytes * 8)) - 1) }
+    if bytes == 4 {
+        w
+    } else {
+        (w >> ((off & 3) * 8)) & ((1u32 << (bytes * 8)) - 1)
+    }
 }
 pub fn write_sized(d: &mut impl Device, off: u32, value: u32, bytes: usize) {
-    if bytes == 4 { d.write(off & !3, value); return; }
-    let shift = (off & 3) * 8; let mask = ((1u32 << (bytes * 8)) - 1) << shift;
+    if bytes == 4 {
+        d.write(off & !3, value);
+        return;
+    }
+    let shift = (off & 3) * 8;
+    let mask = ((1u32 << (bytes * 8)) - 1) << shift;
     let w = d.read(off & !3);
     d.write(off & !3, (w & !mask) | ((value << shift) & mask));
 }
@@ -200,31 +295,46 @@ mod tests {
     #[test]
     fn iq_estimate_is_done_once_started() {
         let mut bb = ModemBb::new();
-        bb.write(IQ_EST, 1); assert_eq!(bb.read(IQ_EST_STATUS) & IQ_EST_DONE, 0);
-        bb.write(IQ_EST, 3); assert_ne!(bb.read(IQ_EST_STATUS) & IQ_EST_DONE, 0);
-        bb.write(IQ_EST, 0); assert_eq!(bb.read(IQ_EST_STATUS) & IQ_EST_DONE, 0);
+        bb.write(IQ_EST, 1);
+        assert_eq!(bb.read(IQ_EST_STATUS) & IQ_EST_DONE, 0);
+        bb.write(IQ_EST, 3);
+        assert_ne!(bb.read(IQ_EST_STATUS) & IQ_EST_DONE, 0);
+        bb.write(IQ_EST, 0);
+        assert_eq!(bb.read(IQ_EST_STATUS) & IQ_EST_DONE, 0);
     }
     #[test]
     fn channel_switch_tx_dc_and_power_detector_handshakes() {
         let mut bb = ModemBb::new();
         assert_eq!(bb.read(FREQ_STATUS) & FREQ_STATUS_DONE, 0);
-        bb.write(FREQ_CHAN, 0x16); bb.write(FREQ_CHAN, 0x16 | FREQ_CHAN_START); bb.write(FREQ_CHAN, 0x16);
-        assert_ne!(bb.read(FREQ_STATUS) & FREQ_STATUS_DONE, 0); assert_eq!((bb.chan_index, bb.chan_switches), (0x16, 1));
-        bb.write(TXDC, 0x3000_0001); assert_eq!(bb.read(TXDC), 1 << 22 | 1);
-        bb.write(PWDET, 1); assert_eq!(bb.read(PWDET_STATUS) >> 14 & 7, 7);
-        bb.write(PWDET, 0); assert_eq!(bb.read(PWDET_STATUS) >> 14 & 7, 0);
+        bb.write(FREQ_CHAN, 0x16);
+        bb.write(FREQ_CHAN, 0x16 | FREQ_CHAN_START);
+        bb.write(FREQ_CHAN, 0x16);
+        assert_ne!(bb.read(FREQ_STATUS) & FREQ_STATUS_DONE, 0);
+        assert_eq!((bb.chan_index, bb.chan_switches), (0x16, 1));
+        bb.write(TXDC, 0x3000_0001);
+        assert_eq!(bb.read(TXDC), 1 << 22 | 1);
+        bb.write(PWDET, 1);
+        assert_eq!(bb.read(PWDET_STATUS) >> 14 & 7, 7);
+        bb.write(PWDET, 0);
+        assert_eq!(bb.read(PWDET_STATUS) >> 14 & 7, 0);
     }
     #[test]
     fn mac_ready_events_and_tx_queues_at_the_s31_offsets() {
         let mut mac = WifiMac::new();
         assert_eq!(mac.read(MAC_INIT) & MAC_INIT_READY, 1);
         mac.write(0xd70 - 16 * 2, 0xc066_bb30);
-        assert_eq!(std::mem::take(&mut mac.tx_pending), vec![(2, 0x6_bb30)]); assert_eq!(mac.addr(0x6_bb30), 0x2f06_bb30);
+        assert_eq!(std::mem::take(&mut mac.tx_pending), vec![(2, 0x6_bb30)]);
+        assert_eq!(mac.addr(0x6_bb30), 0x2f06_bb30);
         mac.tx_done(2);
-        assert_eq!(mac.read(0xcbc), 1 << 2); assert_eq!(mac.read(MAC_EVENTS), EVENT_TX_DONE); assert!(mac.irq());
+        assert_eq!(mac.read(0xcbc), 1 << 2);
+        assert_eq!(mac.read(MAC_EVENTS), EVENT_TX_DONE);
+        assert!(mac.irq());
         assert_eq!(mac.read(0xd70 - 32) >> 30, 0);
-        mac.write(0xcb8, 1 << 2); mac.write(MAC_EVENTS_CLR, EVENT_TX_DONE);
-        assert_eq!(mac.read(0xcbc), 0); assert!(!mac.irq());
-        mac.write(0xd6c, 0xc000_0000); assert!(mac.tx_pending.is_empty());
+        mac.write(0xcb8, 1 << 2);
+        mac.write(MAC_EVENTS_CLR, EVENT_TX_DONE);
+        assert_eq!(mac.read(0xcbc), 0);
+        assert!(!mac.irq());
+        mac.write(0xd6c, 0xc000_0000);
+        assert!(mac.tx_pending.is_empty());
     }
 }

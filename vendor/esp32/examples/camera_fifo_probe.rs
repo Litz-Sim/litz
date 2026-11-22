@@ -14,7 +14,9 @@ fn main() {
         for mode in [1, 3] {
             let mut fifo = CameraFifo::new(mode).unwrap();
             let mut packed = Vec::new();
-            for sample in &wire { fifo.push(&[*sample], &mut packed); }
+            for sample in &wire {
+                fifo.push(&[*sample], &mut packed);
+            }
             fifo.end_row(&mut packed);
             fs::write(out.join(format!("{name}.{mode}.fifo")), packed).unwrap();
         }

@@ -1,44 +1,44 @@
 //! ESP32-S31 on `esp_soc::Machine` / `Soc` (same path as C3/C6/P4).
 //! Dual HP harts, SRAM/ROM, UART0/USB console and CLIC; not a product runtime.
+pub mod analog;
+pub mod apm;
 pub mod board;
 pub mod bq27220;
-pub mod cst9220;
-pub mod spi_nand;
-pub mod bus;
-pub mod soc;
-pub mod interrupts;
-pub mod trng;
-pub mod rtc_wdt;
-pub mod cache;
-pub mod pads;
-pub mod ledc;
-pub mod efuse;
-pub mod clocks;
-pub mod bus_monitor;
-pub mod mspi;
-pub mod sha;
-pub mod key_manager;
-pub mod analog;
-pub mod power;
 mod brownout;
-mod pmu_policy;
-mod mpll;
-mod mspi_pads;
-mod psram_controller;
-pub mod pms;
-pub mod apm;
-pub mod reset;
+pub mod bus;
+pub mod bus_monitor;
+pub mod cache;
+pub mod clocks;
 pub mod core_control;
-pub mod mwdt;
-pub mod rtc_timer;
-pub mod rtc_calibration;
+pub mod cst9220;
+pub mod efuse;
+pub mod interrupts;
+pub mod key_manager;
+pub mod ledc;
 pub mod modem_lpcon;
-pub mod wifi;
-pub mod startup_clocks;
+mod mpll;
+pub mod mspi;
+mod mspi_pads;
+pub mod mwdt;
+pub mod pads;
 pub mod periph;
+pub mod pms;
+mod pmu_policy;
+pub mod power;
+mod psram_controller;
+pub mod reset;
 mod rom;
-pub use bus::{S31Bus, AccessFault};
-pub use soc::{machine, Machine, S31, SocBus, CPU_HZ, RESET_VECTOR, ROM_STACK};
+pub mod rtc_calibration;
+pub mod rtc_timer;
+pub mod rtc_wdt;
+pub mod sha;
+pub mod soc;
+pub mod spi_nand;
+pub mod startup_clocks;
+pub mod trng;
+pub mod wifi;
+pub use bus::{AccessFault, S31Bus};
+pub use soc::{machine, Machine, SocBus, CPU_HZ, RESET_VECTOR, ROM_STACK, S31};
 
 #[cfg(test)]
 mod tests {
@@ -62,7 +62,13 @@ mod tests {
             let mut cpu1 = Cpu::new_esp32s31();
             cpu1.hartid = 1;
             cpu1.pc = bus::ROM_BASE;
-            Self { cpu, cpu1, bus: S31Bus::new(), next: 0, last: 0 }
+            Self {
+                cpu,
+                cpu1,
+                bus: S31Bus::new(),
+                next: 0,
+                last: 0,
+            }
         }
         fn run(&mut self, budget: u64) -> (u64, Option<Trap>) {
             for steps in 0..budget {
@@ -70,7 +76,8 @@ mod tests {
                 for (core, cpu) in [&mut self.cpu, &mut self.cpu1].into_iter().enumerate() {
                     self.bus.set_hart(core);
                     cpu.irq = self.bus.refresh_irq(cpu.mintthresh);
-                    ready[core] = self.bus.cores.running(core) && (!cpu.waiting || cpu.irq.is_some());
+                    ready[core] =
+                        self.bus.cores.running(core) && (!cpu.waiting || cpu.irq.is_some());
                 }
                 let core = if ready[self.next] {
                     self.next
@@ -82,7 +89,11 @@ mod tests {
                 self.next = core ^ 1;
                 self.last = core;
                 self.bus.set_hart(core);
-                let cpu = if core == 0 { &mut self.cpu } else { &mut self.cpu1 };
+                let cpu = if core == 0 {
+                    &mut self.cpu
+                } else {
+                    &mut self.cpu1
+                };
                 emu_core::Bus::note_pc(&mut self.bus, cpu.pc);
                 match step(cpu, &mut self.bus) {
                     Ok(()) => {}
@@ -101,7 +112,8 @@ mod tests {
     fn s31_default_ext_ill_flags_fp_memory_ops_like_p4_rev3() {
         // FLW with FS Off: illegal + EXT_ILL.FPU (default for S31 / P4 rev >= 3).
         let mut bus = S31Bus::new();
-        bus.load(bus::SRAM_BASE, &0x00002507u32.to_le_bytes(), 4).unwrap();
+        bus.load(bus::SRAM_BASE, &0x00002507u32.to_le_bytes(), 4)
+            .unwrap();
         let mut cpu = Cpu::new_esp32s31();
         cpu.pc = bus::SRAM_BASE;
         cpu.mtvec = bus::SRAM_BASE + 0x100;
@@ -115,7 +127,8 @@ mod tests {
 
         // FS Initial: FLW becomes a real load and faults on unmapped address 0.
         let mut bus = S31Bus::new();
-        bus.load(bus::SRAM_BASE, &0x00002507u32.to_le_bytes(), 4).unwrap();
+        bus.load(bus::SRAM_BASE, &0x00002507u32.to_le_bytes(), 4)
+            .unwrap();
         let mut cpu = Cpu::new_esp32s31();
         cpu.pc = bus::SRAM_BASE;
         cpu.mtvec = bus::SRAM_BASE + 0x100;
@@ -125,7 +138,8 @@ mod tests {
 
         // Unrelated illegal instruction does not set FPU reason.
         let mut bus = S31Bus::new();
-        bus.load(bus::SRAM_BASE, &0xffff_ffffu32.to_le_bytes(), 4).unwrap();
+        bus.load(bus::SRAM_BASE, &0xffff_ffffu32.to_le_bytes(), 4)
+            .unwrap();
         let mut cpu = Cpu::new_esp32s31();
         cpu.pc = bus::SRAM_BASE;
         cpu.mtvec = bus::SRAM_BASE + 0x100;
@@ -136,12 +150,19 @@ mod tests {
     #[test]
     fn s31_ext_ill_fpu_reason_is_attributed_to_the_executing_hart() {
         let mut m = Dual::new();
-        m.bus.load(bus::SRAM_BASE, &0x0000006fu32.to_le_bytes(), 4).unwrap();
+        m.bus
+            .load(bus::SRAM_BASE, &0x0000006fu32.to_le_bytes(), 4)
+            .unwrap();
         m.cpu.pc = bus::SRAM_BASE;
-        m.bus.load(bus::ROM_BASE, &0x00002507u32.to_le_bytes(), 4).unwrap();
+        m.bus
+            .load(bus::ROM_BASE, &0x00002507u32.to_le_bytes(), 4)
+            .unwrap();
         m.bus.cores.write(core_control::CTRL1, 3).unwrap();
         let (steps, trap) = m.run(4);
-        assert!(matches!(trap, Some(Trap::Exception(2))), "steps={steps} trap={trap:?}");
+        assert!(
+            matches!(trap, Some(Trap::Exception(2))),
+            "steps={steps} trap={trap:?}"
+        );
         assert_eq!(m.last, 1);
         assert_eq!(m.cpu1.mepc, bus::ROM_BASE);
         assert!(m.cpu1.fs_off());
@@ -173,20 +194,30 @@ mod tests {
         assert_eq!(cpu.mepc, bus::SRAM_BASE + 12);
         assert_eq!(cpu.mtval, 0);
         let f = bus.first_fault.as_ref().unwrap();
-        assert_eq!((f.pc, f.address, f.bytes, f.write), (bus::SRAM_BASE + 12, 0, 4, false));
+        assert_eq!(
+            (f.pc, f.address, f.bytes, f.write),
+            (bus::SRAM_BASE + 12, 0, 4, false)
+        );
     }
 
     #[test]
     fn gated_second_hart_does_not_execute_and_its_fault_is_attributed_after_release() {
         let mut m = Dual::new();
-        m.bus.load(bus::SRAM_BASE, &0x0000006fu32.to_le_bytes(), 4).unwrap();
+        m.bus
+            .load(bus::SRAM_BASE, &0x0000006fu32.to_le_bytes(), 4)
+            .unwrap();
         m.cpu.pc = bus::SRAM_BASE;
         m.run(8);
         assert_eq!(m.cpu1.insn_count, 0);
-        m.bus.cores.write(core_control::BOOT1, bus::SRAM_BASE).unwrap();
+        m.bus
+            .cores
+            .write(core_control::BOOT1, bus::SRAM_BASE)
+            .unwrap();
         m.run(8);
         assert_eq!(m.cpu1.insn_count, 0);
-        m.bus.load(bus::ROM_BASE, &0x00002383u32.to_le_bytes(), 4).unwrap();
+        m.bus
+            .load(bus::ROM_BASE, &0x00002383u32.to_le_bytes(), 4)
+            .unwrap();
         m.bus.cores.write(core_control::CTRL1, 3).unwrap();
         let (_, trap) = m.run(4);
         assert_eq!(trap, Some(Trap::Exception(5)));
@@ -199,7 +230,9 @@ mod tests {
     #[test]
     fn second_hart_vector_fetch_fault_does_not_inherit_first_hart_pc() {
         let mut m = Dual::new();
-        m.bus.load(bus::SRAM_BASE, &0x0000006fu32.to_le_bytes(), 4).unwrap();
+        m.bus
+            .load(bus::SRAM_BASE, &0x0000006fu32.to_le_bytes(), 4)
+            .unwrap();
         m.cpu.pc = bus::SRAM_BASE;
         m.run(1);
         m.bus.cores.write(core_control::CTRL0, 1).unwrap();
@@ -221,7 +254,9 @@ mod tests {
     #[test]
     fn machine_path_constructs_and_steps() {
         let mut m = machine([0; 6], 1 << 20);
-        m.bus.load_bytes(bus::SRAM_BASE, &0x0000_006fu32.to_le_bytes()).unwrap();
+        m.bus
+            .load_bytes(bus::SRAM_BASE, &0x0000_006fu32.to_le_bytes())
+            .unwrap();
         m.cores[0].pc = bus::SRAM_BASE;
         let stop = m.run(8);
         assert!(matches!(stop, esp_soc::Stop::MaxInsns), "{stop:?}");

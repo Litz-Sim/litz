@@ -53,13 +53,21 @@ pub const GRID_PHYSICAL_PORT11: [usize; 9] = [2, 1, 0, 3, 4, 5, 8, 7, 6];
 pub fn tft_frame_160x80(p: &DcsPanel) -> Vec<u16> {
     let mut out = vec![0u16; 160 * 80];
     let mv = p.madctl & 0x20 != 0;
-    for y in 0..80 { for x in 0..160 {
-        let (col, row) = if mv { (105 - y, 1 + x) } else { (26 + x.min(79), 1 + y) };
-        let (col, row) = (col.min(p.cols - 1), row.min(p.rows - 1));
-        let mut px = p.gram[row * p.cols + col];
-        if p.inverted { px = !px; }
-        out[y * 160 + x] = px;
-    } }
+    for y in 0..80 {
+        for x in 0..160 {
+            let (col, row) = if mv {
+                (105 - y, 1 + x)
+            } else {
+                (26 + x.min(79), 1 + y)
+            };
+            let (col, row) = (col.min(p.cols - 1), row.min(p.rows - 1));
+            let mut px = p.gram[row * p.cols + col];
+            if p.inverted {
+                px = !px;
+            }
+            out[y * 160 + x] = px;
+        }
+    }
     out
 }
 
@@ -76,23 +84,41 @@ pub struct Atech14 {
     pub gpio_events: u64,
 }
 
-impl Default for Atech14 { fn default() -> Self { Self::new() } }
+impl Default for Atech14 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Atech14 {
     pub fn new() -> Self {
-        Atech14 { tft: DcsPanel::st7735(), spi: SpiBitBang::new(PIN_TFT_SCLK, PIN_TFT_MOSI, PIN_TFT_CS), ring: Ws2812Chain::mapped(&KNOB_RING_PHYSICAL),
-                  grid_7: Ws2812Chain::mapped(&GRID_PHYSICAL_PORT7), grid_11: Ws2812Chain::mapped(&GRID_PHYSICAL_PORT11), gpio_events: 0 }
+        Atech14 {
+            tft: DcsPanel::st7735(),
+            spi: SpiBitBang::new(PIN_TFT_SCLK, PIN_TFT_MOSI, PIN_TFT_CS),
+            ring: Ws2812Chain::mapped(&KNOB_RING_PHYSICAL),
+            grid_7: Ws2812Chain::mapped(&GRID_PHYSICAL_PORT7),
+            grid_11: Ws2812Chain::mapped(&GRID_PHYSICAL_PORT11),
+            gpio_events: 0,
+        }
     }
     /// What the 160×80 glass shows.
-    pub fn tft_frame(&self) -> Vec<u16> { tft_frame_160x80(&self.tft) }
+    pub fn tft_frame(&self) -> Vec<u16> {
+        tft_frame_160x80(&self.tft)
+    }
 }
 
 impl BoardModel for Atech14 {
-    fn name(&self) -> &'static str { "atech14" }
+    fn name(&self) -> &'static str {
+        "atech14"
+    }
     fn gpio_changes(&mut self, changes: &[(u8, bool)]) {
         for &(pin, level) in changes {
             self.gpio_events += 1;
-            if pin == PIN_TFT_DC { self.tft.dc = level; } else if let Some(b) = self.spi.pin(pin, level) { self.tft.byte(b); }
+            if pin == PIN_TFT_DC {
+                self.tft.dc = level;
+            } else if let Some(b) = self.spi.pin(pin, level) {
+                self.tft.byte(b);
+            }
         }
     }
     fn rmt_frame(&mut self, pin: u8, bits: &[bool]) {
@@ -100,22 +126,54 @@ impl BoardModel for Atech14 {
             PIN_RING => self.ring.from_bits(bits),
             PIN_GRID7_A => self.grid_7.from_bits(bits),
             PIN_GRID11_A => self.grid_11.from_bits(bits),
-            _ => {}                       // Line B (RGBW) on 7 and 44: not populated on this revision
+            _ => {} // Line B (RGBW) on 7 and 44: not populated on this revision
         }
     }
-    fn spi_tx(&mut self, host: u8, data: &[u8]) { if host == 2 { for &b in data { self.tft.byte(b); } } }
-    fn gpio_events(&self) -> u64 { self.gpio_events }
-    fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> { Some((160, 80, self.tft_frame(), self.tft.pixels_written)) }
-    fn display_version(&self) -> u64 { self.tft.pixels_written }
-    fn display_quiet_push(&self) -> bool { true }
-    fn display_frames(&self) -> u64 { self.tft.frames }
-    fn gram(&self) -> Option<(Vec<u16>, usize, usize)> { Some((self.tft.gram.clone(), self.tft.cols, self.tft.rows)) }
-    fn leds(&self) -> Option<(&[[u8; 3]], u64)> { Some((&self.ring.leds, self.ring.updates)) }
-    fn led_grids(&self) -> Vec<(&'static str, &[[u8; 3]], u64)> {
-        vec![("7", &self.grid_7.leds, self.grid_7.updates), ("11", &self.grid_11.leds, self.grid_11.updates)]
+    fn spi_tx(&mut self, host: u8, data: &[u8]) {
+        if host == 2 {
+            for &b in data {
+                self.tft.byte(b);
+            }
+        }
     }
-    fn named_pin(&self, name: &str) -> Option<u8> { match name { "btn1" => Some(PIN_BTN1), "btn2" => Some(PIN_BTN2), "sw" | "knob" => Some(PIN_ENC_SW), _ => None } }
-    fn encoder(&self) -> Option<(u8, u8)> { Some((PIN_ENC_CLK, PIN_ENC_DT)) }
+    fn gpio_events(&self) -> u64 {
+        self.gpio_events
+    }
+    fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> {
+        Some((160, 80, self.tft_frame(), self.tft.pixels_written))
+    }
+    fn display_version(&self) -> u64 {
+        self.tft.pixels_written
+    }
+    fn display_quiet_push(&self) -> bool {
+        true
+    }
+    fn display_frames(&self) -> u64 {
+        self.tft.frames
+    }
+    fn gram(&self) -> Option<(Vec<u16>, usize, usize)> {
+        Some((self.tft.gram.clone(), self.tft.cols, self.tft.rows))
+    }
+    fn leds(&self) -> Option<(&[[u8; 3]], u64)> {
+        Some((&self.ring.leds, self.ring.updates))
+    }
+    fn led_grids(&self) -> Vec<(&'static str, &[[u8; 3]], u64)> {
+        vec![
+            ("7", &self.grid_7.leds, self.grid_7.updates),
+            ("11", &self.grid_11.leds, self.grid_11.updates),
+        ]
+    }
+    fn named_pin(&self, name: &str) -> Option<u8> {
+        match name {
+            "btn1" => Some(PIN_BTN1),
+            "btn2" => Some(PIN_BTN2),
+            "sw" | "knob" => Some(PIN_ENC_SW),
+            _ => None,
+        }
+    }
+    fn encoder(&self) -> Option<(u8, u8)> {
+        Some((PIN_ENC_CLK, PIN_ENC_DT))
+    }
     fn report(&self) -> String {
         let t = &self.tft;
         format!("[emu] tft: {} RAMWR, {} pixels, madctl={:#x} inverted={} on={} bbox={:?} top colours {:x?}; gpio events {}\n[emu] ring: {} updates, leds {:?}",

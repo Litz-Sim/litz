@@ -26,17 +26,19 @@ fn timg_steps_after_an_alarm_survive_a_long_round() {
     use esp_soc::{SocBus, Stop};
     // (increase, autoreload, start, load, alarm, count after 42 steps)
     for (inc, auto, start, load, alarm, want) in [
-        (true, true, 0, 0, 32, 10),       // one crossing: 42 - 32
-        (true, true, 0, 0, 5, 2),         // eight crossings: 42 % 5
-        (false, true, 40, 40, 30, 38),    // counting down, four crossings: 40 - 42 % 10
-        (true, false, 0, 0, 32, 42),      // one-shot: the alarm disarms, counting goes on
+        (true, true, 0, 0, 32, 10),    // one crossing: 42 - 32
+        (true, true, 0, 0, 5, 2),      // eight crossings: 42 % 5
+        (false, true, 40, 40, 30, 38), // counting down, four crossings: 40 - 42 % 10
+        (true, false, 0, 0, 32, 42),   // one-shot: the alarm disarms, counting goes on
     ] {
         for q in [64, 256] {
             let mut m = esp32s3::machine([0; 6]);
             m.quantum = q;
             m.vq_max = 1;
             m.bb_max = 1;
-            for c in &mut m.cores { c.set_jit(false); }
+            for c in &mut m.cores {
+                c.set_jit(false);
+            }
             SocBus::load_bytes(&mut m.bus, 0x4037_0000, &[0x06, 0xff, 0xff]).unwrap();
             m.cores[0].pc = 0x4037_0000;
             m.cores[0].ps = 0;
@@ -45,13 +47,26 @@ fn timg_steps_after_an_alarm_survive_a_long_round() {
             m.bus.write32(t + 0x20, 1).unwrap();
             m.bus.write32(t + 0x18, load).unwrap();
             m.bus.write32(t + 0x10, alarm).unwrap();
-            m.bus.write32(t, (1 << 31) | u32::from(inc) << 30 | u32::from(auto) << 29 | (2 << 13) | (1 << 10)).unwrap();
+            m.bus
+                .write32(
+                    t,
+                    (1 << 31)
+                        | u32::from(inc) << 30
+                        | u32::from(auto) << 29
+                        | (2 << 13)
+                        | (1 << 10),
+                )
+                .unwrap();
             assert!(matches!(m.run(256), Stop::MaxInsns));
             assert_eq!(m.bus.cycles, 256);
             m.bus.write32(t + 0xc, 1).unwrap();
             let label = format!("q={q} inc={inc} auto={auto} load={load} alarm={alarm}");
             assert_eq!(m.bus.read32(t + 4).unwrap(), want, "{label}");
-            assert_eq!(m.bus.read32(t + 0x74).unwrap() & 1, 1, "{label}: alarm raised");
+            assert_eq!(
+                m.bus.read32(t + 0x74).unwrap() & 1,
+                1,
+                "{label}: alarm raised"
+            );
         }
     }
 }

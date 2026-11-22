@@ -25,21 +25,49 @@ pub struct SpiNand {
 }
 
 #[derive(Default, Debug, Clone, Copy)]
-pub struct NandStats { pub reads: u64, pub programs: u64, pub erases: u64, pub refused: u64 }
+pub struct NandStats {
+    pub reads: u64,
+    pub programs: u64,
+    pub erases: u64,
+    pub refused: u64,
+}
 
-impl Default for SpiNand { fn default() -> Self { Self::new() } }
+impl Default for SpiNand {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SpiNand {
     pub fn new() -> Self {
         // Power-up: all blocks locked (A0 = 0x7c), BUF = 1 and ECC-E = 1 (B0 = 0x18).
-        SpiNand { pages: HashMap::new(), buffer: vec![0xff; RAW].into_boxed_slice(), protection: 0x7c, config: 0x18, wel: false, stats: NandStats::default() }
+        SpiNand {
+            pages: HashMap::new(),
+            buffer: vec![0xff; RAW].into_boxed_slice(),
+            protection: 0x7c,
+            config: 0x18,
+            wel: false,
+            stats: NandStats::default(),
+        }
     }
     fn row(tx: &[u8]) -> Option<u32> {
-        (tx.len() >= 4).then(|| u32::from(tx[1]) << 16 | u32::from(tx[2]) << 8 | u32::from(tx[3])).filter(|&r| r < BLOCKS * PAGES_PER_BLOCK)
+        (tx.len() >= 4)
+            .then(|| u32::from(tx[1]) << 16 | u32::from(tx[2]) << 8 | u32::from(tx[3]))
+            .filter(|&r| r < BLOCKS * PAGES_PER_BLOCK)
     }
-    fn column(tx: &[u8]) -> usize { if tx.len() >= 3 { (usize::from(tx[1]) << 8 | usize::from(tx[2])) & 0xfff } else { 0 } }
-    fn locked(&self) -> bool { self.protection & 0x7c != 0 }
-    fn status(&self) -> u8 { u8::from(self.wel) << 1 }
+    fn column(tx: &[u8]) -> usize {
+        if tx.len() >= 3 {
+            (usize::from(tx[1]) << 8 | usize::from(tx[2])) & 0xfff
+        } else {
+            0
+        }
+    }
+    fn locked(&self) -> bool {
+        self.protection & 0x7c != 0
+    }
+    fn status(&self) -> u8 {
+        u8::from(self.wel) << 1
+    }
 
     /// One SPI transaction: command, address and MOSI bytes as the bus sent them; the MISO bytes.
     pub fn transaction(&mut self, tx: &[u8], rx_len: usize) -> Vec<u8> {
@@ -51,38 +79,74 @@ impl SpiNand {
                 // manufacturer after one address byte and the device ID after two.
                 let id = [0x00, 0xef, 0xaa, 0x21];
                 let skip = (tx.len() - 1).min(id.len());
-                for (i, b) in rx.iter_mut().enumerate() { *b = id.get(skip + i).copied().unwrap_or(0); }
+                for (i, b) in rx.iter_mut().enumerate() {
+                    *b = id.get(skip + i).copied().unwrap_or(0);
+                }
             }
             0x0f => {
-                let v = match tx.get(1) { Some(0xa0 | 0x01) => self.protection, Some(0xb0 | 0x02) => self.config, Some(0xc0 | 0x03) => self.status(), _ => 0 };
+                let v = match tx.get(1) {
+                    Some(0xa0 | 0x01) => self.protection,
+                    Some(0xb0 | 0x02) => self.config,
+                    Some(0xc0 | 0x03) => self.status(),
+                    _ => 0,
+                };
                 rx.iter_mut().for_each(|b| *b = v);
             }
-            0x1f => if let (Some(&reg), Some(&v)) = (tx.get(1), tx.get(2)) {
-                match reg { 0xa0 | 0x01 => self.protection = v, 0xb0 | 0x02 => self.config = v, _ => {} }
-            },
+            0x1f => {
+                if let (Some(&reg), Some(&v)) = (tx.get(1), tx.get(2)) {
+                    match reg {
+                        0xa0 | 0x01 => self.protection = v,
+                        0xb0 | 0x02 => self.config = v,
+                        _ => {}
+                    }
+                }
+            }
             0x06 => self.wel = true,
             0x04 => self.wel = false,
-            0xff => { self.wel = false; self.buffer.fill(0xff); }
-            0x13 => if let Some(row) = Self::row(tx) {
-                self.stats.reads += 1;
-                match self.pages.get(&row) { Some(p) => self.buffer.copy_from_slice(p), None => self.buffer.fill(0xff) }
-            },
+            0xff => {
+                self.wel = false;
+                self.buffer.fill(0xff);
+            }
+            0x13 => {
+                if let Some(row) = Self::row(tx) {
+                    self.stats.reads += 1;
+                    match self.pages.get(&row) {
+                        Some(p) => self.buffer.copy_from_slice(p),
+                        None => self.buffer.fill(0xff),
+                    }
+                }
+            }
             0x03 | 0x0b | 0x3b | 0x6b | 0xbb | 0xeb => {
                 let col = Self::column(tx);
-                for (i, b) in rx.iter_mut().enumerate() { *b = self.buffer.get(col + i).copied().unwrap_or(0xff); }
+                for (i, b) in rx.iter_mut().enumerate() {
+                    *b = self.buffer.get(col + i).copied().unwrap_or(0xff);
+                }
             }
             0x02 | 0x32 | 0x84 | 0x34 => {
                 if self.wel {
-                    if matches!(cmd, 0x02 | 0x32) { self.buffer.fill(0xff); }
+                    if matches!(cmd, 0x02 | 0x32) {
+                        self.buffer.fill(0xff);
+                    }
                     let col = Self::column(tx);
-                    for (i, &b) in tx.iter().skip(3).enumerate() { if let Some(d) = self.buffer.get_mut(col + i) { *d = b; } }
-                } else { self.stats.refused += 1; }
+                    for (i, &b) in tx.iter().skip(3).enumerate() {
+                        if let Some(d) = self.buffer.get_mut(col + i) {
+                            *d = b;
+                        }
+                    }
+                } else {
+                    self.stats.refused += 1;
+                }
             }
             0x10 => {
                 match Self::row(tx) {
                     Some(row) if self.wel && !self.locked() => {
-                        let page = self.pages.entry(row).or_insert_with(|| vec![0xff; RAW].into_boxed_slice());
-                        for (d, s) in page.iter_mut().zip(self.buffer.iter()) { *d &= *s; }
+                        let page = self
+                            .pages
+                            .entry(row)
+                            .or_insert_with(|| vec![0xff; RAW].into_boxed_slice());
+                        for (d, s) in page.iter_mut().zip(self.buffer.iter()) {
+                            *d &= *s;
+                        }
                         self.stats.programs += 1;
                     }
                     _ => self.stats.refused += 1,
@@ -93,7 +157,9 @@ impl SpiNand {
                 match Self::row(tx) {
                     Some(row) if self.wel && !self.locked() => {
                         let first = row & !(PAGES_PER_BLOCK - 1);
-                        for p in first..first + PAGES_PER_BLOCK { self.pages.remove(&p); }
+                        for p in first..first + PAGES_PER_BLOCK {
+                            self.pages.remove(&p);
+                        }
                         self.stats.erases += 1;
                     }
                     _ => self.stats.refused += 1,
@@ -115,13 +181,18 @@ mod tests {
         assert_eq!(n.transaction(&[0x9f, 0], 1), [0xef]);
         assert_eq!(n.transaction(&[0x9f, 0, 0], 2), [0xaa, 0x21]);
         // locked at power-up: a program is refused until A0 is cleared
-        n.transaction(&[0x06], 0); n.transaction(&[0x02, 0, 0, 0x12, 0x34], 0); n.transaction(&[0x10, 0, 0, 65], 0);
+        n.transaction(&[0x06], 0);
+        n.transaction(&[0x02, 0, 0, 0x12, 0x34], 0);
+        n.transaction(&[0x10, 0, 0, 65], 0);
         assert_eq!(n.stats.refused, 1);
         n.transaction(&[0x1f, 0xa0, 0], 0);
-        n.transaction(&[0x06], 0); n.transaction(&[0x02, 0, 4, 0x12, 0x34], 0); n.transaction(&[0x10, 0, 0, 65], 0);
+        n.transaction(&[0x06], 0);
+        n.transaction(&[0x02, 0, 4, 0x12, 0x34], 0);
+        n.transaction(&[0x10, 0, 0, 65], 0);
         n.transaction(&[0x13, 0, 0, 65], 0);
         assert_eq!(n.transaction(&[0x03, 0, 3], 4), [0xff, 0x12, 0x34, 0xff]);
-        n.transaction(&[0x06], 0); n.transaction(&[0xd8, 0, 0, 64], 0);
+        n.transaction(&[0x06], 0);
+        n.transaction(&[0xd8, 0, 0, 64], 0);
         n.transaction(&[0x13, 0, 0, 65], 0);
         assert_eq!(n.transaction(&[0x03, 0, 4], 2), [0xff, 0xff]);
         assert_eq!(n.transaction(&[0x0f, 0xc0], 1), [0]);

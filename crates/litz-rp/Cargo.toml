@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "RP2040 (Raspberry Pi Pico) chip backend: an ARMv6-M Cortex-M0+ core and the peripherals a Pico firmware drives."
 
 [dependencies]

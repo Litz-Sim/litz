@@ -7,18 +7,29 @@ use std::sync::atomic::{AtomicU32, AtomicU64};
 /// Board clock and motion selection shared between a board and its IMU. `cycle` is in whatever
 /// unit the board's clock counts; the sensor model is told the rate.
 #[derive(Default, Debug)]
-pub struct ImuMotion { pub cycle: AtomicU64, pub mode: AtomicU32 }
+pub struct ImuMotion {
+    pub cycle: AtomicU64,
+    pub mode: AtomicU32,
+}
 
 /// Sine from + - * / and floor only, so every platform and build produces the same bits.
 pub fn sin(x: f64) -> f64 {
     const TAU: f64 = std::f64::consts::TAU;
     let mut x = x - TAU * (x / TAU + 0.5).floor();
-    if x > std::f64::consts::FRAC_PI_2 { x = std::f64::consts::PI - x; }
-    if x < -std::f64::consts::FRAC_PI_2 { x = -std::f64::consts::PI - x; }
+    if x > std::f64::consts::FRAC_PI_2 {
+        x = std::f64::consts::PI - x;
+    }
+    if x < -std::f64::consts::FRAC_PI_2 {
+        x = -std::f64::consts::PI - x;
+    }
     let x2 = x * x;
-    x * (1.0 - x2 / 6.0 * (1.0 - x2 / 20.0 * (1.0 - x2 / 42.0 * (1.0 - x2 / 72.0 * (1.0 - x2 / 110.0)))))
+    x * (1.0
+        - x2 / 6.0 * (1.0 - x2 / 20.0 * (1.0 - x2 / 42.0 * (1.0 - x2 / 72.0 * (1.0 - x2 / 110.0)))))
 }
-fn smoothstep(a: f64, b: f64, t: f64) -> f64 { let x = ((t - a) / (b - a)).clamp(0.0, 1.0); x * x * (3.0 - 2.0 * x) }
+fn smoothstep(a: f64, b: f64, t: f64) -> f64 {
+    let x = ((t - a) / (b - a)).clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
 
 /// The handling script's attitude at `t` seconds, in radians: roll about the screen normal (z)
 /// and lean about the screen's x axis, both 0 upright at rest.

@@ -1,6 +1,6 @@
 //! A packet-level BLE controller and one virtual peer, independent of the guest CPU.
-mod opcodes;
 pub mod log;
+mod opcodes;
 pub mod peer;
 pub mod vhci;
 use opcodes::*;
@@ -60,7 +60,14 @@ pub enum LinkAction {
     Data(u16, Vec<u8>),
     /// A device around the station (`peer::Nearby`) in the guest's scan: an LE Advertising Report,
     /// scannable and not connectable.
-    Report { addr: [u8; 6], addr_type: u8, data: Vec<u8>, scan_response: Vec<u8>, rssi: i8, active: bool },
+    Report {
+        addr: [u8; 6],
+        addr_type: u8,
+        data: Vec<u8>,
+        scan_response: Vec<u8>,
+        rssi: i8,
+        active: bool,
+    },
 }
 
 const HANDLE: u16 = 1;
@@ -69,7 +76,9 @@ const PEER: [u8; 6] = [2, 0, 0, 0x49, 0x53, 2];
 /// What an ESP32-S3's controller answers to LE Read Resolving List Size.
 const RESOLVING_LIST_SIZE: usize = 10;
 
-fn word(b: &[u8]) -> u16 { u16::from_le_bytes([b[0], b[1]]) }
+fn word(b: &[u8]) -> u16 {
+    u16::from_le_bytes([b[0], b[1]])
+}
 /// No RF, encryption sessions or pairing. One ACL link is enough for the Arduino examples.
 /// `send` and `pop_packet` exchange complete H4 packets including the packet-type byte.
 pub struct Controller {
@@ -89,7 +98,11 @@ pub struct Controller {
     resolving: Vec<(u8, [u8; 6])>,
 }
 
-impl Default for Controller { fn default() -> Self { Self::new(Link::default()) } }
+impl Default for Controller {
+    fn default() -> Self {
+        Self::new(Link::default())
+    }
+}
 impl Controller {
     pub fn new(link: Link) -> Self {
         Self {
@@ -108,8 +121,12 @@ impl Controller {
             resolving: Vec::new(),
         }
     }
-    pub fn pop_packet(&mut self) -> Option<Vec<u8>> { self.packets.pop_front() }
-    fn emit(&mut self, event: LinkEvent) { self.link.borrow_mut().to_peer.push_back(event); }
+    pub fn pop_packet(&mut self) -> Option<Vec<u8>> {
+        self.packets.pop_front()
+    }
+    fn emit(&mut self, event: LinkEvent) {
+        self.link.borrow_mut().to_peer.push_back(event);
+    }
     fn event(&mut self, event: u8, data: &[u8]) {
         let mut p = vec![4, event, data.len() as u8];
         p.extend_from_slice(data);
@@ -120,7 +137,9 @@ impl Controller {
         p.extend_from_slice(response);
         self.event(0x0e, &p);
     }
-    fn status(&mut self, op: u16, status: u8) { self.event(0x0f, &[status, 1, op as u8, (op >> 8) as u8]); }
+    fn status(&mut self, op: u16, status: u8) {
+        self.event(0x0f, &[status, 1, op as u8, (op >> 8) as u8]);
+    }
     fn l2cap(&mut self, cid: u16, pdu: &[u8]) {
         let len = pdu.len() as u16;
         let mut p = vec![2, HANDLE as u8, 0x20];
@@ -139,7 +158,12 @@ impl Controller {
         self.event(0x3e, &e);
         self.emit(LinkEvent::Connected(guest_central, addr));
     }
-    fn advertisement(&mut self) { self.emit(LinkEvent::Advertising(self.adv.clone(), self.scan_response.clone())); }
+    fn advertisement(&mut self) {
+        self.emit(LinkEvent::Advertising(
+            self.adv.clone(),
+            self.scan_response.clone(),
+        ));
+    }
     pub fn send(&mut self, packet: &[u8]) {
         match packet.first() {
             Some(1) if packet.len() >= 4 => {
@@ -199,12 +223,19 @@ impl Controller {
             | ESP_UPDATE_ADV_REPORT_FLOW_CONTROL => Some(2),
             DISCONNECT | WRITE_CLASS_OF_DEVICE | VENDOR_FC82 => Some(3),
             ESP_SET_LE_EVENT_MASK => Some(4),
-            SET_EVENT_MASK | SET_EVENT_MASK_PAGE_2 | LE_SET_EVENT_MASK | LE_SET_PRIVACY_MODE => Some(8),
+            SET_EVENT_MASK | SET_EVENT_MASK_PAGE_2 | LE_SET_EVENT_MASK | LE_SET_PRIVACY_MODE => {
+                Some(8)
+            }
             LE_SET_RANDOM_ADDRESS => Some(6),
             LE_SET_ADVERTISING_PARAMETERS => Some(15),
             LE_SET_ADVERTISING_DATA | LE_SET_SCAN_RESPONSE_DATA | LE_ENCRYPT => Some(32),
-            LE_SET_SCAN_PARAMETERS | HOST_BUFFER_SIZE | LE_ADD_FILTER_ACCEPT_LIST | LE_REMOVE_FILTER_ACCEPT_LIST => { Some(7) }
-            LE_REMOVE_DEVICE_FROM_RESOLVING_LIST | LE_READ_PEER_RESOLVABLE_ADDRESS | LE_READ_LOCAL_RESOLVABLE_ADDRESS => Some(7),
+            LE_SET_SCAN_PARAMETERS
+            | HOST_BUFFER_SIZE
+            | LE_ADD_FILTER_ACCEPT_LIST
+            | LE_REMOVE_FILTER_ACCEPT_LIST => Some(7),
+            LE_REMOVE_DEVICE_FROM_RESOLVING_LIST
+            | LE_READ_PEER_RESOLVABLE_ADDRESS
+            | LE_READ_LOCAL_RESOLVABLE_ADDRESS => Some(7),
             LE_CREATE_CONNECTION => Some(25),
             LE_ADD_DEVICE_TO_RESOLVING_LIST => Some(39),
             LE_CONNECTION_UPDATE => Some(14),
@@ -213,7 +244,8 @@ impl Controller {
             HOST_COMPLETED_PACKETS => p.first().map(|n| 1 + 4 * *n as usize),
             _ => None,
         };
-        if expected.is_some_and(|n| n != p.len()) || (op == HOST_COMPLETED_PACKETS && p.is_empty()) {
+        if expected.is_some_and(|n| n != p.len()) || (op == HOST_COMPLETED_PACKETS && p.is_empty())
+        {
             self.complete(op, &[0x12]);
             return;
         }
@@ -268,7 +300,9 @@ impl Controller {
                     (34, 0xf8),
                     (35, 0x07),
                     (39, 0x04),
-                ] { commands[octet + 1] = bits; }
+                ] {
+                    commands[octet + 1] = bits;
+                }
                 self.complete(op, &commands);
             }
             READ_LOCAL_FEATURES => self.complete(op, &[0, 0, 0, 0, 0, 0x40, 0, 0, 0x80]),
@@ -307,9 +341,13 @@ impl Controller {
                 let data = p[1..1 + p[0] as usize].to_vec();
                 if op == LE_SET_ADVERTISING_DATA {
                     self.adv = data;
-                } else { self.scan_response = data; }
+                } else {
+                    self.scan_response = data;
+                }
                 self.complete(op, &[0]);
-                if self.advertising { self.advertisement(); }
+                if self.advertising {
+                    self.advertisement();
+                }
             }
             LE_SET_ADVERTISING_ENABLE => {
                 if p[0] > 1 {
@@ -320,7 +358,9 @@ impl Controller {
                 self.complete(op, &[0]);
                 if self.advertising {
                     self.advertisement();
-                } else { self.emit(LinkEvent::AdvertisingStopped); }
+                } else {
+                    self.emit(LinkEvent::AdvertisingStopped);
+                }
             }
             LE_SET_SCAN_PARAMETERS => {
                 if p[0] > 1 {
@@ -336,7 +376,11 @@ impl Controller {
                     return;
                 }
                 self.complete(op, &[0]);
-                if p[0] == 1 { self.emit(LinkEvent::Scan(self.active_scan)); } else { self.emit(LinkEvent::ScanStopped); }
+                if p[0] == 1 {
+                    self.emit(LinkEvent::Scan(self.active_scan));
+                } else {
+                    self.emit(LinkEvent::ScanStopped);
+                }
             }
             LE_CREATE_CONNECTION => {
                 // A central may connect to any device its scan reported, not
@@ -349,7 +393,9 @@ impl Controller {
                 let mut addr = [0u8; 6];
                 addr.copy_from_slice(&p[6..12]);
                 self.status(op, if self.connected { 0x0c } else { 0 });
-                if !self.connected { self.connect(true, addr); }
+                if !self.connected {
+                    self.connect(true, addr);
+                }
             }
             DISCONNECT => {
                 if !self.connected || word(p) != HANDLE {
@@ -362,7 +408,9 @@ impl Controller {
                 self.fragments.clear();
                 self.emit(LinkEvent::Disconnected);
             }
-            LE_READ_CHANNEL_MAP => self.complete(op, &[0, p[0], p[1], 0xff, 0xff, 0xff, 0xff, 0x1f]),
+            LE_READ_CHANNEL_MAP => {
+                self.complete(op, &[0, p[0], p[1], 0xff, 0xff, 0xff, 0xff, 0x1f])
+            }
             LE_READ_REMOTE_FEATURES => {
                 self.status(op, 0);
                 self.event(0x3e, &[4, 0, HANDLE as u8, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -416,7 +464,9 @@ impl Controller {
             LE_REMOVE_DEVICE_FROM_RESOLVING_LIST => {
                 let entry = (p[0], p[1..7].try_into().unwrap());
                 let found = self.resolving.iter().position(|e| *e == entry);
-                if let Some(i) = found { self.resolving.remove(i); }
+                if let Some(i) = found {
+                    self.resolving.remove(i);
+                }
                 self.complete(op, &[if found.is_some() { 0 } else { 2 }]);
             }
             LE_CLEAR_RESOLVING_LIST => {
@@ -426,13 +476,23 @@ impl Controller {
             LE_READ_RESOLVING_LIST_SIZE => self.complete(op, &[0, RESOLVING_LIST_SIZE as u8]),
             // No resolvable private address exists, so Unknown Connection Identifier, as the S3
             // answers for an entry it has made none for.
-            LE_READ_PEER_RESOLVABLE_ADDRESS | LE_READ_LOCAL_RESOLVABLE_ADDRESS => self.complete(op, &[2, 0, 0, 0, 0, 0, 0]),
-            LE_SET_ADDRESS_RESOLUTION_ENABLE => self.complete(op, &[if p[0] > 1 { 0x12 } else { 0 }]),
+            LE_READ_PEER_RESOLVABLE_ADDRESS | LE_READ_LOCAL_RESOLVABLE_ADDRESS => {
+                self.complete(op, &[2, 0, 0, 0, 0, 0, 0])
+            }
+            LE_SET_ADDRESS_RESOLUTION_ENABLE => {
+                self.complete(op, &[if p[0] > 1 { 0x12 } else { 0 }])
+            }
             // The S3 refuses 0 s only, 3601 s too is accepted.
             LE_SET_RPA_TIMEOUT => self.complete(op, &[if word(p) == 0 { 0x12 } else { 0 }]),
             LE_SET_PRIVACY_MODE => {
                 let entry = (p[0], p[1..7].try_into().unwrap());
-                let status = if p[7] > 1 { 0x12 } else if self.resolving.contains(&entry) { 0 } else { 2 };
+                let status = if p[7] > 1 {
+                    0x12
+                } else if self.resolving.contains(&entry) {
+                    0
+                } else {
+                    2
+                };
                 self.complete(op, &[status]);
             }
             READ_RSSI => self.complete(op, &[0, p[0], p[1], (-35i8) as u8]),
@@ -474,7 +534,10 @@ impl Controller {
     }
     fn acl(&mut self, packet: &[u8]) {
         let header = word(&packet[1..]);
-        if packet.len() != 5 + word(&packet[3..]) as usize || header & 0xfff != HANDLE || !self.connected {
+        if packet.len() != 5 + word(&packet[3..]) as usize
+            || header & 0xfff != HANDLE
+            || !self.connected
+        {
             self.emit(LinkEvent::Invalid(LinkError::AclLength));
             return;
         }
@@ -487,21 +550,29 @@ impl Controller {
         }
         self.fragments.extend_from_slice(&packet[5..]);
         self.event(0x13, &[1, HANDLE as u8, 0, 1, 0]);
-        if self.fragments.len() < 4 { return; }
+        if self.fragments.len() < 4 {
+            return;
+        }
         let len = word(&self.fragments) as usize;
         if len > 517 || self.fragments.len() > len + 4 {
             self.fragments.clear();
             self.emit(LinkEvent::Invalid(LinkError::L2capLength));
             return;
         }
-        if self.fragments.len() < len + 4 { return; }
+        if self.fragments.len() < len + 4 {
+            return;
+        }
         let data = std::mem::take(&mut self.fragments);
         self.emit(LinkEvent::Data(word(&data[2..]), data[4..].to_vec()));
     }
 }
 impl HciController for Controller {
-    fn send_h4(&mut self, packet: &[u8]) { self.send(packet); }
-    fn poll_h4(&mut self) -> Option<Vec<u8>> { self.pop_packet() }
+    fn send_h4(&mut self, packet: &[u8]) {
+        self.send(packet);
+    }
+    fn poll_h4(&mut self) -> Option<Vec<u8>> {
+        self.pop_packet()
+    }
     fn reset(&mut self) {
         *self.link.borrow_mut() = LinkQueues::default();
         *self = Self::new(self.link.clone());
@@ -512,7 +583,9 @@ impl HciController for Controller {
             let action = self.link.borrow_mut().to_controller.pop_front();
             let Some(action) = action else { break };
             match action {
-                LinkAction::Connect if self.advertising && !self.connected => self.connect(false, PEER),
+                LinkAction::Connect if self.advertising && !self.connected => {
+                    self.connect(false, PEER)
+                }
                 LinkAction::Advertisement(data, active) => {
                     let mut e = vec![2, 1, 0, 0];
                     e.extend_from_slice(&PEER);
@@ -526,13 +599,22 @@ impl HciController for Controller {
                     }
                 }
                 LinkAction::Data(cid, pdu) if self.connected => self.l2cap(cid, &pdu),
-                LinkAction::Report { addr, addr_type, data, scan_response, rssi, active } => {
+                LinkAction::Report {
+                    addr,
+                    addr_type,
+                    data,
+                    scan_response,
+                    rssi,
+                    active,
+                } => {
                     // LE Advertising Report (Bluetooth Core 5.4, Vol 4 Part E 7.7.65.2): ADV_SCAN_IND
                     // (0x02, scannable, not connectable: Vol 6 Part B 2.3.1.4), and for an active scan
                     // SCAN_RSP (0x04), an empty one too, as a scannable advertiser answers every scan
                     // request.
                     for (kind, payload) in [(2u8, &data), (4u8, &scan_response)] {
-                        if kind == 4 && !active { continue; }
+                        if kind == 4 && !active {
+                            continue;
+                        }
                         let mut e = vec![2, 1, kind, addr_type];
                         e.extend_from_slice(&addr);
                         e.push(payload.len() as u8);
@@ -545,5 +627,7 @@ impl HciController for Controller {
             }
         }
     }
-    fn next_deadline(&self) -> Option<u64> { (!self.link.borrow().to_controller.is_empty()).then_some(self.cycles) }
+    fn next_deadline(&self) -> Option<u64> {
+        (!self.link.borrow().to_controller.is_empty()).then_some(self.cycles)
+    }
 }

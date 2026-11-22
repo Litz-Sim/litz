@@ -8,12 +8,26 @@ fn reboot_preserves_debug_areas() {
         debug.parse(area);
         m.set_debug(&debug);
         for boot in 0..3 {
-            if boot != 0 { m.reboot(); }
+            if boot != 0 {
+                m.reboot();
+            }
             let p = &m.bus.periph;
             assert_eq!(m.bus.debug, debug, "area={area}, boot={boot}");
-            assert_eq!(p.spi1.0.log, debug.has("spi"), "SPI: area={area}, boot={boot}");
-            assert_eq!(p.wifi_mac.log, debug.has("wifi"), "Wi-Fi: area={area}, boot={boot}");
-            assert_eq!(p.misc.log_all, debug.has("mmio"), "MMIO: area={area}, boot={boot}");
+            assert_eq!(
+                p.spi1.0.log,
+                debug.has("spi"),
+                "SPI: area={area}, boot={boot}"
+            );
+            assert_eq!(
+                p.wifi_mac.log,
+                debug.has("wifi"),
+                "Wi-Fi: area={area}, boot={boot}"
+            );
+            assert_eq!(
+                p.misc.log_all,
+                debug.has("mmio"),
+                "MMIO: area={area}, boot={boot}"
+            );
         }
     }
 }

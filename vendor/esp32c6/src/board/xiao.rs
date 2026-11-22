@@ -52,22 +52,37 @@ pub struct XiaoEsp32C6 {
     pub rf_external: bool,
     pub gpio_events: u64,
 }
-impl Default for XiaoEsp32C6 { fn default() -> Self { Self::new() } }
+impl Default for XiaoEsp32C6 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl XiaoEsp32C6 {
     pub fn new() -> Self {
-        XiaoEsp32C6 { led_on: false, led_colour: [[0, 0, 0]], led_updates: 0, rf_powered: false, rf_external: false, gpio_events: 0 }
+        XiaoEsp32C6 {
+            led_on: false,
+            led_colour: [[0, 0, 0]],
+            led_updates: 0,
+            rf_powered: false,
+            rf_external: false,
+            gpio_events: 0,
+        }
     }
 }
 impl BoardModel for XiaoEsp32C6 {
-    fn name(&self) -> &'static str { "xiao-esp32c6" }
-    fn gpio_changes(&mut self, changes: &[(u8, bool)]) { self.gpio_events += changes.len() as u64; }
+    fn name(&self) -> &'static str {
+        "xiao-esp32c6"
+    }
+    fn gpio_changes(&mut self, changes: &[(u8, bool)]) {
+        self.gpio_events += changes.len() as u64;
+    }
     /// The LED and the RF switch follow the drive masks, not the edges: an edge says what the
     /// pin did, the masks say what the pin is doing now (a released pin is high whatever the
     /// last edge was).
     fn gpio_output_at(&mut self, _cycle: u64, changes: &[(u8, bool)], enabled: u64, output: u64) {
-        self.gpio_changes(changes);      // the edges are counted once, here
-        // The LED is low active: it is lit while GPIO 15 is driven low, and off when the pin is
-        // released or driven high.
+        self.gpio_changes(changes); // the edges are counted once, here
+                                    // The LED is low active: it is lit while GPIO 15 is driven low, and off when the pin is
+                                    // released or driven high.
         let on = enabled & (1 << PIN_LED) != 0 && output & (1 << PIN_LED) == 0;
         if on != self.led_on {
             self.led_on = on;
@@ -79,12 +94,23 @@ impl BoardModel for XiaoEsp32C6 {
         // GPIO 14 picks the antenna: low = the onboard ceramic, high = the external U.FL.
         self.rf_external = enabled & (1 << PIN_RF_ANT) != 0 && output & (1 << PIN_RF_ANT) != 0;
     }
-    fn gpio_events(&self) -> u64 { self.gpio_events }
+    fn gpio_events(&self) -> u64 {
+        self.gpio_events
+    }
     /// The LED as a one-LED strip, so the page can draw it.
-    fn leds(&self) -> Option<(&[[u8; 3]], u64)> { Some((&self.led_colour, self.led_updates)) }
+    fn leds(&self) -> Option<(&[[u8; 3]], u64)> {
+        Some((&self.led_colour, self.led_updates))
+    }
     /// The BOOT button: active low and pulled up, so it reads high while it is released.
-    fn input_levels(&self) -> Vec<(u8, bool)> { vec![(PIN_BOOT, true)] }
-    fn named_pin(&self, name: &str) -> Option<u8> { match name { "boot" | "btn" | "btn1" => Some(PIN_BOOT), _ => None } }
+    fn input_levels(&self) -> Vec<(u8, bool)> {
+        vec![(PIN_BOOT, true)]
+    }
+    fn named_pin(&self, name: &str) -> Option<u8> {
+        match name {
+            "boot" | "btn" | "btn1" => Some(PIN_BOOT),
+            _ => None,
+        }
+    }
     fn report(&self) -> String {
         format!("[emu] xiao-esp32c6: led {} (GPIO {}, low active, {} updates); rf switch {} (GPIO {} power), antenna {} (GPIO {}); gpio events {}",
                 if self.led_on { "on" } else { "off" }, PIN_LED, self.led_updates,

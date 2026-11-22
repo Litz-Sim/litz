@@ -1,5 +1,5 @@
-use esp_soc::wifi::{ApConfig, StaState, VirtualAp};
 use esp32s3::periph::Peripherals;
+use esp_soc::wifi::{ApConfig, StaState, VirtualAp};
 
 // FE +0x174 bit 16 is inferred from the closed PHY driver's polling and the
 // existing S3 model, not a documented IDF register or a silicon timing claim.

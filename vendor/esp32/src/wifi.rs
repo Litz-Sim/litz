@@ -2,7 +2,7 @@
 //! MAC and PHY meanings are inferred from Arduino-ESP32 3.3.8 libpp/libphy;
 //! no public MAC register header or hardware timing validation is claimed.
 
-use crate::bus::{SocBus, dma_range};
+use crate::bus::{dma_range, SocBus};
 #[cfg(test)]
 use crate::bus::{DRAM_HIGH, ROM_DRAM_LOW};
 use crate::periph::CPU_HZ;
@@ -42,7 +42,6 @@ pub struct WifiMac {
 }
 
 impl WifiMac {
-
     /// DPORT_WIFIMAC_RST clears the MAC registers only. The access point, network, relay queues
     /// and frame counts belong to the host side. S3/C3/C6 leave both MAC registers
     /// and StationLink alone on MAC reset; register clearing here is classic-only.
@@ -172,7 +171,10 @@ impl Device for WifiMac {
 impl SocBus {
     #[inline]
     pub(crate) fn wifi_step(&mut self) {
-        #[cfg(test)] { self.periph.wifi.step_calls += 1; }
+        #[cfg(test)]
+        {
+            self.periph.wifi.step_calls += 1;
+        }
         // IDF v5.5.4 register/soc/dport_reg.h:1040-1043 (DPORT_WIFI_CLK_WIFI_EN) and
         // 1064,1069 (DPORT_CORE_RST_EN_REG, DPORT_WIFIMAC_RST).
         if !self.periph.wifi.clock_enabled {
@@ -185,11 +187,15 @@ impl SocBus {
             if dma_range(desc, 12).is_none() {
                 continue;
             }
-            let Ok((_, d)) = self.read_dma_descriptor(desc) else { continue };
+            let Ok((_, d)) = self.read_dma_descriptor(desc) else {
+                continue;
+            };
             // libpp's general TX convention: length is the TX byte count, not size.
             // ESP-IDF v5.5.2 soc/include/soc/lldesc.h:32: "Size (or length for TX)".
             // Keep ownership and bound the entire length against mapped DRAM below.
-            if !d.owner_dma { continue; }
+            if !d.owner_dma {
+                continue;
+            }
             let Some(range) = dma_range(d.buf, d.length as usize) else {
                 continue;
             };
@@ -218,16 +224,23 @@ impl SocBus {
         self.periph.wifi.link.net_step(now_us);
     }
     fn wifi_rx_deliver(&mut self, frame: &[u8], now_us: u64, trace: bool) {
-        if self.wifi_rx_fill(frame, now_us, trace).is_none() { self.periph.wifi.link.drop_rx(); }
+        if self.wifi_rx_fill(frame, now_us, trace).is_none() {
+            self.periph.wifi.link.drop_rx();
+        }
     }
     fn wifi_rx_fill(&mut self, frame: &[u8], now_us: u64, trace: bool) -> Option<()> {
         let desc = self.periph.wifi.rx_next;
         dma_range(desc, 12)?;
         let (dw0, d) = self.read_dma_descriptor(desc).ok()?;
         let total = 28 + frame.len() + 4;
-        if !d.owner_dma || d.eof || d.buf == 0 || d.size < total as u32 { return None; }
+        if !d.owner_dma || d.eof || d.buf == 0 || d.size < total as u32 {
+            return None;
+        }
         let range = dma_range(d.buf, total)?;
-        let (chan, rssi) = { let (c, r) = self.periph.wifi.link.rx_meta(frame); (c as u32, i32::from(r)) };
+        let (chan, rssi) = {
+            let (c, r) = self.periph.wifi.link.rx_meta(frame);
+            (c as u32, i32::from(r))
+        };
         let broadcast = frame.get(4).is_some_and(|v| v & 1 != 0);
         // wDev_ProcessRxSucData subtracts the classic 96 dB RSSI offset.
         // libpp takes the interface a frame is for from bits 28 to 30 (inferred from
@@ -239,8 +252,14 @@ impl SocBus {
         // flags unicast to the station with bit 28 alone, which libpp takes as it takes 28 and 29
         // together, and no golden runs the classic station, so a change here would go untested.
         let slot1 = self.periph.wifi.slot_mac(1);
-        let to_ap = slot1 != [0; 6] && slot1 != self.periph.wifi.slot_mac(0) && frame.get(4..10) == Some(&slot1[..]);
-        let matched = if to_ap { 1 << 29 } else { (1 << 28) | if broadcast { 0 } else { 1 << 29 } };
+        let to_ap = slot1 != [0; 6]
+            && slot1 != self.periph.wifi.slot_mac(0)
+            && frame.get(4..10) == Some(&slot1[..]);
+        let matched = if to_ap {
+            1 << 29
+        } else {
+            (1 << 28) | if broadcast { 0 } else { 1 << 29 }
+        };
         let w0 = ((rssi + 96) as u32 & 0xff) | matched;
         // Classic rx_ctrl is 28 bytes: noise at +8, channel at +10, sig_len/state at +24.
         let mut bytes = Vec::with_capacity(total);
@@ -271,19 +290,35 @@ impl SocBus {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn classic_wifi_dma_reach_descriptors_and_payloads() {
-        for address in [crate::bus::DRAM_LOW, DRAM_HIGH - 12, ROM_DRAM_LOW,
-            crate::bus::DRAM_LOW - 12, DRAM_HIGH - 11, 0x4008_0000, 0x3ff8_0000, 0x5000_0000, u32::MAX] {
+        for address in [
+            crate::bus::DRAM_LOW,
+            DRAM_HIGH - 12,
+            ROM_DRAM_LOW,
+            crate::bus::DRAM_LOW - 12,
+            DRAM_HIGH - 11,
+            0x4008_0000,
+            0x3ff8_0000,
+            0x5000_0000,
+            u32::MAX,
+        ] {
             let allowed = address == crate::bus::DRAM_LOW || address == DRAM_HIGH - 12;
-            assert_eq!(dma_range(address, 12).is_some(), allowed, "descriptor {address:#x}");
+            assert_eq!(
+                dma_range(address, 12).is_some(),
+                allowed,
+                "descriptor {address:#x}"
+            );
             let mut b = SocBus::new(0, [0; 6]);
-            assert_eq!(b.read_dma_descriptor(address).is_ok(), allowed, "read {address:#x}");
+            assert_eq!(
+                b.read_dma_descriptor(address).is_ok(),
+                allowed,
+                "read {address:#x}"
+            );
         }
         assert!(dma_range(DRAM_HIGH - 1, 1).is_some());
         assert!(dma_range(DRAM_HIGH - 1, 2).is_none());
@@ -323,13 +358,31 @@ mod tests {
             b.periph.wifi.write(0xc40, EVENT_TX);
             b.irq_dirty = false;
             b.wifi_step();
-            assert_eq!(b.periph.wifi.link.tx_frames(), u64::from(valid), "{buffer:#x}");
-            assert_eq!(b.periph.wifi.events, if valid { EVENT_TX } else { 0 }, "{buffer:#x}");
+            assert_eq!(
+                b.periph.wifi.link.tx_frames(),
+                u64::from(valid),
+                "{buffer:#x}"
+            );
+            assert_eq!(
+                b.periph.wifi.events,
+                if valid { EVENT_TX } else { 0 },
+                "{buffer:#x}"
+            );
             assert_eq!(b.periph.wifi.txq_complete, u32::from(valid), "{buffer:#x}");
-            assert_eq!(b.periph.wifi.read(TXQ0), if valid { queue_control & !(3 << 30) } else { queue_control });
+            assert_eq!(
+                b.periph.wifi.read(TXQ0),
+                if valid {
+                    queue_control & !(3 << 30)
+                } else {
+                    queue_control
+                }
+            );
             assert_eq!(b.periph.wifi.irq_sources(), u64::from(valid));
             assert_eq!(b.irq_dirty, valid);
-            assert_eq!(b.dram, before, "TX must not write payload or descriptor at {buffer:#x}");
+            assert_eq!(
+                b.dram, before,
+                "TX must not write payload or descriptor at {buffer:#x}"
+            );
         }
     }
 
@@ -375,16 +428,27 @@ mod tests {
                 let off = (buffer - ROM_DRAM_LOW) as usize;
                 expected[off..off + total].copy_from_slice(&bytes);
                 let off = (desc - ROM_DRAM_LOW) as usize;
-                expected[off..off + 4].copy_from_slice(&(control | ((total as u32) << 12) | (1 << 30)).to_le_bytes());
+                expected[off..off + 4]
+                    .copy_from_slice(&(control | ((total as u32) << 12) | (1 << 30)).to_le_bytes());
             }
-            assert_eq!(b.wifi_rx_fill(&frame, 1234, false).is_some(), valid, "{buffer:#x}");
-            assert!(b.dram == expected, "RX payload/descriptor writes at {buffer:#x}");
+            assert_eq!(
+                b.wifi_rx_fill(&frame, 1234, false).is_some(),
+                valid,
+                "{buffer:#x}"
+            );
+            assert!(
+                b.dram == expected,
+                "RX payload/descriptor writes at {buffer:#x}"
+            );
             assert_eq!(b.periph.wifi.rx_base, desc);
             assert_eq!(b.periph.wifi.rx_next, if valid { next } else { desc });
             assert_eq!(b.periph.wifi.rx_last, if valid { desc } else { 0 });
             assert_eq!(b.periph.wifi.read(0x084), 1 << 31);
             assert_eq!(b.periph.wifi.events, if valid { EVENT_RX } else { 0 });
-            assert_eq!(b.periph.wifi.link.last_rx_desc(), if valid { desc } else { 0 });
+            assert_eq!(
+                b.periph.wifi.link.last_rx_desc(),
+                if valid { desc } else { 0 }
+            );
             assert_eq!(b.periph.wifi.link.rx_frames(), u64::from(valid));
             assert_eq!(b.periph.wifi.link.rx_dropped(), 0);
             assert_eq!(b.periph.wifi.irq_sources(), u64::from(valid));
@@ -402,22 +466,42 @@ mod tests {
         let home = [0x02, 1, 2, 3, 4, 5];
         for (from, chan, rssi) in [(home, 1u32, -60i32), ([2, 0x53, 0x49, 0x4d, 0, 1], 6, -40)] {
             let mut b = SocBus::new(0, [0; 6]);
-            b.periph.wifi.link.attach(Some(VirtualAp::new(wifi::ApConfig::parse("ssid=demo,chan=6,bssid=02:53:49:4d:00:01").unwrap(), false)), None);
-            let left_out = b.periph.wifi.link.set_beacons(vec![wifi::BeaconAp { ssid: "Home".into(), bssid: home, channel: 1, rssi: -60, secure: true }]);
+            b.periph.wifi.link.attach(
+                Some(VirtualAp::new(
+                    wifi::ApConfig::parse("ssid=demo,chan=6,bssid=02:53:49:4d:00:01").unwrap(),
+                    false,
+                )),
+                None,
+            );
+            let left_out = b.periph.wifi.link.set_beacons(vec![wifi::BeaconAp {
+                ssid: "Home".into(),
+                bssid: home,
+                channel: 1,
+                rssi: -60,
+                secure: true,
+            }]);
             assert_eq!(left_out, Some(vec![]));
             let mut frame = [0u8; 24];
-            frame[0] = 0x80;                                                     // beacon
+            frame[0] = 0x80; // beacon
             frame[4..10].fill(0xff);
             frame[10..16].copy_from_slice(&from);
             let (desc, buf) = (0x3ffb_0000, 0x3ffb_1000);
-            b.write32(desc, (1 << 31) | 0xfff).unwrap();                         // owner DMA, size 4095
+            b.write32(desc, (1 << 31) | 0xfff).unwrap(); // owner DMA, size 4095
             b.write32(desc + 4, buf).unwrap();
             b.write32(desc + 8, desc + 12).unwrap();
             b.periph.wifi.write(0x088, desc);
             b.periph.wifi.write(0x084, 1 << 31);
             assert!(b.wifi_rx_fill(&frame, 1234, false).is_some());
-            assert_eq!(b.read32(buf).unwrap() & 0xff, (rssi + 96) as u32, "RSSI of {from:02x?}");
-            assert_eq!(b.read32(buf + 8).unwrap(), 0xa6 | (chan << 16), "channel of {from:02x?}");
+            assert_eq!(
+                b.read32(buf).unwrap() & 0xff,
+                (rssi + 96) as u32,
+                "RSSI of {from:02x?}"
+            );
+            assert_eq!(
+                b.read32(buf + 8).unwrap(),
+                0xa6 | (chan << 16),
+                "channel of {from:02x?}"
+            );
         }
     }
 
@@ -436,7 +520,10 @@ mod tests {
             frame[16..22].copy_from_slice(&cfg.bssid);
             frame[26] = 1;
             frame[30..].fill(0xa5); // Beyond length: must not be transmitted.
-            b.periph.wifi.link.attach(Some(VirtualAp::new(cfg, false)), None);
+            b.periph
+                .wifi
+                .link
+                .attach(Some(VirtualAp::new(cfg, false)), None);
             b.periph.write32(0x3ff0_00cc, 0x406);
             let desc = 0x3ffb_0000;
             let buf = DRAM_HIGH - 32;
@@ -493,7 +580,8 @@ mod tests {
     fn shared_station_paces_beacons_and_preserves_relay_selection_on_reboot() {
         use esp_soc::SocBus as _;
         let mut b = SocBus::new(0, [0; 6]);
-        b.attach_wifi(wifi::ApConfig::parse("").unwrap(), None).unwrap();
+        b.attach_wifi(wifi::ApConfig::parse("").unwrap(), None)
+            .unwrap();
         b.set_ethernet_relay(true).unwrap();
         assert!(b.receive_ethernet_frame(&[0; 13]).is_err());
         b.receive_ethernet_frame(&[0; 14]).unwrap();
@@ -507,7 +595,16 @@ mod tests {
         b.cycles = 24_000_000;
         xtensa_lx7::bus::Bus::tick(&mut b, 1);
         assert_eq!(b.periph.wifi.link.rx_frames(), 1);
-        b.periph.wifi.link.ap_mut().unwrap().queue.push(wifi::AirFrame { at_us: 100_000, frame: vec![0; 24] });
+        b.periph
+            .wifi
+            .link
+            .ap_mut()
+            .unwrap()
+            .queue
+            .push(wifi::AirFrame {
+                at_us: 100_000,
+                frame: vec![0; 24],
+            });
         b.wifi_step();
         assert_eq!(b.periph.wifi.link.rx_frames(), 1);
         b.cycles += 240 * 400;
@@ -600,7 +697,10 @@ mod tests {
     fn dport_gates_transmit_routes_interrupt_and_resets_mac() {
         use xtensa_lx7::bus::Bus;
         let mut b = SocBus::new(0, [2, 0, 0, 0, 0, 1]);
-        b.periph.wifi.link.attach(Some(VirtualAp::new(wifi::ApConfig::parse("").unwrap(), false)), Some(esp_soc::net::VirtualNet::new(false)));
+        b.periph.wifi.link.attach(
+            Some(VirtualAp::new(wifi::ApConfig::parse("").unwrap(), false)),
+            Some(esp_soc::net::VirtualNet::new(false)),
+        );
         b.dma_write_word(0x3ffb_0000, (1 << 31) | (24 << 12) | 24);
         b.dma_write_word(0x3ffb_0004, 0x3ffb_1000);
         b.write32(0x3ff0_0104, 7).unwrap();
@@ -624,7 +724,10 @@ mod tests {
     #[test]
     fn receive_dma_uses_classic_header_and_rejects_invalid_buffers() {
         let mut b = SocBus::new(0, [2, 0, 0, 0, 0, 1]);
-        b.periph.wifi.link.attach(Some(VirtualAp::new(wifi::ApConfig::parse("").unwrap(), false)), Some(esp_soc::net::VirtualNet::new(false)));
+        b.periph.wifi.link.attach(
+            Some(VirtualAp::new(wifi::ApConfig::parse("").unwrap(), false)),
+            Some(esp_soc::net::VirtualNet::new(false)),
+        );
         let desc = 0x3ffb_0000;
         let buf = 0x3ffb_1000;
         let control = (1 << 31) | 1600;
@@ -666,11 +769,21 @@ mod tests {
     fn rx_ctrl_marks_a_frame_for_the_guests_access_point_with_bit_29_alone() {
         // the softAP's slots as ESP-IDF v5.3.6 writes them: station 24:6f:28:00:11:22 in slot 0,
         // its access point, one higher, in slot 1
-        let (station, ap) = ([0x24, 0x6f, 0x28, 0x00, 0x11, 0x22], [0x24, 0x6f, 0x28, 0x00, 0x11, 0x23]);
+        let (station, ap) = (
+            [0x24, 0x6f, 0x28, 0x00, 0x11, 0x22],
+            [0x24, 0x6f, 0x28, 0x00, 0x11, 0x23],
+        );
         let flags = |slots: bool, a1: [u8; 6]| {
             let mut b = SocBus::new(0, [2, 0, 0, 0, 0, 1]);
             if slots {
-                for (off, v) in [(0x040, 0x0028_6f24), (0x044, 0x2211), (0x048, 0x0028_6f24), (0x04c, 0x2311)] { b.periph.wifi.write(off, v); }
+                for (off, v) in [
+                    (0x040, 0x0028_6f24),
+                    (0x044, 0x2211),
+                    (0x048, 0x0028_6f24),
+                    (0x04c, 0x2311),
+                ] {
+                    b.periph.wifi.write(off, v);
+                }
             }
             let (desc, buf) = (0x3ffb_0000, 0x3ffb_1000);
             b.dma_write_word(desc, (1 << 31) | 1600);
@@ -678,7 +791,7 @@ mod tests {
             b.dma_write_word(desc + 8, 0);
             b.periph.wifi.write(0x088, desc);
             let mut frame = [0u8; 30];
-            frame[0] = 0xb0;                                                   // authentication
+            frame[0] = 0xb0; // authentication
             frame[4..10].copy_from_slice(&a1);
             b.wifi_rx_deliver(&frame, 1000, false);
             b.dma_read_word(buf).unwrap() & 0x7000_0000
@@ -704,7 +817,11 @@ impl Device for Analog {
             0 | 4 | 8 | 12 | 16 => {
                 let result = self.registers.read(off, value, |_| &0);
                 // RFPLL host 1, slave 0x62, register 7 polls calibration-done bit 7.
-                if off == 4 && value & 0xffff == 0x0762 { result | (1 << 23) } else { result }
+                if off == 4 && value & 0xffff == 0x0762 {
+                    result | (1 << 23)
+                } else {
+                    result
+                }
             }
             // ram_txdc_cal_v70 waits for bit 24, then reads comparator signs 31:30.
             0x4c => (value & 0x3fff_ffff) | (1 << 24),
@@ -717,7 +834,9 @@ impl Device for Analog {
         }
     }
     fn write(&mut self, off: u32, value: u32) -> WriteEffect {
-        if matches!(off, 0 | 4 | 8 | 12 | 16) { self.registers.write(off, value); }
+        if matches!(off, 0 | 4 | 8 | 12 | 16) {
+            self.registers.write(off, value);
+        }
         self.ram.write(off, value);
         WriteEffect::NONE
     }

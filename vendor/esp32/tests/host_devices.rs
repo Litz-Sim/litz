@@ -2,34 +2,63 @@ use esp_soc::board::BoardEdge;
 
 use esp32::bus::SocBus;
 use esp_soc::{BoardModel, SocBus as _};
-use xtensa_lx7::bus::Bus;
 use std::sync::{Arc, Mutex};
+use xtensa_lx7::bus::Bus;
 
 #[derive(Default)]
-struct Probe { edges: Vec<BoardEdge>, writes: Vec<u64>, uart: Vec<(esp_soc::uart::UartRoute, u8)> }
+struct Probe {
+    edges: Vec<BoardEdge>,
+    writes: Vec<u64>,
+    uart: Vec<(esp_soc::uart::UartRoute, u8)>,
+}
 struct Board(Arc<Mutex<Probe>>);
 impl BoardModel for Board {
-    fn name(&self) -> &'static str { "host-test" }
-    fn gpio_output_at(&mut self, cycle: u64, _: &[(u8, bool)], _: u64, _: u64) {
-        let mut p = self.0.lock().unwrap(); p.writes.push(cycle);
-        p.edges.push(BoardEdge { cycle, pin: 5, level: true });
+    fn name(&self) -> &'static str {
+        "host-test"
     }
-    fn take_edges(&mut self) -> Vec<BoardEdge> { std::mem::take(&mut self.0.lock().unwrap().edges) }
-    fn uart_tx(&mut self, _: u64, route: esp_soc::uart::UartRoute, byte: u8) { self.0.lock().unwrap().uart.push((route, byte)); }
-    fn uart_rx(&mut self, _: u64) -> Vec<esp_soc::uart::UartInput> { vec![esp_soc::uart::UartInput::new(5, 115200, vec![42])] }
+    fn gpio_output_at(&mut self, cycle: u64, _: &[(u8, bool)], _: u64, _: u64) {
+        let mut p = self.0.lock().unwrap();
+        p.writes.push(cycle);
+        p.edges.push(BoardEdge {
+            cycle,
+            pin: 5,
+            level: true,
+        });
+    }
+    fn take_edges(&mut self) -> Vec<BoardEdge> {
+        std::mem::take(&mut self.0.lock().unwrap().edges)
+    }
+    fn uart_tx(&mut self, _: u64, route: esp_soc::uart::UartRoute, byte: u8) {
+        self.0.lock().unwrap().uart.push((route, byte));
+    }
+    fn uart_rx(&mut self, _: u64) -> Vec<esp_soc::uart::UartInput> {
+        vec![esp_soc::uart::UartInput::new(5, 115200, vec![42])]
+    }
 }
-fn bus() -> SocBus { SocBus::new(4 << 20, [0; 6]) }
+fn bus() -> SocBus {
+    SocBus::new(4 << 20, [0; 6])
+}
 #[test]
 fn uart_apb_ahb_and_pin_receive() {
-    let mut b = bus(); let probe = Arc::new(Mutex::new(Probe::default())); b.board = Box::new(Board(probe.clone())); b.attach_board_devices();
+    let mut b = bus();
+    let probe = Arc::new(Mutex::new(Probe::default()));
+    b.board = Box::new(Board(probe.clone()));
+    b.attach_board_devices();
     b.write32(0x3ff4_9048, (2 << 12) | (1 << 9)).unwrap();
     b.write32(0x3ff4_906c, (2 << 12) | (1 << 9)).unwrap();
-    b.write32(0x3ff4_4540, 17).unwrap(); b.write32(0x3ff4_4024, 1 << 4).unwrap();
+    b.write32(0x3ff4_4540, 17).unwrap();
+    b.write32(0x3ff4_4024, 1 << 4).unwrap();
     b.write32(0x3ff4_4174, 0x80 | 5).unwrap(); // UART1 RX signal 17
     b.write32(0x3ff5_0014, 694).unwrap();
-    b.write32(0x3ff5_0000, 65).unwrap(); b.write32(0x6001_0000, 66).unwrap();
-    let p = probe.lock().unwrap(); assert_eq!(p.uart.len(), 2); assert!(p.uart[0].0.transmits_on(4)); assert_eq!(p.uart[1].1, 66); drop(p);
-    b.tick(1); assert_eq!(b.read32(0x6001_0000), Ok(42));
+    b.write32(0x3ff5_0000, 65).unwrap();
+    b.write32(0x6001_0000, 66).unwrap();
+    let p = probe.lock().unwrap();
+    assert_eq!(p.uart.len(), 2);
+    assert!(p.uart[0].0.transmits_on(4));
+    assert_eq!(p.uart[1].1, 66);
+    drop(p);
+    b.tick(1);
+    assert_eq!(b.read32(0x6001_0000), Ok(42));
     b.write32(0x3ff5_0014, 8333).unwrap();
     assert!(b.periph.uart_route(1).matches_baud(9600));
     b.write32(0x3ff5_0020, 0).unwrap();
@@ -40,13 +69,16 @@ fn uart_apb_ahb_and_pin_receive() {
 fn uart_matrix_receive_does_not_require_gpio_output_mux() {
     struct Gps;
     impl BoardModel for Gps {
-        fn name(&self) -> &'static str { "gps" }
+        fn name(&self) -> &'static str {
+            "gps"
+        }
         fn uart_rx(&mut self, _: u64) -> Vec<esp_soc::uart::UartInput> {
             vec![esp_soc::uart::UartInput::new(4, 9600, b"$G".to_vec())]
         }
     }
     let mut b = bus();
-    b.board = Box::new(Gps); b.attach_board_devices();
+    b.board = Box::new(Gps);
+    b.attach_board_devices();
     // Arduino HardwareSerial(1), RX GPIO4: input enabled, output mux untouched.
     b.write32(0x3ff4_9048, 1 << 9).unwrap();
     b.write32(0x3ff4_4174, 0x80 | 4).unwrap();
@@ -68,7 +100,10 @@ fn uart_matrix_receive_does_not_require_gpio_output_mux() {
 
 #[test]
 fn uart1_uart2_native_pads_use_iomux_function_4() {
-    let mut b = bus(); let probe = Arc::new(Mutex::new(Probe::default())); b.board = Box::new(Board(probe.clone())); b.attach_board_devices();
+    let mut b = bus();
+    let probe = Arc::new(Mutex::new(Probe::default()));
+    b.board = Box::new(Board(probe.clone()));
+    b.attach_board_devices();
     // Reset pads are at function 0 (SD_DATA3 on GPIO10, GPIO17_0 on GPIO17): no UART1/UART2 route.
     b.write32(0x3ff4_9058, 1 << 9).unwrap(); // GPIO10 function 0, input enabled
     b.write32(0x3ff4_904c, 1 << 9).unwrap(); // GPIO16 function 0, input enabled
@@ -96,52 +131,96 @@ fn uart1_uart2_native_pads_use_iomux_function_4() {
 fn physical_spi_excludes_released_and_high_selects() {
     struct SpiBoard(Arc<Mutex<Vec<esp_soc::board::SpiPins>>>);
     impl BoardModel for SpiBoard {
-        fn name(&self) -> &'static str { "spi-pins" }
-        fn uses_spi_pins(&self) -> bool { true }
-        fn spi_transfer_pins(&mut self, _: u8, pins: esp_soc::board::SpiPins, _: &[u8], len: usize) -> Vec<u8> {
-            self.0.lock().unwrap().push(pins); vec![0xa5; len]
+        fn name(&self) -> &'static str {
+            "spi-pins"
+        }
+        fn uses_spi_pins(&self) -> bool {
+            true
+        }
+        fn spi_transfer_pins(
+            &mut self,
+            _: u8,
+            pins: esp_soc::board::SpiPins,
+            _: &[u8],
+            len: usize,
+        ) -> Vec<u8> {
+            self.0.lock().unwrap().push(pins);
+            vec![0xa5; len]
         }
     }
-    let mut b = bus(); let routes = Arc::new(Mutex::new(Vec::new())); b.board = Box::new(SpiBoard(routes.clone())); b.attach_board_devices();
+    let mut b = bus();
+    let routes = Arc::new(Mutex::new(Vec::new()));
+    b.board = Box::new(SpiBoard(routes.clone()));
+    b.attach_board_devices();
     // SPI2 native clock/MOSI GPIO14/13, software CS GPIO4.
-    for addr in [0x3ff4_9030, 0x3ff4_9038] { b.write32(addr, (1 << 12) | (1 << 9)).unwrap(); }
+    for addr in [0x3ff4_9030, 0x3ff4_9038] {
+        b.write32(addr, (1 << 12) | (1 << 9)).unwrap();
+    }
     b.write32(0x3ff4_9048, (2 << 12) | (1 << 9)).unwrap();
     b.write32(0x3ff4_4024, 1 << 4).unwrap();
     for high in [false, true] {
-        b.write32(if high { 0x3ff4_4008 } else { 0x3ff4_400c }, 1 << 4).unwrap();
+        b.write32(if high { 0x3ff4_4008 } else { 0x3ff4_400c }, 1 << 4)
+            .unwrap();
         b.write32(0x3ff6_401c, (1 << 27) | (1 << 28) | 1).unwrap();
-        b.write32(0x3ff6_4028, 7).unwrap(); b.write32(0x3ff6_402c, 7).unwrap(); b.write32(0x3ff6_4000, 1 << 18).unwrap();
+        b.write32(0x3ff6_4028, 7).unwrap();
+        b.write32(0x3ff6_402c, 7).unwrap();
+        b.write32(0x3ff6_4000, 1 << 18).unwrap();
         let p = *routes.lock().unwrap().last().unwrap();
-        assert_ne!(p.sclk & (1 << 14), 0); assert_ne!(p.mosi & (1 << 13), 0);
+        assert_ne!(p.sclk & (1 << 14), 0);
+        assert_ne!(p.mosi & (1 << 13), 0);
         assert_eq!(p.cs & (1 << 4) != 0, !high);
     }
 }
 
 #[test]
 fn timestamped_feedback_and_released_pull_survive_reboot() {
-    let mut b = bus(); let probe = Arc::new(Mutex::new(Probe::default())); b.board = Box::new(Board(probe.clone())); b.attach_board_devices();
+    let mut b = bus();
+    let probe = Arc::new(Mutex::new(Probe::default()));
+    b.board = Box::new(Board(probe.clone()));
+    b.attach_board_devices();
     b.write32(0x3ff4_9048, (2 << 12) | (1 << 9)).unwrap();
-    b.write32(0x3ff4_906c, (2 << 12) | (1 << 9) | (1 << 8)).unwrap();
+    b.write32(0x3ff4_906c, (2 << 12) | (1 << 9) | (1 << 8))
+        .unwrap();
     b.cycles = 107;
-    b.write32(0x3ff4_4024, 1 << 4).unwrap(); b.write32(0x3ff4_4008, 1 << 4).unwrap();
+    b.write32(0x3ff4_4024, 1 << 4).unwrap();
+    b.write32(0x3ff4_4008, 1 << 4).unwrap();
     assert_eq!(probe.lock().unwrap().writes.last(), Some(&107));
     assert_ne!(b.read32(0x3ff4_403c).unwrap() & (1 << 5), 0);
-    b.gpio_set_input(5, false); b.reboot([0; 6]); assert_eq!(b.gpio_input() & (1 << 5), 0);
-    b.write32(0x3ff4_906c, (2 << 12) | (1 << 9) | (1 << 8)).unwrap();
-    b.gpio_release_input(5); assert_ne!(b.gpio_input() & (1 << 5), 0); assert!(b.gpio_state(5).unwrap().pull_up);
+    b.gpio_set_input(5, false);
+    b.reboot([0; 6]);
+    assert_eq!(b.gpio_input() & (1 << 5), 0);
+    b.write32(0x3ff4_906c, (2 << 12) | (1 << 9) | (1 << 8))
+        .unwrap();
+    b.gpio_release_input(5);
+    assert_ne!(b.gpio_input() & (1 << 5), 0);
+    assert!(b.gpio_state(5).unwrap().pull_up);
 }
 
 #[test]
 fn inactive_board_skips_tick_and_mmio_callbacks() {
     struct Inactive;
     impl BoardModel for Inactive {
-        fn name(&self) -> &'static str { "inactive" }
-        fn uses_gpio_edges(&self) -> bool { false }
-        fn advance_to(&mut self, _: u64) { panic!("inactive board advanced") }
-        fn uart_rx(&mut self, _: u64) -> Vec<esp_soc::uart::UartInput> { panic!("inactive UART polled") }
-        fn uart_tx(&mut self, _: u64, _: esp_soc::uart::UartRoute, _: u8) { panic!("inactive UART notified") }
-        fn gpio_output_at(&mut self, _: u64, _: &[(u8, bool)], _: u64, _: u64) { panic!("inactive GPIO notified") }
-        fn next_deadline(&self) -> Option<u64> { panic!("inactive deadline polled") }
+        fn name(&self) -> &'static str {
+            "inactive"
+        }
+        fn uses_gpio_edges(&self) -> bool {
+            false
+        }
+        fn advance_to(&mut self, _: u64) {
+            panic!("inactive board advanced")
+        }
+        fn uart_rx(&mut self, _: u64) -> Vec<esp_soc::uart::UartInput> {
+            panic!("inactive UART polled")
+        }
+        fn uart_tx(&mut self, _: u64, _: esp_soc::uart::UartRoute, _: u8) {
+            panic!("inactive UART notified")
+        }
+        fn gpio_output_at(&mut self, _: u64, _: &[(u8, bool)], _: u64, _: u64) {
+            panic!("inactive GPIO notified")
+        }
+        fn next_deadline(&self) -> Option<u64> {
+            panic!("inactive deadline polled")
+        }
     }
     let mut b = bus();
     b.board = Box::new(Inactive);
@@ -163,33 +242,50 @@ fn tick_reference(b: &mut SocBus, ticks: u32) {
 
 #[test]
 fn i2s_native_dma_packs_pcm_and_raises_eof() {
-    let mut b = bus(); let base = 0x3ff4_f000;
+    let mut b = bus();
+    let base = 0x3ff4_f000;
     b.write32(0x3ff0_00c0, 1 << 4).unwrap();
-    for (address, value) in [(0x3ffb_0100, 0x8000_0008), (0x3ffb_0104, 0x3ffb_0200), (0x3ffb_0108, 0)] { b.write32(address, value).unwrap(); }
+    for (address, value) in [
+        (0x3ffb_0100, 0x8000_0008),
+        (0x3ffb_0104, 0x3ffb_0200),
+        (0x3ffb_0108, 0),
+    ] {
+        b.write32(address, value).unwrap();
+    }
     b.i2s_input(0).unwrap().push(&[[123, -456], [789, -123]]);
     b.write32(base + 0xac, 25 | (1 << 20)).unwrap();
     b.write32(base + 0xb0, (25 << 6) | (16 << 18)).unwrap();
     b.write32(base + 0x14, 1 << 9).unwrap();
     b.write32(base + 0x24, 2).unwrap();
-    b.write32(base + 0x34, (1 << 29) | 0xb0100).unwrap(); b.write32(base + 8, 1 << 5).unwrap();
+    b.write32(base + 0x34, (1 << 29) | 0xb0100).unwrap();
+    b.write32(base + 8, 1 << 5).unwrap();
     tick_reference(&mut b, 60_000);
-    assert_eq!(b.read32(0x3ffb_0200), Ok(123 | ((-456i16 as u16 as u32) << 16)));
+    assert_eq!(
+        b.read32(0x3ffb_0200),
+        Ok(123 | ((-456i16 as u16 as u32) << 16))
+    );
     assert_eq!(b.read32(base + 0x3c), Ok(0x3ffb_0100));
     assert_ne!(b.read32(base + 0x10).unwrap() & (1 << 9), 0);
     assert_eq!(b.read32(0x3ffb_0100).unwrap() >> 31, 0);
     // IN_DONE (bit 8) and IN_SUC_EOF (bit 9) raw; no IN_DSCR_ERR or IN_DSCR_EMPTY.
-    assert_eq!(b.read32(base + 0xc).unwrap() & ((1 << 8) | (1 << 9) | (1 << 13) | (1 << 15)), (1 << 8) | (1 << 9));
+    assert_eq!(
+        b.read32(base + 0xc).unwrap() & ((1 << 8) | (1 << 9) | (1 << 13) | (1 << 15)),
+        (1 << 8) | (1 << 9)
+    );
 }
 /// 16-bit stereo at 8 kHz: one 4-byte frame per 30,000 bus-reference ticks.
 fn receiver(b: &mut SocBus, port: usize, size: u32, buffer: u32) -> (u32, u32) {
     let base = [0x3ff4_f000, 0x3ff6_d000][port];
     let desc = 0x3ffb_0100 + port as u32 * 12;
-    for (off, value) in [(0, (1 << 31) | size), (4, buffer), (8, 0)] { b.write32(desc + off, value).unwrap(); }
+    for (off, value) in [(0, (1 << 31) | size), (4, buffer), (8, 0)] {
+        b.write32(desc + off, value).unwrap();
+    }
     b.write32(base + 0xac, 25 | (1 << 20)).unwrap();
     b.write32(base + 0xb0, (25 << 6) | (16 << 18)).unwrap();
     b.write32(base + 0x14, (1 << 9) | (1 << 13)).unwrap();
     b.write32(base + 0x24, size / 4).unwrap();
-    b.write32(base + 0x34, (1 << 29) | (desc & 0xfffff)).unwrap();
+    b.write32(base + 0x34, (1 << 29) | (desc & 0xfffff))
+        .unwrap();
     b.write32(base + 8, 1 << 5).unwrap();
     (base, desc)
 }
@@ -231,23 +327,60 @@ fn i2s_pin_source_checks_all_wires_and_survives_reboot() {
     for (port, data_signal, clock_signal, ws_signal) in [(0, 155, 27, 28), (1, 181, 164, 165)] {
         let mut b = bus();
         assert!(b.pcm_sources().is_none());
-        let mut source = PcmSource::new(8000, PcmPins::I2s { bclk: 4, ws: 5, data: 18 }).unwrap();
+        let mut source = PcmSource::new(
+            8000,
+            PcmPins::I2s {
+                bclk: 4,
+                ws: 5,
+                data: 18,
+            },
+        )
+        .unwrap();
         source.push(&[[11, 22]; 16]);
         b.attach_pcm_sources().unwrap().inputs.push(Some(source));
-        let mut second = PcmSource::new(8000, PcmPins::I2s { bclk: 4, ws: 5, data: 18 }).unwrap();
+        let mut second = PcmSource::new(
+            8000,
+            PcmPins::I2s {
+                bclk: 4,
+                ws: 5,
+                data: 18,
+            },
+        )
+        .unwrap();
         second.push(&[[55, 66]; 16]);
         b.attach_pcm_sources().unwrap().inputs.push(Some(second));
         b.i2s_input(port).unwrap().push(&[[33, 44]]);
         b.reboot([0; 6]);
         assert_eq!(b.periph.i2s[port].inner.rx_source(), None);
-        assert_eq!(b.pcm_sources().unwrap().inputs[0].as_ref().unwrap().queued_frames(), 16);
+        assert_eq!(
+            b.pcm_sources().unwrap().inputs[0]
+                .as_ref()
+                .unwrap()
+                .queued_frames(),
+            16
+        );
         tick_reference(&mut b, 30_000);
         // The read-only view does not advance source time; attaching synchronizes it.
-        assert_eq!(b.pcm_sources().unwrap().inputs[0].as_ref().unwrap().queued_frames(), 16);
-        assert_eq!(b.attach_pcm_sources().unwrap().inputs[0].as_ref().unwrap().queued_frames(), 15);
+        assert_eq!(
+            b.pcm_sources().unwrap().inputs[0]
+                .as_ref()
+                .unwrap()
+                .queued_frames(),
+            16
+        );
+        assert_eq!(
+            b.attach_pcm_sources().unwrap().inputs[0]
+                .as_ref()
+                .unwrap()
+                .queued_frames(),
+            15
+        );
         b.write32(0x3ff0_00c0, 1 << [4, 21][port]).unwrap();
-        for mux in [0x48, 0x6c, 0x70] { b.write32(0x3ff4_9000 + mux, (2 << 12) | (1 << 9)).unwrap(); }
-        b.write32(0x3ff4_4130 + data_signal * 4, (1 << 7) | 18).unwrap();
+        for mux in [0x48, 0x6c, 0x70] {
+            b.write32(0x3ff4_9000 + mux, (2 << 12) | (1 << 9)).unwrap();
+        }
+        b.write32(0x3ff4_4130 + data_signal * 4, (1 << 7) | 18)
+            .unwrap();
         b.write32(0x3ff4_4530 + 4 * 4, clock_signal).unwrap();
         b.write32(0x3ff4_4530 + 5 * 4, ws_signal).unwrap();
         receiver(&mut b, port, 4, 0x3ffb_0200);
@@ -265,7 +398,11 @@ fn i2s_pin_source_checks_all_wires_and_survives_reboot() {
             b.write32(address, value).unwrap();
             receiver(&mut b, port, 4, 0x3ffb_0200);
             tick_reference(&mut b, 30_000);
-            assert_eq!(b.read32(0x3ffb_0200), Ok(expected), "signal register {address:#x}");
+            assert_eq!(
+                b.read32(0x3ffb_0200),
+                Ok(expected),
+                "signal register {address:#x}"
+            );
             assert_eq!(b.periph.i2s[port].inner.rx_source(), None);
             b.write32(address, old).unwrap();
         }
@@ -291,25 +428,44 @@ fn i2s_two_descriptor_ring_keeps_running_after_owner_writeback() {
         let second = first + 0x40;
         let eof = 1 << 30;
         for (desc, buf, next) in [(first, 0x3ffb_0200, second), (second, 0x3ffb_0204, first)] {
-            for (off, v) in [(0, (1 << 31) | eof | (4 << 12) | 4), (4, buf), (8, next)] { b.write32(desc + off, v).unwrap(); }
+            for (off, v) in [(0, (1 << 31) | eof | (4 << 12) | 4), (4, buf), (8, next)] {
+                b.write32(desc + off, v).unwrap();
+            }
         }
         b.write32(0x3ff0_00c0, 1 << [4, 21][port]).unwrap();
-        b.i2s_input(port).unwrap().push(&[[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12]]);
+        b.i2s_input(port)
+            .unwrap()
+            .push(&[[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12]]);
         for pass in 0..6u32 {
             tick_reference(&mut b, 30_000);
-            let (desc, buf) = if pass % 2 == 0 { (first, 0x3ffb_0200) } else { (second, 0x3ffb_0204) };
+            let (desc, buf) = if pass % 2 == 0 {
+                (first, 0x3ffb_0200)
+            } else {
+                (second, 0x3ffb_0204)
+            };
             let n = 2 * pass + 1;
             assert_eq!(b.read32(buf), Ok(n | (n + 1) << 16), "pass {pass}");
-            assert_eq!(b.read32(desc), Ok(eof | (4 << 12) | 4), "pass {pass}: owner cleared, length 4");
+            assert_eq!(
+                b.read32(desc),
+                Ok(eof | (4 << 12) | 4),
+                "pass {pass}: owner cleared, length 4"
+            );
             assert_eq!(b.read32(base + 0x3c), Ok(desc));
-            assert_eq!(b.read32(base + 0xc).unwrap() & ((1 << 9) | (1 << 13) | (1 << 15)), 1 << 9, "pass {pass}");
+            assert_eq!(
+                b.read32(base + 0xc).unwrap() & ((1 << 9) | (1 << 13) | (1 << 15)),
+                1 << 9,
+                "pass {pass}"
+            );
             b.write32(base + 0x18, u32::MAX).unwrap();
         }
         // With LC_CONF CHECK_OWNER (bit 12) set, the CPU-owned descriptor stops the ring.
         b.write32(base + 0x60, 1 << 12).unwrap();
         b.i2s_input(port).unwrap().push(&[[13, 14]]);
         tick_reference(&mut b, 30_000);
-        assert_eq!(b.read32(base + 0xc).unwrap() & ((1 << 9) | (1 << 13)), 1 << 13);
+        assert_eq!(
+            b.read32(base + 0xc).unwrap() & ((1 << 9) | (1 << 13)),
+            1 << 13
+        );
         assert_eq!(b.read32(0x3ffb_0200), Ok(9 | 10 << 16));
     }
 }
@@ -338,12 +494,21 @@ fn i2s_rejects_empty_unowned_with_check_owner_and_non_dram_descriptors() {
         b.load_bytes(address + 4, &buffer.to_le_bytes()).unwrap();
         b.load_bytes(address + 8, &0u32.to_le_bytes()).unwrap();
         b.load_bytes(buffer, &[0xa5; 2]).unwrap();
-        b.write32(base + 0x34, (1 << 29) | (address & 0xfffff)).unwrap();
+        b.write32(base + 0x34, (1 << 29) | (address & 0xfffff))
+            .unwrap();
         b.i2s_input(0).unwrap().push(&[[7, 8]]);
         tick_reference(&mut b, 30_000);
-        assert_eq!(b.read32(base + 0x10).unwrap(), 1 << 13, "{address:#x} {buffer:#x}");
+        assert_eq!(
+            b.read32(base + 0x10).unwrap(),
+            1 << 13,
+            "{address:#x} {buffer:#x}"
+        );
         assert_eq!(b.read32(address), Ok(control), "{address:#x} {buffer:#x}");
-        assert_eq!((b.read8(buffer), b.read8(buffer + 1)), (Ok(0xa5), Ok(0xa5)), "{address:#x} {buffer:#x}");
+        assert_eq!(
+            (b.read8(buffer), b.read8(buffer + 1)),
+            (Ok(0xa5), Ok(0xa5)),
+            "{address:#x} {buffer:#x}"
+        );
     }
     // Owned bit clear and CHECK_OWNER at its reset value 0: IDF's ring descriptors are accepted.
     let mut b = bus();
@@ -415,7 +580,9 @@ fn i2s_eof_words_span_descriptors_and_reject_unrepresentable_counts() {
         let (_, desc) = receiver(&mut b, port, 4, 0x3ffb_0200);
         let next = desc + 0x40;
         b.write32(desc + 8, next).unwrap();
-        for (off, v) in [(0, (1 << 31) | 4), (4, 0x3ffb_0204), (8, 0)] { b.write32(next + off, v).unwrap(); }
+        for (off, v) in [(0, (1 << 31) | 4), (4, 0x3ffb_0204), (8, 0)] {
+            b.write32(next + off, v).unwrap();
+        }
         b.write32(base + 0x24, 2).unwrap();
         b.write32(0x3ff0_00c0, 1 << [4, 21][port]).unwrap();
         b.i2s_input(port).unwrap().push(&[[1, 2], [3, 4]]);

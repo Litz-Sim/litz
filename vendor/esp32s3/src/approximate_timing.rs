@@ -1,9 +1,11 @@
 //! Deliberately provisional whole-firmware timing. Not a cycle-accuracy claim.
 //! Fixed-size counters replace the strict model's per-instruction receipt ledger.
-use emu_core::{CostModel, ExecutionFacts, LifecycleFacts, LifecycleKind, MemoryAccessKind, StepKind};
+use crate::approximate_cache::{CacheAccess, CacheConfig, CacheTiming};
+use emu_core::{
+    CostModel, ExecutionFacts, LifecycleFacts, LifecycleKind, MemoryAccessKind, StepKind,
+};
 use std::{cell::RefCell, rc::Rc};
 use xtensa_lx7::Op;
-use crate::approximate_cache::{CacheAccess, CacheConfig, CacheTiming};
 
 #[derive(Clone, Copy, Debug)]
 pub struct ApproximateTimingConfig {
@@ -20,7 +22,14 @@ pub struct ApproximateTimingConfig {
 
 impl Default for ApproximateTimingConfig {
     fn default() -> Self {
-        Self { issue: 1, taken_branch: 3, trap: 3, external_extra: 0, mmio_extra: 0, data_cache: None }
+        Self {
+            issue: 1,
+            taken_branch: 3,
+            trap: 3,
+            external_extra: 0,
+            mmio_extra: 0,
+            data_cache: None,
+        }
     }
 }
 
@@ -48,15 +57,22 @@ pub struct ApproximateCostModel {
 }
 
 impl Default for ApproximateCostModel {
-    fn default() -> Self { Self::new(ApproximateTimingConfig::default()) }
+    fn default() -> Self {
+        Self::new(ApproximateTimingConfig::default())
+    }
 }
 
 impl ApproximateCostModel {
     pub fn new(config: ApproximateTimingConfig) -> Self {
-        Self { config, stats: Rc::new(RefCell::new(ApproximateTimingStats::default())),
-            data_cache: Rc::new(RefCell::new(config.data_cache.map(CacheTiming::new))) }
+        Self {
+            config,
+            stats: Rc::new(RefCell::new(ApproximateTimingStats::default())),
+            data_cache: Rc::new(RefCell::new(config.data_cache.map(CacheTiming::new))),
+        }
     }
-    pub fn stats(&self) -> ApproximateTimingStats { *self.stats.borrow() }
+    pub fn stats(&self) -> ApproximateTimingStats {
+        *self.stats.borrow()
+    }
 }
 
 impl CostModel for ApproximateCostModel {
@@ -64,15 +80,21 @@ impl CostModel for ApproximateCostModel {
         if facts.chip != "esp32s3" || facts.cores != 2 {
             return Err("approximate timing supports ESP32-S3 only".into());
         }
-        if facts.kind == LifecycleKind::Attach { *self.stats.borrow_mut() = ApproximateTimingStats::default(); }
+        if facts.kind == LifecycleKind::Attach {
+            *self.stats.borrow_mut() = ApproximateTimingStats::default();
+        }
         if matches!(facts.kind, LifecycleKind::Attach | LifecycleKind::ChipReset) {
-            if let Some(cache) = self.data_cache.borrow_mut().as_mut() { cache.reset(); }
+            if let Some(cache) = self.data_cache.borrow_mut().as_mut() {
+                cache.reset();
+            }
         }
         Ok(())
     }
 
     fn cycles(&mut self, facts: &ExecutionFacts<'_>) -> Result<u32, String> {
-        if facts.core >= 2 { return Err("invalid S3 core".into()); }
+        if facts.core >= 2 {
+            return Err("invalid S3 core".into());
+        }
         let mut stats = self.stats.borrow_mut();
         let mut cycles = self.config.issue.max(1);
         if !matches!(facts.outcome.kind, StepKind::Retired | StepKind::Idle) {
@@ -87,36 +109,60 @@ impl CostModel for ApproximateCostModel {
                 Op::Jx => 6,
                 _ => {
                     stats.opcode_fallbacks += 1;
-                    if facts.outcome.next_pc != facts.outcome.pc.wrapping_add(facts.outcome.length as u32) {
-                        if changes_pc(op) { cycles = self.config.taken_branch.max(1); }
-                        else { stats.zero_overhead_loop_edges += 1; }
+                    if facts.outcome.next_pc
+                        != facts.outcome.pc.wrapping_add(facts.outcome.length as u32)
+                    {
+                        if changes_pc(op) {
+                            cycles = self.config.taken_branch.max(1);
+                        } else {
+                            stats.zero_overhead_loop_edges += 1;
+                        }
                     }
                     cycles
                 }
             };
         }
-        if facts.outcome.control.is_some() { stats.controls += 1; }
+        if facts.outcome.control.is_some() {
+            stats.controls += 1;
+        }
         for access in facts.accesses {
-            if access.fault.is_some() { stats.faults += 1; }
+            if access.fault.is_some() {
+                stats.faults += 1;
+            }
             match access.address {
                 0x3c00_0000..=0x3dff_ffff | 0x4200_0000..=0x43ff_ffff => {
-                    if access.kind == MemoryAccessKind::Fetch { stats.external_fetches += 1; }
-                    else { stats.external_data += 1; }
+                    if access.kind == MemoryAccessKind::Fetch {
+                        stats.external_fetches += 1;
+                    } else {
+                        stats.external_data += 1;
+                    }
                     if access.kind != MemoryAccessKind::Fetch && access.fault.is_none() {
                         if let Some(cache) = self.data_cache.borrow_mut().as_mut() {
-                            let cost = cache.access(access.address, u32::from(access.width), access.kind == MemoryAccessKind::Write);
-                            cycles = cycles.saturating_add(cost.extra_cycles.min(u32::MAX as u64) as u32);
+                            let cost = cache.access(
+                                access.address,
+                                u32::from(access.width),
+                                access.kind == MemoryAccessKind::Write,
+                            );
+                            cycles = cycles
+                                .saturating_add(cost.extra_cycles.min(u32::MAX as u64) as u32);
                             stats.data_cache = cache.stats();
-                        } else { cycles = cycles.saturating_add(self.config.external_extra); }
-                    } else { cycles = cycles.saturating_add(self.config.external_extra); }
+                        } else {
+                            cycles = cycles.saturating_add(self.config.external_extra);
+                        }
+                    } else {
+                        cycles = cycles.saturating_add(self.config.external_extra);
+                    }
                 }
                 0x6000_0000..=0x600f_dfff => {
                     stats.mmio += 1;
                     cycles = cycles.saturating_add(self.config.mmio_extra);
                 }
-                0x3fc8_8000..=0x3fcf_ffff | 0x4037_0000..=0x403d_ffff |
-                0x4000_0000..=0x4005_ffff | 0x3ff0_0000..=0x3ff1_ffff |
-                0x5000_0000..=0x5000_1fff | 0x600f_e000..=0x600f_ffff => {}
+                0x3fc8_8000..=0x3fcf_ffff
+                | 0x4037_0000..=0x403d_ffff
+                | 0x4000_0000..=0x4005_ffff
+                | 0x3ff0_0000..=0x3ff1_ffff
+                | 0x5000_0000..=0x5000_1fff
+                | 0x600f_e000..=0x600f_ffff => {}
                 _ => stats.other_addresses += 1,
             }
         }
@@ -128,9 +174,54 @@ impl CostModel for ApproximateCostModel {
 
 fn changes_pc(op: Op) -> bool {
     use Op::*;
-    matches!(op,
-        J | Call0 | Call4 | Call8 | Call12 | Callx0 | Callx4 | Callx8 | Callx12 |
-        Ret | RetN | Retw | RetwN | Rfe | Rfue | Rfde | Rfwo | Rfwu | Rfi | Rfme |
-        Beqz | Bnez | Bltz | Bgez | BeqzN | BnezN | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui |
-        Bnone | Beq | Blt | Bltu | Ball | Bbc | Bbci | Bany | Bne | Bge | Bgeu | Bnall | Bbs | Bbsi | Bf | Bt)
+    matches!(
+        op,
+        J | Call0
+            | Call4
+            | Call8
+            | Call12
+            | Callx0
+            | Callx4
+            | Callx8
+            | Callx12
+            | Ret
+            | RetN
+            | Retw
+            | RetwN
+            | Rfe
+            | Rfue
+            | Rfde
+            | Rfwo
+            | Rfwu
+            | Rfi
+            | Rfme
+            | Beqz
+            | Bnez
+            | Bltz
+            | Bgez
+            | BeqzN
+            | BnezN
+            | Beqi
+            | Bnei
+            | Blti
+            | Bgei
+            | Bltui
+            | Bgeui
+            | Bnone
+            | Beq
+            | Blt
+            | Bltu
+            | Ball
+            | Bbc
+            | Bbci
+            | Bany
+            | Bne
+            | Bge
+            | Bgeu
+            | Bnall
+            | Bbs
+            | Bbsi
+            | Bf
+            | Bt
+    )
 }

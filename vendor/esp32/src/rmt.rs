@@ -68,7 +68,8 @@ impl ClassicRmt {
             outputs: (0..CHANNELS).map(|n| (n, false)).collect(),
             done: Vec::new(),
             tx_count: 0,
-            #[cfg(test)] tick_calls: 0,
+            #[cfg(test)]
+            tick_calls: 0,
         }
     }
 
@@ -108,7 +109,9 @@ impl ClassicRmt {
         self.tx_count += 1;
         self.done.retain(|(channel, _)| *channel != n);
         let bits = std::mem::take(&mut self.ch[n].bits);
-        if bits.len() <= MAX_FRAME_BITS { self.done.push((n, bits)); }
+        if bits.len() <= MAX_FRAME_BITS {
+            self.done.push((n, bits));
+        }
         self.idle(n);
         if self.conf1(n) & CONTINUOUS != 0 {
             self.ch[n].rd = 0;
@@ -158,7 +161,9 @@ impl ClassicRmt {
                 }
                 self.ch[n].symbol = self.mem[(n * WORDS + self.ch[n].rd) % self.mem.len()];
                 let sym = self.ch[n].symbol;
-                if sym & 0x7fff != 0 && self.ch[n].bits.len() <= MAX_FRAME_BITS { self.ch[n].bits.push(esp_periph::rmt::symbol_bit(sym)); }
+                if sym & 0x7fff != 0 && self.ch[n].bits.len() <= MAX_FRAME_BITS {
+                    self.ch[n].bits.push(esp_periph::rmt::symbol_bit(sym));
+                }
             }
             let half = (self.ch[n].symbol >> (16 * self.ch[n].phase)) as u16;
             self.ch[n].phase += 1;
@@ -171,8 +176,6 @@ impl ClassicRmt {
             self.ch[n].remaining = duration;
         }
     }
-
-
 }
 
 impl Device for ClassicRmt {
@@ -239,7 +242,10 @@ impl Device for ClassicRmt {
         (self.powered() && self.ch.iter().any(|c| c.running)).then_some(ClockDomain::Apb)
     }
     fn tick(&mut self, ticks: u64) {
-        #[cfg(test)] { self.tick_calls += 1; }
+        #[cfg(test)]
+        {
+            self.tick_calls += 1;
+        }
         if self.powered() {
             for n in 0..CHANNELS {
                 self.advance(n, ticks);
@@ -300,11 +306,15 @@ mod tests {
         let mut r = model();
         configure(&mut r, 0, 1, 1, true);
         r.write(0xf0, 3);
-        for i in 0..64 { r.write(ram(i), item(1, 1)); }
+        for i in 0..64 {
+            r.write(ram(i), item(1, 1));
+        }
         start(&mut r, 0);
         r.tick(2 * super::MAX_FRAME_BITS as u64 + 20_000);
         assert_eq!(r.ch[0].bits.len(), super::MAX_FRAME_BITS + 1);
-        for i in 0..64 { r.write(ram(i), 0); }
+        for i in 0..64 {
+            r.write(ram(i), 0);
+        }
         r.tick(128);
         assert!(r.done.is_empty());
         assert_eq!(r.read(0xa0) & 1, 1);
@@ -316,10 +326,14 @@ mod tests {
         let mut r = model();
         configure(&mut r, 0, 1, 1, true);
         r.write(0xf0, 3);
-        for i in 0..64 { r.write(ram(i), item(1, 1)); }
+        for i in 0..64 {
+            r.write(ram(i), item(1, 1));
+        }
         start(&mut r, 0);
         r.tick(2 * 6144 - 1);
-        for i in 0..64 { r.write(ram(i), 0); }
+        for i in 0..64 {
+            r.write(ram(i), 0);
+        }
         r.tick(128);
         assert_eq!(r.done.len(), 1);
         assert_eq!(r.done[0].1.len(), 6144);
@@ -344,7 +358,14 @@ mod tests {
         assert_eq!(r.read(0xa4), ends);
         assert_eq!(r.irq_sources(), 1);
         for n in 0..8 {
-            assert_eq!(r.done.iter().find(|(channel, _)| *channel == n as usize).unwrap().1, [n + 1 > 2]);
+            assert_eq!(
+                r.done
+                    .iter()
+                    .find(|(channel, _)| *channel == n as usize)
+                    .unwrap()
+                    .1,
+                [n + 1 > 2]
+            );
             assert_eq!(r.read(0x60 + 4 * n) & (7 << 24), 0);
             assert_eq!(r.read(conf1(n)) & (1 | (1 << 3) | (1 << 4)), 0);
         }

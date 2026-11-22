@@ -15,24 +15,41 @@ use esp_soc::devices::co5300::{Co5300, Co5300Scan};
 struct PanelBoard(Co5300);
 
 impl BoardModel for PanelBoard {
-    fn name(&self) -> &'static str { "co5300-test-fixture" }
+    fn name(&self) -> &'static str {
+        "co5300-test-fixture"
+    }
     fn spi_transfer(&mut self, host: u8, tx: &[u8], rx_len: usize) -> Vec<u8> {
-        if host == 2 { self.0.transaction(tx); }
+        if host == 2 {
+            self.0.transaction(tx);
+        }
         vec![0xff; rx_len]
     }
-    fn input_levels(&self) -> Vec<(u8, bool)> { self.0.tear_input().into_iter().collect() }
-    fn next_deadline(&self) -> Option<u64> { self.0.next_deadline() }
-    fn advance_to(&mut self, cycle: u64) { self.0.advance_to(cycle); }
-    fn take_edges(&mut self) -> Vec<BoardEdge> { self.0.take_edges() }
+    fn input_levels(&self) -> Vec<(u8, bool)> {
+        self.0.tear_input().into_iter().collect()
+    }
+    fn next_deadline(&self) -> Option<u64> {
+        self.0.next_deadline()
+    }
+    fn advance_to(&mut self, cycle: u64) {
+        self.0.advance_to(cycle);
+    }
+    fn take_edges(&mut self) -> Vec<BoardEdge> {
+        self.0.take_edges()
+    }
 }
 
 fn command(bus: &mut esp32s3::bus::SocBus, command: u8, data: &[u8]) {
     const SPI2: u32 = 0x6002_4000;
-    bus.write32(SPI2 + 0x10, (1 << 31) | (1 << 30) | (u32::from(!data.is_empty()) << 27)).unwrap();
+    bus.write32(
+        SPI2 + 0x10,
+        (1 << 31) | (1 << 30) | (u32::from(!data.is_empty()) << 27),
+    )
+    .unwrap();
     bus.write32(SPI2 + 0x14, 23 << 27).unwrap();
     bus.write32(SPI2 + 0x18, (7 << 28) | 0x02).unwrap();
     bus.write32(SPI2 + 0x04, (command as u32) << 16).unwrap();
-    bus.write32(SPI2 + 0x1c, (data.len() as u32 * 8).saturating_sub(1)).unwrap();
+    bus.write32(SPI2 + 0x1c, (data.len() as u32 * 8).saturating_sub(1))
+        .unwrap();
     let mut bytes = [0; 4];
     bytes[..data.len()].copy_from_slice(data);
     bus.write32(SPI2 + 0x98, u32::from_le_bytes(bytes)).unwrap();
@@ -44,7 +61,10 @@ fn scan_crossing_reaches_gpio38_status_and_the_cpu_interrupt_route() {
     const GPIO: u32 = 0x6000_4000;
     let mut bus = esp32s3::bus::SocBus::new(1024, 1024, [0; 6]);
     bus.board = Box::new(PanelBoard(Co5300::new(468, 466, 6).with_scan(Co5300Scan {
-        lines: 500, period: 15_000, pulse_width: 120, pin: 38,
+        lines: 500,
+        period: 15_000,
+        pulse_width: 120,
+        pin: 38,
     })));
     bus.attach_board_devices();
     bus.gpio_events = Some(Vec::new());
@@ -72,7 +92,10 @@ fn scan_crossing_reaches_gpio38_status_and_the_cpu_interrupt_route() {
     assert_eq!(bus.read32(GPIO + 0x40).unwrap() & (1 << 6), 0);
     assert_eq!(bus.read32(GPIO + 0x68).unwrap(), 1 << 6);
     assert_eq!(bus.periph.cpu_lines(0), 1 << 9);
-    assert_eq!(bus.gpio_events.as_deref(), Some(&[(9_600, 38, true), (9_720, 38, false)][..]));
+    assert_eq!(
+        bus.gpio_events.as_deref(),
+        Some(&[(9_600, 38, true), (9_720, 38, false)][..])
+    );
 
     bus.write32(GPIO + 0x58, 1 << 6).unwrap();
     command(&mut bus, 0x34, &[]);

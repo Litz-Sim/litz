@@ -14,13 +14,23 @@ pub struct Parlio {
     pub(crate) tx: Option<Box<Tx>>,
 }
 impl Parlio {
-    pub fn new() -> Self { Self::default() }
-    pub fn tx(&mut self) -> &mut Tx { self.tx.get_or_insert_with(Default::default) }
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn tx(&mut self) -> &mut Tx {
+        self.tx.get_or_insert_with(Default::default)
+    }
 }
 impl Device for Parlio {
-    fn read(&mut self, off: u32) -> u32 { self.tx().read(off) }
-    fn write(&mut self, off: u32, value: u32) -> WriteEffect { self.tx().write(off, value) }
-    fn irq_sources(&self) -> u64 { self.tx.as_ref().map_or(0, |tx| tx.irq_sources()) }
+    fn read(&mut self, off: u32) -> u32 {
+        self.tx().read(off)
+    }
+    fn write(&mut self, off: u32, value: u32) -> WriteEffect {
+        self.tx().write(off, value)
+    }
+    fn irq_sources(&self) -> u64 {
+        self.tx.as_ref().map_or(0, |tx| tx.irq_sources())
+    }
 }
 
 pub struct Tx {
@@ -35,7 +45,11 @@ pub struct Tx {
     pub done: Option<Vec<u16>>,
 }
 
-impl Default for Tx { fn default() -> Self { Self::new() } }
+impl Default for Tx {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Tx {
     pub fn new() -> Self {
@@ -119,7 +133,7 @@ impl Device for Tx {
     fn irq_sources(&self) -> u64 {
         u64::from(self.raw & self.ena != 0)
     }
- }
+}
 
 impl Tx {
     /// Functional TX completion after the complete DMA payload is staged.
@@ -131,7 +145,12 @@ impl Tx {
         }
         let bytes = if width == 16 { 2 } else { 1 };
         let count = 8 * bytes / usize::from(width);
-        if self.remaining < bytes || !self.remaining.is_multiple_of(bytes) || self.fifo.len() < self.remaining { return; }
+        if self.remaining < bytes
+            || !self.remaining.is_multiple_of(bytes)
+            || self.fifo.len() < self.remaining
+        {
+            return;
+        }
         while self.remaining >= bytes {
             let mut value = u16::from(self.fifo.pop_front().unwrap());
             if bytes == 2 {
@@ -199,9 +218,13 @@ mod tests {
     }
     #[test]
     fn widths_reset_and_invalid_formats() {
-        for (select, expected) in [(0, vec![0x1287]), (1, vec![0x87, 0x12]),
-            (2, vec![7, 8, 2, 1]), (3, vec![3, 1, 0, 2, 2, 0, 1, 0]),
-            (4, vec![1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0])] {
+        for (select, expected) in [
+            (0, vec![0x1287]),
+            (1, vec![0x87, 0x12]),
+            (2, vec![7, 8, 2, 1]),
+            (3, vec![3, 1, 0, 2, 2, 0, 1, 0]),
+            (4, vec![1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0]),
+        ] {
             let mut p = Tx::new();
             p.fifo.extend([0x87, 0x12]);
             p.write(8, (2 << 2) | (1 << 19) | (select << 27));
@@ -217,7 +240,10 @@ mod tests {
         p.write(8, 0);
         p.write(8, (1 << 2) | (1 << 19) | (7 << 27));
         p.complete();
-        assert!(p.done.is_none(), "reserved width must not shift or consume input");
+        assert!(
+            p.done.is_none(),
+            "reserved width must not shift or consume input"
+        );
         p.write(8, 1 << 30);
         assert!(p.fifo.is_empty());
         p.fifo.push_back(1);

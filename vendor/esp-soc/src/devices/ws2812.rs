@@ -26,13 +26,34 @@ struct GpioStream {
 
 impl Ws2812Chain {
     /// `n` LEDs in chain order.
-    pub fn new(n: usize) -> Self { Ws2812Chain { leds: vec![[0; 3]; n], updates: 0, gpio: GpioStream::default(), gpio_hz: 0, physical: None } }
+    pub fn new(n: usize) -> Self {
+        Ws2812Chain {
+            leds: vec![[0; 3]; n],
+            updates: 0,
+            gpio: GpioStream::default(),
+            gpio_hz: 0,
+            physical: None,
+        }
+    }
 
     /// A chain whose LED `i` sits at physical position `map[i]`. `map` must be a permutation.
     pub fn mapped(map: &'static [usize]) -> Self {
         let mut seen = vec![false; map.len()];
-        for &p in map { assert!(p < map.len() && !seen[p], "WS2812 physical map is not a permutation: {:?}", map); seen[p] = true; }
-        Ws2812Chain { leds: vec![[0; 3]; map.len()], updates: 0, gpio: GpioStream::default(), gpio_hz: 0, physical: Some(map) }
+        for &p in map {
+            assert!(
+                p < map.len() && !seen[p],
+                "WS2812 physical map is not a permutation: {:?}",
+                map
+            );
+            seen[p] = true;
+        }
+        Ws2812Chain {
+            leds: vec![[0; 3]; map.len()],
+            updates: 0,
+            gpio: GpioStream::default(),
+            gpio_hz: 0,
+            physical: Some(map),
+        }
     }
 
     /// Enable GPIO decoding at the board's nonzero cycle frequency. External board models and
@@ -81,14 +102,15 @@ impl Ws2812Chain {
 
     /// Deadline for a board's `next_deadline` callback, so quiet frames latch on C3 too.
     pub fn gpio_deadline(&self) -> Option<u64> {
-        self.gpio
-            .low_since
-            .map(|start| start.saturating_add((RESET_US * u64::from(self.gpio_hz)).div_ceil(1_000_000)))
+        self.gpio.low_since.map(|start| {
+            start.saturating_add((RESET_US * u64::from(self.gpio_hz)).div_ceil(1_000_000))
+        })
     }
 
     pub fn advance_gpio(&mut self, cycle: u64) {
         if self.gpio.low_since.is_some_and(|start| {
-            cycle.saturating_sub(start).saturating_mul(1_000_000) >= RESET_US * u64::from(self.gpio_hz)
+            cycle.saturating_sub(start).saturating_mul(1_000_000)
+                >= RESET_US * u64::from(self.gpio_hz)
         }) {
             let bits = std::mem::take(&mut self.gpio.bits);
             if !self.gpio.invalid {
@@ -103,12 +125,23 @@ impl Ws2812Chain {
     /// stream) changes nothing and does not count as an update.
     pub fn from_bits(&mut self, bits: &[bool]) {
         let n = bits.len() / 24;
-        if n == 0 { return; }
+        if n == 0 {
+            return;
+        }
         for i in 0..n.min(self.leds.len()) {
             let mut v = 0u32;
-            for b in 0..24 { v = (v << 1) | bits[i * 24 + b] as u32; }
-            let at = match self.physical { Some(m) => m[i], None => i };
-            self.leds[at] = [((v >> 8) & 0xff) as u8, ((v >> 16) & 0xff) as u8, (v & 0xff) as u8];   // GRB -> RGB
+            for b in 0..24 {
+                v = (v << 1) | bits[i * 24 + b] as u32;
+            }
+            let at = match self.physical {
+                Some(m) => m[i],
+                None => i,
+            };
+            self.leds[at] = [
+                ((v >> 8) & 0xff) as u8,
+                ((v >> 16) & 0xff) as u8,
+                (v & 0xff) as u8,
+            ]; // GRB -> RGB
         }
         self.updates += 1;
     }
@@ -117,7 +150,12 @@ impl Ws2812Chain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn bits(bytes: &[u8]) -> Vec<bool> { bytes.iter().flat_map(|&v| (0..8).map(move |i| v & (0x80 >> i) != 0)).collect() }
+    fn bits(bytes: &[u8]) -> Vec<bool> {
+        bytes
+            .iter()
+            .flat_map(|&v| (0..8).map(move |i| v & (0x80 >> i) != 0))
+            .collect()
+    }
 
     #[test]
     #[should_panic(expected = "GPIO waveform clock must be nonzero")]
@@ -242,11 +280,18 @@ mod tests {
     fn grb_on_the_wire_becomes_rgb_in_chain_order() {
         let mut c = Ws2812Chain::new(2);
         c.from_bits(&bits(&[0x10, 0xab, 0x03, 1, 2, 3]));
-        assert_eq!((c.leds[0], c.leds[1], c.updates), ([0xab, 0x10, 0x03], [2, 1, 3], 1));
+        assert_eq!(
+            (c.leds[0], c.leds[1], c.updates),
+            ([0xab, 0x10, 0x03], [2, 1, 3], 1)
+        );
         c.from_bits(&bits(&[0, 0, 0])[..20]);
         assert_eq!(c.updates, 1, "a short frame is not an update");
         c.from_bits(&bits(&[9, 9, 9, 9, 9, 9, 9, 9, 9]));
-        assert_eq!((c.leds.len(), c.updates), (2, 2), "extra LEDs on the wire fall off the end");
+        assert_eq!(
+            (c.leds.len(), c.updates),
+            (2, 2),
+            "extra LEDs on the wire fall off the end"
+        );
     }
 
     #[test]
@@ -259,35 +304,59 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "not a permutation")]
-    fn a_map_must_be_a_permutation() { static BAD: [usize; 3] = [0, 0, 2]; Ws2812Chain::mapped(&BAD); }
+    fn a_map_must_be_a_permutation() {
+        static BAD: [usize; 3] = [0, 0, 2];
+        Ws2812Chain::mapped(&BAD);
+    }
 }
 
 /// Recover WS2812-class lane pulses from parallel samples and deliver them through
 /// the existing board frame callback. Timing windows are decoder policy, not calibration.
-pub fn parallel_output(board: &mut dyn crate::BoardModel, pins: impl IntoIterator<Item = (u8, u8)>, samples: &[u16], clock_hz: u32) {
-        for (pin, lane) in pins {
-            if lane >= 16 || clock_hz == 0 { continue; }
-            let mut bits=Vec::new();
-            let mut at=0;
-            while at<samples.len() {
-                while at<samples.len() && samples[at] & (1<<lane)==0 { at+=1; }
-                let start=at;
-                while at<samples.len() && samples[at] & (1<<lane)!=0 { at+=1; }
-                let high=at-start;
-                let start=at;
-                while at<samples.len() && samples[at] & (1<<lane)==0 { at+=1; }
-                let low=at-start;
-                if high==0 { break; }
-                let high_ns=high as u64*1_000_000_000/u64::from(clock_hz);
-                if !(MIN_PULSE_NS..=MAX_HIGH_NS).contains(&high_ns) { bits.clear(); continue; }
-                bits.push(high_ns>=ONE_HIGH_NS);
-                if low as u64*1_000_000>=RESET_US*u64::from(clock_hz) {
-                    board.rmt_frame(pin, &bits); bits.clear();
-                }
+pub fn parallel_output(
+    board: &mut dyn crate::BoardModel,
+    pins: impl IntoIterator<Item = (u8, u8)>,
+    samples: &[u16],
+    clock_hz: u32,
+) {
+    for (pin, lane) in pins {
+        if lane >= 16 || clock_hz == 0 {
+            continue;
+        }
+        let mut bits = Vec::new();
+        let mut at = 0;
+        while at < samples.len() {
+            while at < samples.len() && samples[at] & (1 << lane) == 0 {
+                at += 1;
             }
-            if !bits.is_empty() { board.rmt_frame(pin, &bits); }
+            let start = at;
+            while at < samples.len() && samples[at] & (1 << lane) != 0 {
+                at += 1;
+            }
+            let high = at - start;
+            let start = at;
+            while at < samples.len() && samples[at] & (1 << lane) == 0 {
+                at += 1;
+            }
+            let low = at - start;
+            if high == 0 {
+                break;
+            }
+            let high_ns = high as u64 * 1_000_000_000 / u64::from(clock_hz);
+            if !(MIN_PULSE_NS..=MAX_HIGH_NS).contains(&high_ns) {
+                bits.clear();
+                continue;
+            }
+            bits.push(high_ns >= ONE_HIGH_NS);
+            if low as u64 * 1_000_000 >= RESET_US * u64::from(clock_hz) {
+                board.rmt_frame(pin, &bits);
+                bits.clear();
+            }
+        }
+        if !bits.is_empty() {
+            board.rmt_frame(pin, &bits);
         }
     }
+}
 
 #[cfg(test)]
 mod parallel_tests {
@@ -296,19 +365,36 @@ mod parallel_tests {
     #[derive(Default)]
     struct Frames(Vec<(u8, Vec<bool>)>);
     impl BoardModel for Frames {
-        fn name(&self) -> &'static str { "parallel-test" }
-        fn rmt_frame(&mut self, pin: u8, bits: &[bool]) { self.0.push((pin, bits.to_vec())); }
+        fn name(&self) -> &'static str {
+            "parallel-test"
+        }
+        fn rmt_frame(&mut self, pin: u8, bits: &[bool]) {
+            self.0.push((pin, bits.to_vec()));
+        }
     }
     #[test]
     fn parallel_lanes_mirrors_and_reset_boundaries_reach_existing_boards() {
         let mut samples = Vec::new();
-        for _ in 0..24 { samples.extend([3, 2, 0, 0]); }
+        for _ in 0..24 {
+            samples.extend([3, 2, 0, 0]);
+        }
         samples.extend(std::iter::repeat_n(0, 200));
-        for _ in 0..24 { samples.extend([3, 1, 0, 0]); }
+        for _ in 0..24 {
+            samples.extend([3, 1, 0, 0]);
+        }
         let mut board = Frames::default();
         parallel_output(&mut board, [(4, 0), (5, 1), (6, 0)], &samples, 3_200_000);
-        assert_eq!(board.0, vec![(4, vec![false; 24]), (4, vec![true; 24]),
-            (5, vec![true; 24]), (5, vec![false; 24]), (6, vec![false; 24]), (6, vec![true; 24])]);
+        assert_eq!(
+            board.0,
+            vec![
+                (4, vec![false; 24]),
+                (4, vec![true; 24]),
+                (5, vec![true; 24]),
+                (5, vec![false; 24]),
+                (6, vec![false; 24]),
+                (6, vec![true; 24])
+            ]
+        );
         parallel_output(&mut board, [(4, 0)], &samples, 0);
         parallel_output(&mut board, [(4, 16)], &samples, 3_200_000);
         assert_eq!(board.0.len(), 6);

@@ -3,8 +3,8 @@
 //! T0 edge/level bits 12/11 (42-53), LACT enable/direction/reload/divider (397-420),
 //! alarm enable bit 10 (433-438). Timing and reset completion are inferred.
 use emu_core::ClockDomain;
-use esp_periph::{Device, TimerGroup, WriteEffect};
 use esp_periph::timg::Timer;
+use esp_periph::{Device, TimerGroup, WriteEffect};
 
 pub struct ClassicTimer {
     pub timer: TimerGroup,
@@ -14,7 +14,11 @@ pub struct ClassicTimer {
 
 impl ClassicTimer {
     pub fn new(_group: usize) -> Self {
-        Self { timer: TimerGroup::new(), lact: Timer::default(), lact_rtc: 0 }
+        Self {
+            timer: TimerGroup::new(),
+            lact: Timer::default(),
+            lact_rtc: 0,
+        }
     }
 
     // Lines follow INT_RAW and the per-timer EDGE/LEVEL_INT_EN bits; INT_ENA masks only INT_ST.
@@ -96,7 +100,12 @@ impl Device for ClassicTimer {
 
     fn next_deadline(&self) -> Option<u64> {
         // Timer::deadline saturates; the 64-bit counters can overflow TimerGroup's 54-bit product.
-        self.timer.t.iter().chain([&self.lact]).filter_map(Timer::deadline).min()
+        self.timer
+            .t
+            .iter()
+            .chain([&self.lact])
+            .filter_map(Timer::deadline)
+            .min()
     }
 }
 
@@ -138,7 +147,9 @@ mod tests {
             t.write(config, RUN | (1 << 10) | int_en);
         }
         for _ in 0..4 {
-            if let Some(d) = t.next_deadline() { t.tick(d.max(1)); }
+            if let Some(d) = t.next_deadline() {
+                t.tick(d.max(1));
+            }
         }
         assert_eq!(t.next_deadline(), None, "every armed alarm fired");
         t
@@ -148,23 +159,47 @@ mod tests {
     /// line follows INT_RAW and the timer's own EDGE/LEVEL_INT_EN bits, whatever INT_ENA holds.
     #[test]
     fn alarm_lines_follow_raw_status_and_int_en_bits_not_int_ena() {
-        for (config, alarm, raw, level, edge) in [(0x00, 0x10, 1u32, 1u64, 1u64 << 4), (0x24, 0x34, 2, 2, 1 << 5), (0x70, 0x84, 8, 8, 1 << 7)] {
+        for (config, alarm, raw, level, edge) in [
+            (0x00, 0x10, 1u32, 1u64, 1u64 << 4),
+            (0x24, 0x34, 2, 2, 1 << 5),
+            (0x70, 0x84, 8, 8, 1 << 7),
+        ] {
             let mut t = fire(&[(config, alarm)], 1 << 11);
             assert_eq!(t.read(0x9c), raw, "INT_RAW at {config:#x}");
             for ena in [0, raw, 0xf & !raw, 0xf] {
                 t.write(0x98, ena);
                 t.write(config, RUN | (1 << 11));
-                assert_eq!(t.irq_sources(), level, "level line, INT_ENA {ena:#x} at {config:#x}");
+                assert_eq!(
+                    t.irq_sources(),
+                    level,
+                    "level line, INT_ENA {ena:#x} at {config:#x}"
+                );
                 t.write(config, RUN | (1 << 12));
-                assert_eq!(t.irq_sources(), edge, "edge line, INT_ENA {ena:#x} at {config:#x}");
+                assert_eq!(
+                    t.irq_sources(),
+                    edge,
+                    "edge line, INT_ENA {ena:#x} at {config:#x}"
+                );
                 t.write(config, RUN | (1 << 11) | (1 << 12));
-                assert_eq!(t.irq_sources(), level | edge, "both lines, INT_ENA {ena:#x} at {config:#x}");
+                assert_eq!(
+                    t.irq_sources(),
+                    level | edge,
+                    "both lines, INT_ENA {ena:#x} at {config:#x}"
+                );
                 t.write(config, RUN);
-                assert_eq!(t.irq_sources(), 0, "no line without EDGE/LEVEL_INT_EN, INT_ENA {ena:#x} at {config:#x}");
+                assert_eq!(
+                    t.irq_sources(),
+                    0,
+                    "no line without EDGE/LEVEL_INT_EN, INT_ENA {ena:#x} at {config:#x}"
+                );
             }
             t.write(config, RUN | (1 << 11) | (1 << 12));
             t.write(0xa4, raw);
-            assert_eq!((t.read(0x9c), t.irq_sources()), (0, 0), "INT_CLR with INT_ENA set at {config:#x}");
+            assert_eq!(
+                (t.read(0x9c), t.irq_sources()),
+                (0, 0),
+                "INT_CLR with INT_ENA set at {config:#x}"
+            );
         }
     }
 
@@ -176,13 +211,25 @@ mod tests {
         assert_eq!(t.read(0x9c), 0b1011);
         for ena in 0..16 {
             t.write(0x98, ena);
-            assert_eq!((t.read(0x98), t.read(0xa0)), (ena, 0b1011 & ena), "INT_ENA {ena:#x}");
-            assert_eq!(t.irq_sources(), 0b1011, "lines unchanged by INT_ENA {ena:#x}");
+            assert_eq!(
+                (t.read(0x98), t.read(0xa0)),
+                (ena, 0b1011 & ena),
+                "INT_ENA {ena:#x}"
+            );
+            assert_eq!(
+                t.irq_sources(),
+                0b1011,
+                "lines unchanged by INT_ENA {ena:#x}"
+            );
         }
         t.write(0xa4, 0b0001);
         assert_eq!((t.read(0x9c), t.read(0xa0)), (0b1010, 0b1010), "INT_CLR T0");
         t.write(0xa4, 0b1010);
-        assert_eq!((t.read(0x98), t.read(0x9c), t.read(0xa0), t.irq_sources()), (0xf, 0, 0, 0), "INT_ENA set, raw clear");
+        assert_eq!(
+            (t.read(0x98), t.read(0x9c), t.read(0xa0), t.irq_sources()),
+            (0xf, 0, 0, 0),
+            "INT_ENA set, raw clear"
+        );
     }
 
     #[test]

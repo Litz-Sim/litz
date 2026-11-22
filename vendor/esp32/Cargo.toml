@@ -1,12 +1,18 @@
 [package]
-name = "esp32"
-version = "0.4.0"
+name = "litz-esp32"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Classic ESP32 SoC model: memory map, peripherals, machine"
+description = "Litz fork of esp32sim: Classic ESP32 SoC model: memory map, peripherals, machine"
+
+repository = "https://github.com/Litz-Sim/litz"
+homepage = "https://github.com/Litz-Sim/litz#readme"
+
+[lib]
+name = "esp32"
 
 [dependencies]
-emu-core = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
-esp-periph = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
-esp-soc = { path = "../esp-soc" }
-xtensa-lx7 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+litz-emu-core = { version = "0.1.0", path = "../emu-core" }
+litz-esp-periph = { version = "0.1.0", path = "../esp-periph" }
+litz-esp-soc = { version = "0.1.0", path = "../esp-soc" }
+litz-xtensa-lx7 = { version = "0.1.0", path = "../xtensa-lx7" }

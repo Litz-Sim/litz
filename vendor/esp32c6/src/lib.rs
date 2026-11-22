@@ -10,8 +10,8 @@
 pub mod board;
 pub mod bus;
 pub mod net;
-pub mod periph;
 mod parlio;
+pub mod periph;
 pub mod radio;
 pub mod sdio;
 pub mod soc;

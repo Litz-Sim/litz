@@ -30,7 +30,12 @@ const fn zigzag_rows() -> [usize; MATRIX_W * MATRIX_H] {
     let mut i = 0;
     while i < map.len() {
         let (row, col) = (i / MATRIX_W, i % MATRIX_W);
-        map[i] = row * MATRIX_W + if row % 2 == 0 { col } else { MATRIX_W - 1 - col };
+        map[i] = row * MATRIX_W
+            + if row % 2 == 0 {
+                col
+            } else {
+                MATRIX_W - 1 - col
+            };
         i += 1;
     }
     map
@@ -46,31 +51,78 @@ pub struct UlanziTc001 {
     pub other_frames: u64,
     pub gpio_events: u64,
 }
-impl Default for UlanziTc001 { fn default() -> Self { Self::new() } }
+impl Default for UlanziTc001 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl UlanziTc001 {
-    pub fn new() -> Self { UlanziTc001 { matrix: Ws2812Chain::mapped(&MATRIX_PHYSICAL), other_frames: 0, gpio_events: 0 } }
+    pub fn new() -> Self {
+        UlanziTc001 {
+            matrix: Ws2812Chain::mapped(&MATRIX_PHYSICAL),
+            other_frames: 0,
+            gpio_events: 0,
+        }
+    }
 }
 impl BoardModel for UlanziTc001 {
-    fn name(&self) -> &'static str { "ulanzi-tc001" }
-    fn gpio_changes(&mut self, changes: &[(u8, bool)]) { self.gpio_events += changes.len() as u64; }
+    fn name(&self) -> &'static str {
+        "ulanzi-tc001"
+    }
+    fn gpio_changes(&mut self, changes: &[(u8, bool)]) {
+        self.gpio_events += changes.len() as u64;
+    }
     fn rmt_frame(&mut self, pin: u8, bits: &[bool]) {
-        if pin == PIN_MATRIX { self.matrix.from_bits(bits) } else { self.other_frames += 1 }
+        if pin == PIN_MATRIX {
+            self.matrix.from_bits(bits)
+        } else {
+            self.other_frames += 1
+        }
     }
-    fn gpio_events(&self) -> u64 { self.gpio_events }
-    fn input_levels(&self) -> Vec<(u8, bool)> { vec![(PIN_BTN_LEFT, true), (PIN_BTN_SELECT, true), (PIN_BTN_RIGHT, true)] }
+    fn gpio_events(&self) -> u64 {
+        self.gpio_events
+    }
+    fn input_levels(&self) -> Vec<(u8, bool)> {
+        vec![
+            (PIN_BTN_LEFT, true),
+            (PIN_BTN_SELECT, true),
+            (PIN_BTN_RIGHT, true),
+        ]
+    }
     fn named_pin(&self, name: &str) -> Option<u8> {
-        match name { "left" | "btn1" => Some(PIN_BTN_LEFT), "select" | "middle" | "btn2" => Some(PIN_BTN_SELECT), "right" | "btn3" => Some(PIN_BTN_RIGHT), _ => None }
+        match name {
+            "left" | "btn1" => Some(PIN_BTN_LEFT),
+            "select" | "middle" | "btn2" => Some(PIN_BTN_SELECT),
+            "right" | "btn3" => Some(PIN_BTN_RIGHT),
+            _ => None,
+        }
     }
-    fn leds(&self) -> Option<(&[[u8; 3]], u64)> { Some((&self.matrix.leds, self.matrix.updates)) }
+    fn leds(&self) -> Option<(&[[u8; 3]], u64)> {
+        Some((&self.matrix.leds, self.matrix.updates))
+    }
     /// The matrix as a 32×8 frame, each LED's colour as sent (no brightness or diffuser model).
     fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> {
-        let px = self.matrix.leds.iter().map(|&[r, g, b]| ((r as u16 >> 3) << 11) | ((g as u16 >> 2) << 5) | (b as u16 >> 3)).collect();
+        let px = self
+            .matrix
+            .leds
+            .iter()
+            .map(|&[r, g, b]| ((r as u16 >> 3) << 11) | ((g as u16 >> 2) << 5) | (b as u16 >> 3))
+            .collect();
         Some((MATRIX_W as u32, MATRIX_H as u32, px, self.matrix.updates))
     }
-    fn display_version(&self) -> u64 { self.matrix.updates }
-    fn display_frames(&self) -> u64 { self.matrix.updates }
+    fn display_version(&self) -> u64 {
+        self.matrix.updates
+    }
+    fn display_frames(&self) -> u64 {
+        self.matrix.updates
+    }
     fn report(&self) -> String {
-        let lit = self.matrix.leds.iter().filter(|c| c.iter().any(|&v| v != 0)).count();
+        let lit = self
+            .matrix
+            .leds
+            .iter()
+            .filter(|c| c.iter().any(|&v| v != 0))
+            .count();
         format!("[emu] ulanzi-tc001: {} matrix frames, {} of 256 LEDs lit; {} RMT frames on other pins; gpio events {}",
                 self.matrix.updates, lit, self.other_frames, self.gpio_events)
     }
@@ -82,23 +134,28 @@ mod tests {
 
     /// one GRB frame of `n` LEDs, all dark except chain LED `lit` in pure red
     fn frame(n: usize, lit: usize) -> Vec<bool> {
-        (0..n).flat_map(|i| { let grb: u32 = if i == lit { 0x00ff00 } else { 0 }; (0..24).rev().map(move |b| (grb >> b) & 1 != 0) }).collect()
+        (0..n)
+            .flat_map(|i| {
+                let grb: u32 = if i == lit { 0x00ff00 } else { 0 };
+                (0..24).rev().map(move |b| (grb >> b) & 1 != 0)
+            })
+            .collect()
     }
 
     #[test]
     fn zigzag_rows_map_to_reading_order() {
         assert_eq!(&MATRIX_PHYSICAL[..2], &[0, 1]);
         assert_eq!(MATRIX_PHYSICAL[31], 31);
-        assert_eq!(MATRIX_PHYSICAL[32], 63);     // row 1 starts on the right
+        assert_eq!(MATRIX_PHYSICAL[32], 63); // row 1 starts on the right
         assert_eq!(MATRIX_PHYSICAL[63], 32);
         assert_eq!(MATRIX_PHYSICAL[64], 64);
-        assert_eq!(MATRIX_PHYSICAL[255], 224);   // the chain ends bottom-left
+        assert_eq!(MATRIX_PHYSICAL[255], 224); // the chain ends bottom-left
     }
 
     #[test]
     fn rmt_frame_on_gpio32_lights_the_matching_pixel() {
         let mut b = UlanziTc001::new();
-        b.rmt_frame(PIN_MATRIX, &frame(256, 40));    // row 1, eighth LED from the right
+        b.rmt_frame(PIN_MATRIX, &frame(256, 40)); // row 1, eighth LED from the right
         let (w, h, px, version) = b.display().unwrap();
         assert_eq!((w, h, version), (32, 8, 1));
         assert_eq!(px.iter().filter(|&&p| p != 0).count(), 1);

@@ -18,7 +18,10 @@ impl SocBus {
     fn psram_offsets<const N: usize>(&self, addr: u32) -> Result<[usize; N], Fault> {
         let mut out = [0; N];
         for (i, off) in out.iter_mut().enumerate() {
-            let a = addr.checked_add(i as u32).filter(|a| (LOW..HIGH).contains(a)).ok_or(Fault::Unmapped)?;
+            let a = addr
+                .checked_add(i as u32)
+                .filter(|a| (LOW..HIGH).contains(a))
+                .ok_or(Fault::Unmapped)?;
             let slot = SRAM_SLOT + ((a - LOW) >> SRAM_SHIFT) as usize;
             let lowhigh = self.psram_lowhigh()?;
             // ESP32 TRM v5.8 §4.3.2.2, tables 4.3-16/18: both CPUs use
@@ -28,10 +31,16 @@ impl SocBus {
             let entry = self.mmu[core][slot];
             let (clock, reset, stall) = self.periph.dport.core1_control();
             let app_live = clock && !reset && !stall;
-            if entry & 0x100 != 0 || (!lowhigh && app_live && entry != self.mmu[1][slot]) { return Err(Fault::Unmapped); }
-            if lowhigh { self.psram_half_gate(core)?; }
+            if entry & 0x100 != 0 || (!lowhigh && app_live && entry != self.mmu[1][slot]) {
+                return Err(Fault::Unmapped);
+            }
+            if lowhigh {
+                self.psram_half_gate(core)?;
+            }
             *off = (entry as usize & 255) * SRAM_PAGE + (a as usize & (SRAM_PAGE - 1));
-            if *off >= self.psram.len() { return Err(Fault::Unmapped); }
+            if *off >= self.psram.len() {
+                return Err(Fault::Unmapped);
+            }
         }
         Ok(out)
     }
@@ -42,8 +51,10 @@ impl SocBus {
         let (clock, reset, stall) = self.periph.dport.core1_control();
         // IDF v4.4.7 spiram_psram.c:1090-1105 programs both modes together.
         // Mixed modes are not qualified; SPLIT (even/odd) remains unsupported.
-        if pro & (1 << 11) != 0 || ((lowhigh || (clock && !reset && !stall))
-            && (app & (1 << 11) != 0 || lowhigh != (app & (1 << 14) != 0))) {
+        if pro & (1 << 11) != 0
+            || ((lowhigh || (clock && !reset && !stall))
+                && (app & (1 << 11) != 0 || lowhigh != (app & (1 << 14) != 0)))
+        {
             return Err(Fault::Prohibited);
         }
         Ok(lowhigh)
@@ -54,16 +65,34 @@ impl SocBus {
         // spiram_psram.c:1100-1105: enable=3, DRAM1/OPSDRAM masks=3/5,
         // 32 KiB page mode=0. Requiring BOTH masks clear on the selected
         // cache is a conservative qualification restriction (no mask routing claim).
-        let ctrl = self.periph.dport.ram.read(if core == 0 { 0x40 } else { 0x58 });
-        let ctrl1 = self.periph.dport.ram.read(if core == 0 { 0x44 } else { 0x5c });
-        if ctrl & 8 == 0 || ctrl1 & ((7 << 6) | 0x28) != 0 { return Err(Fault::Prohibited); }
+        let ctrl = self
+            .periph
+            .dport
+            .ram
+            .read(if core == 0 { 0x40 } else { 0x58 });
+        let ctrl1 = self
+            .periph
+            .dport
+            .ram
+            .read(if core == 0 { 0x44 } else { 0x5c });
+        if ctrl & 8 == 0 || ctrl1 & ((7 << 6) | 0x28) != 0 {
+            return Err(Fault::Prohibited);
+        }
         Ok(())
     }
     fn psram_cache_gate(&self, write: bool) -> Result<(), Fault> {
         // Normal mode keeps the P4 matched-live-cache qualification unchanged.
         let (clock, reset, stall) = self.periph.dport.core1_control();
-        let cores = if self.psram_lowhigh()? { 0 } else if clock && !reset && !stall { 2 } else { 1 };
-        for core in 0..cores { self.psram_half_gate(core)?; }
+        let cores = if self.psram_lowhigh()? {
+            0
+        } else if clock && !reset && !stall {
+            2
+        } else {
+            1
+        };
+        for core in 0..cores {
+            self.psram_half_gate(core)?;
+        }
         if !self.periph.spi1.0.classic_qpi_enabled() || !self.periph.spi0.sram_cache_ready(write) {
             return Err(Fault::Prohibited);
         }
@@ -73,25 +102,42 @@ impl SocBus {
     /// of the range mapped to installed PSRAM, and the cache able to read. The VHCI hooks ask it
     /// before they copy a packet out of the guest (`ble.rs`).
     pub(crate) fn psram_readable(&self, address: u32, len: usize) -> bool {
-        let Some(last) = u32::try_from(len).ok().and_then(|len| len.checked_sub(1)).and_then(|n| address.checked_add(n))
-        else { return false };
-        if !(LOW..HIGH).contains(&address) || !(LOW..HIGH).contains(&last) { return false; }
+        let Some(last) = u32::try_from(len)
+            .ok()
+            .and_then(|len| len.checked_sub(1))
+            .and_then(|n| address.checked_add(n))
+        else {
+            return false;
+        };
+        if !(LOW..HIGH).contains(&address) || !(LOW..HIGH).contains(&last) {
+            return false;
+        }
         // What psram_offsets checks is the same for every byte of a 32 KiB page, and the
         // installed PSRAM is whole pages (0 or 4 MiB), so one byte of each page stands for it.
         let mut page = address;
         loop {
-            if self.psram_offsets::<1>(page).is_err() { return false; }
+            if self.psram_offsets::<1>(page).is_err() {
+                return false;
+            }
             let next = (page | (SRAM_PAGE as u32 - 1)) + 1;
-            if next > last { break; }
+            if next > last {
+                break;
+            }
             page = next;
         }
         self.psram_cache_gate(false).is_ok()
     }
     #[cold]
     pub(crate) fn psram_load<const N: usize>(&mut self, addr: u32) -> Result<[u8; N], Fault> {
-        match self.psram_offsets::<N>(addr).and_then(|o| self.psram_cache_gate(false).map(|()| o)) {
+        match self
+            .psram_offsets::<N>(addr)
+            .and_then(|o| self.psram_cache_gate(false).map(|()| o))
+        {
             Ok(offsets) => Ok(offsets.map(|o| self.psram[o])),
-            Err(f) => { self.last_fault = Some((addr, false)); Err(f) }
+            Err(f) => {
+                self.last_fault = Some((addr, false));
+                Err(f)
+            }
         }
     }
     #[cold]
@@ -103,21 +149,37 @@ impl SocBus {
             _ => unreachable!("bus store width"),
         }
     }
-    fn psram_store_width<const N: usize>(&mut self, addr: u32, bytes: &[u8; N]) -> Result<(), Fault> {
-        match self.psram_offsets::<N>(addr).and_then(|o| self.psram_cache_gate(true).map(|()| o)) {
+    fn psram_store_width<const N: usize>(
+        &mut self,
+        addr: u32,
+        bytes: &[u8; N],
+    ) -> Result<(), Fault> {
+        match self
+            .psram_offsets::<N>(addr)
+            .and_then(|o| self.psram_cache_gate(true).map(|()| o))
+        {
             Ok(offsets) => {
-                for (off, byte) in offsets.into_iter().zip(bytes) { self.psram[off] = *byte; }
+                for (off, byte) in offsets.into_iter().zip(bytes) {
+                    self.psram[off] = *byte;
+                }
                 Ok(())
             }
-            Err(f) => { self.last_fault = Some((addr, true)); Err(f) }
+            Err(f) => {
+                self.last_fault = Some((addr, true));
+                Err(f)
+            }
         }
     }
     pub(crate) fn reset_psram(&mut self) {
         self.psram.fill(0);
-        for table in &mut self.mmu { table[SRAM_SLOT..SRAM_SLOT + 128].fill(0x100); }
+        for table in &mut self.mmu {
+            table[SRAM_SLOT..SRAM_SLOT + 128].fill(0x100);
+        }
     }
     pub(crate) fn configure_psram(&mut self, bytes: usize) -> Result<(), String> {
-        if bytes != 0 && bytes != (4 << 20) { return Err("classic PSRAM supports 0 or 4194304 bytes".into()); }
+        if bytes != 0 && bytes != (4 << 20) {
+            return Err("classic PSRAM supports 0 or 4194304 bytes".into());
+        }
         // Stopped-machine boundary only. Classic has no fast_mem or published backing pointer.
         self.reset_psram();
         self.psram = vec![0; bytes];

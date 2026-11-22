@@ -87,7 +87,9 @@ impl Soc for S31 {
     /// Each core's CLIC candidate in `clic_std` packing (`riscv_rv32::exec::CLIC_IRQ_*`).
     fn irqs(bus: &SocBus, out: &mut [Option<u32>]) {
         let irqs = bus.core_irqs();
-        for (o, irq) in out.iter_mut().zip(irqs) { *o = irq; }
+        for (o, irq) in out.iter_mut().zip(irqs) {
+            *o = irq;
+        }
     }
 
     fn interrupt_taken(bus: &mut SocBus, core: usize, line: u32) {
@@ -119,7 +121,8 @@ pub struct SocBus {
     pub board: esp_soc::Board,
     pub cycles: u64,
     /// emulated nanoseconds the board has been advanced to, and the sub-nanosecond remainder
-    board_ns: u64, board_ns_frac: u64,
+    board_ns: u64,
+    board_ns_frac: u64,
     pub last_fault: Option<(u32, bool)>,
     pub irq_dirty: bool,
     pub gpio_events: Option<Vec<(u64, u8, bool)>>,
@@ -156,7 +159,10 @@ pub struct BoardInputs {
     /// SFDP bytes returned by READ_SFDP (0x5a) from offset 0.
     pub sfdp: Vec<u8>,
     /// regi2c readback seeds: BIAS[2], PERIF glitch, DIG_REG[4], BOD. Host choices.
-    pub bias: [u8; 2], pub perif_glitch: u8, pub dig_reg: [u8; 4], pub bod: u8,
+    pub bias: [u8; 2],
+    pub perif_glitch: u8,
+    pub dig_reg: [u8; 4],
+    pub bod: u8,
     /// Rate fed to the MSPI SPLL/BBPLL consumer (Hz).
     pub bbpll_hz: u64,
     /// Level sampled for every GPIO that has no driver (`None` keeps them unresolved).
@@ -177,21 +183,40 @@ impl BoardInputs {
     /// SPLL input, idle-low pads and GPIO36 high. pmu_init.c reads GPIO36 as the flash
     /// LDO strap; high selects the internal flash supply path a 3.3 V devkit uses.
     pub fn devkit_w25q128() -> Self {
-        let mut sfdp = vec![0x53, 0x46, 0x44, 0x50, 0x05, 0x01, 0x00, 0xff, 0x00, 0x05, 0x01, 0x10, 0x80, 0x00, 0x00, 0xff];
+        let mut sfdp = vec![
+            0x53, 0x46, 0x44, 0x50, 0x05, 0x01, 0x00, 0xff, 0x00, 0x05, 0x01, 0x10, 0x80, 0x00,
+            0x00, 0xff,
+        ];
         sfdp.extend([0xff; 0x70]);
-        Self { flash_id: [0xef, 0x40, 0x18], sfdp, bias: [0; 2], perif_glitch: 0, dig_reg: [0; 4], bod: 0,
-            bbpll_hz: 480_000_000, idle_level: Some(false), inputs: vec![(36, true)], psram_bytes: 0, flash_status: 0, efuse: Vec::new() }
+        Self {
+            flash_id: [0xef, 0x40, 0x18],
+            sfdp,
+            bias: [0; 2],
+            perif_glitch: 0,
+            dig_reg: [0; 4],
+            bod: 0,
+            bbpll_hz: 480_000_000,
+            idle_level: Some(false),
+            inputs: vec![(36, true)],
+            psram_bytes: 0,
+            flash_status: 0,
+            efuse: Vec::new(),
+        }
     }
 
     /// Winbond W25Q16 (0xef4015) — 2 MiB, matching the IDF hello_world image header
     /// (`flash_size = 2MB`). Prefer this for BoardInputs + Machine flash sizing so the
     /// image-header / modelled-flash mismatch warning does not fire.
-    pub fn hello_w25q16() -> Self { Self::devkit_sized(2 << 20).expect("2 MiB is a W25Q part") }
+    pub fn hello_w25q16() -> Self {
+        Self::devkit_sized(2 << 20).expect("2 MiB is a W25Q part")
+    }
 
     /// The devkit's inputs with the Winbond W25Q part of `bytes` capacity: W25Q80 (1 MiB) to
     /// W25Q128 (16 MiB), JEDEC 0xef40nn where nn = log2(bytes). `None` for any other size.
     pub fn devkit_sized(bytes: usize) -> Option<Self> {
-        if !bytes.is_power_of_two() || !(1 << 20..=16 << 20).contains(&bytes) { return None; }
+        if !bytes.is_power_of_two() || !(1 << 20..=16 << 20).contains(&bytes) {
+            return None;
+        }
         let mut inputs = Self::devkit_w25q128();
         inputs.flash_id[2] = bytes.trailing_zeros() as u8;
         Some(inputs)
@@ -205,29 +230,59 @@ impl BoardInputs {
         // eFuse USER_DATA word 0 = 0x0102.
         // No GPIO36 strap: on the Mosaico GPIO36 is the CO5300's QSPI D1 (driven by GP-SPI2), and a
         // board driver on it would contend with the panel bus.
-        Self { flash_id: [0xc8, 0x40, 0x18], psram_bytes: 16 << 20, flash_status: 0x0200, inputs: Vec::new(),
+        Self {
+            flash_id: [0xc8, 0x40, 0x18],
+            psram_bytes: 16 << 20,
+            flash_status: 0x0200,
+            inputs: Vec::new(),
             efuse: vec![
                 // USER_DATA (0x88) = 0x0102: board v1.2 as esp-mosaico-bsp reads it (onboard/esp_mosaico.c).
                 (0x88, 0x0102),
                 // RD_DIS (0x30 bits 0-6) bit 1: key block 5 (KEY1) is read-protected, and
                 // KEY_PURPOSE_1 (0x38 bits 5-9) = 8, HMAC_UP. The factory app's
                 // trial_provider_validate_hmac_efuse_key() requires both (HMAC key ID 1).
-                (0x30, 1 << 1), (0x38, 8 << 5),
-            ], ..Self::devkit_w25q128() }
+                (0x30, 1 << 1),
+                (0x38, 8 << 5),
+            ],
+            ..Self::devkit_w25q128()
+        }
     }
     pub fn apply(&self, b: &mut S31Bus, mac: [u8; 6]) -> Result<(), String> {
-        let a = &mut b.analog; a.set_bias(self.bias); a.set_perif_glitch(self.perif_glitch); a.set_dig_reg(self.dig_reg); a.set_bod_register(self.bod);
-        b.mspi.attach_flash(self.flash_id, self.flash_status).map_err(|e| format!("{e:?}"))?;
-        b.mspi.attach_sfdp(0, &self.sfdp).map_err(|e| format!("{e:?}"))?;
-        if let Some(level) = self.idle_level { for pin in 0..62 { let _ = b.pads.set_unresolved_sample(pin, Some(level)); } }
-        for &(pin, level) in &self.inputs { b.pads.set_input(pin, Some(level)).map_err(|e| format!("{e:?}"))?; }
-        b.mspi.set_bbpll_input(Some(self.bbpll_hz)).map_err(|e| format!("{e:?}"))?;
-        if self.psram_bytes != 0 { b.set_psram_size(self.psram_bytes)?; }
+        let a = &mut b.analog;
+        a.set_bias(self.bias);
+        a.set_perif_glitch(self.perif_glitch);
+        a.set_dig_reg(self.dig_reg);
+        a.set_bod_register(self.bod);
+        b.mspi
+            .attach_flash(self.flash_id, self.flash_status)
+            .map_err(|e| format!("{e:?}"))?;
+        b.mspi
+            .attach_sfdp(0, &self.sfdp)
+            .map_err(|e| format!("{e:?}"))?;
+        if let Some(level) = self.idle_level {
+            for pin in 0..62 {
+                let _ = b.pads.set_unresolved_sample(pin, Some(level));
+            }
+        }
+        for &(pin, level) in &self.inputs {
+            b.pads
+                .set_input(pin, Some(level))
+                .map_err(|e| format!("{e:?}"))?;
+        }
+        b.mspi
+            .set_bbpll_input(Some(self.bbpll_hz))
+            .map_err(|e| format!("{e:?}"))?;
+        if self.psram_bytes != 0 {
+            b.set_psram_size(self.psram_bytes)?;
+        }
         if !self.efuse.is_empty() {
             // The shadow words start at RD_WR_DIS0 (0x2c): register `off` is word (off - 0x2c) / 4.
             let mut image = crate::efuse::ReadImage::blank_development();
             for &(off, value) in &self.efuse {
-                let word = off.checked_sub(0x2c).map(|d| d as usize / 4).filter(|&w| w < image.words.len() && off % 4 == 0)
+                let word = off
+                    .checked_sub(0x2c)
+                    .map(|d| d as usize / 4)
+                    .filter(|&w| w < image.words.len() && off % 4 == 0)
                     .ok_or_else(|| format!("eFuse register {off:#x} is not a read register"))?;
                 image.words[word] |= value;
             }
@@ -235,7 +290,8 @@ impl BoardInputs {
             // and MAC_EXT ff:fe, as the C6 model and esp_efuse_mac_get_default read them. The address
             // is the run's (--mac), never the board's own.
             image.words[(0x50 - 0x2c) / 4] = u32::from_be_bytes([mac[2], mac[3], mac[4], mac[5]]);
-            image.words[(0x54 - 0x2c) / 4] = u32::from(mac[0]) << 8 | u32::from(mac[1]) | 0xfffe << 16;
+            image.words[(0x54 - 0x2c) / 4] =
+                u32::from(mac[0]) << 8 | u32::from(mac[1]) | 0xfffe << 16;
             b.periph.efuse.set_read_image(image)?;
         }
         Ok(())
@@ -252,7 +308,9 @@ impl SocBus {
             flash: vec![0xff; flash_size],
             misc: Misc::new(),
             board: Box::new(NoBoard),
-            cycles: 0, board_ns: 0, board_ns_frac: 0,
+            cycles: 0,
+            board_ns: 0,
+            board_ns_frac: 0,
             last_fault: None,
             irq_dirty: true,
             dev_dirty: true,
@@ -286,7 +344,9 @@ impl SocBus {
     /// `rom::image` (same result as `Machine::load_rom` after eh_frame skip + ROM snapshot).
     pub fn load_mask_rom(&mut self, bytes: &[u8]) -> Result<(), String> {
         let elf = esp_soc::elf::parse(bytes)?;
-        if elf.entry != bus::ROM_BASE { return Err("S31 ROM reset entry must be 0x2f800000".into()); }
+        if elf.entry != bus::ROM_BASE {
+            return Err("S31 ROM reset entry must be 0x2f800000".into());
+        }
         let image = crate::rom::image(&elf)?;
         // The 20251218 mask ROM's SPI_init read-modify-writes SPI0 +0x24/+0x28 (legacy
         // MISO/MOSI length words, reserved in the v6.1 headers); keep them as plain storage.
@@ -299,10 +359,16 @@ impl SocBus {
     /// Install board inputs now and after every reset.
     /// The board's I2C devices: bus 0 on I2C0, bus 1 on I2C1.
     pub fn attach_board_devices(&mut self) {
-        for (pin, level) in self.board.input_levels() { let _ = self.inner.pads.set_input(usize::from(pin), Some(level)); }
-        for i in &mut self.inner.i2c { i.clear_devices(); }
+        for (pin, level) in self.board.input_levels() {
+            let _ = self.inner.pads.set_input(usize::from(pin), Some(level));
+        }
+        for i in &mut self.inner.i2c {
+            i.clear_devices();
+        }
         for (bus, address, device) in self.board.i2c_devices() {
-            if let Some(i) = self.inner.i2c.get_mut(bus as usize) { i.attach(address, device); }
+            if let Some(i) = self.inner.i2c.get_mut(bus as usize) {
+                i.attach(address, device);
+            }
         }
     }
     pub fn set_board_inputs(&mut self, inputs: BoardInputs) -> Result<(), String> {
@@ -324,7 +390,9 @@ impl SocBus {
                 .filter(|&e| e <= bus::ROM_SIZE)
                 .ok_or_else(|| format!("load: ROM address {:#010x} out of range", addr))?;
             self.inner.mspi.enable_legacy_rom_lengths();
-            let image = self.rom_image.get_or_insert_with(|| vec![0u8; bus::ROM_SIZE]);
+            let image = self
+                .rom_image
+                .get_or_insert_with(|| vec![0u8; bus::ROM_SIZE]);
             image[off..end].copy_from_slice(data);
         }
         self.inner.load(addr, data, data.len())
@@ -339,17 +407,29 @@ impl SocBus {
     /// After a store: pad level changes, then a finished GP-SPI2 transaction, to the board. Only
     /// GPIO stores and a started transfer do any work here.
     fn deliver_board_events(&mut self, address: u32) {
-        if address >> 24 != 0x20 { return; }
-        if address & !3 == TSF_LATCH { self.latch_tsf(); }
-        if crate::pads::Pads::is_mmio(address) { self.deliver_pin_levels(); self.irq_dirty = true; }
-        else if crate::ledc::group(address).is_some() && self.ledc_pins != 0 { self.deliver_ledc_levels(); }
+        if address >> 24 != 0x20 {
+            return;
+        }
+        if address & !3 == TSF_LATCH {
+            self.latch_tsf();
+        }
+        if crate::pads::Pads::is_mmio(address) {
+            self.deliver_pin_levels();
+            self.irq_dirty = true;
+        } else if crate::ledc::group(address).is_some() && self.ledc_pins != 0 {
+            self.deliver_ledc_levels();
+        }
         self.deliver_spi();
     }
 
     /// GP-SPI2 and GP-SPI3 transactions: the DMA data phase first (when the channel runs), then the board.
     fn deliver_spi(&mut self) {
-        if self.inner.spi2.dma_tx_pending.is_some() && self.inner.spi_dma_tx(2) { self.irq_dirty = true; }
-        if self.inner.spi3.dma_tx_pending.is_some() && self.inner.spi_dma_tx(3) { self.irq_dirty = true; }
+        if self.inner.spi2.dma_tx_pending.is_some() && self.inner.spi_dma_tx(2) {
+            self.irq_dirty = true;
+        }
+        if self.inner.spi3.dma_tx_pending.is_some() && self.inner.spi_dma_tx(3) {
+            self.irq_dirty = true;
+        }
         if let Some(transfer) = self.inner.spi2.take_transfer() {
             let rx = self.board.spi_transfer(2, &transfer.tx, transfer.rx_len);
             self.inner.spi2.finish_transfer(transfer, &rx);
@@ -361,8 +441,14 @@ impl SocBus {
             self.irq_dirty = true;
         }
         for host in [2u8, 3] {
-            let spi = if host == 2 { &mut self.inner.spi2 } else { &mut self.inner.spi3 };
-            if let Some(data) = spi.dma_rx.take() { self.spi_dma_rx(host, &data); }
+            let spi = if host == 2 {
+                &mut self.inner.spi2
+            } else {
+                &mut self.inner.spi3
+            };
+            if let Some(data) = spi.dma_rx.take() {
+                self.spi_dma_rx(host, &data);
+            }
         }
     }
 
@@ -371,13 +457,23 @@ impl SocBus {
     fn spi_dma_rx(&mut self, host: u8, data: &[u8]) {
         let trigger = u32::from(host - 1);
         let Some(ch) = self.inner.axi_dma.gdma.in_channel_for(trigger) else {
-            let running: Vec<(usize, u32)> = (0..3).filter(|&i| self.inner.axi_dma.gdma.inp[i].running).map(|i| (i, self.inner.axi_dma.gdma.inp[i].peri_sel)).collect();
+            let running: Vec<(usize, u32)> = (0..3)
+                .filter(|&i| self.inner.axi_dma.gdma.inp[i].running)
+                .map(|i| (i, self.inner.axi_dma.gdma.inp[i].peri_sel))
+                .collect();
             eprintln!("[spi{host}] {} MISO bytes by DMA, but no AXI-GDMA IN channel on trigger {trigger} runs (running: {running:?})", data.len());
             return;
         };
         let mut channel = self.inner.axi_dma.gdma.inp[ch];
         let mut irq_changed = false;
-        let _ = channel.receive(self, data, Some(data.len() as u32), true, |a| a >> 24 == 0x20, &mut irq_changed);
+        let _ = channel.receive(
+            self,
+            data,
+            Some(data.len() as u32),
+            true,
+            |a| a >> 24 == 0x20,
+            &mut irq_changed,
+        );
         self.inner.axi_dma.gdma.inp[ch] = channel;
         self.irq_dirty = true;
     }
@@ -389,28 +485,57 @@ impl SocBus {
     /// in reset (bit 24), and the idle level (CONF0 bit 3) otherwise. The waveform itself is not
     /// modelled: a board sees PWM as on or off. None for other signals.
     fn ledc_output(&self, signal: u32) -> Option<bool> {
-        let (group, channel) = match signal { 126..=133 => (0, signal - 126), 230..=237 => (1, signal - 230), _ => return None };
+        let (group, channel) = match signal {
+            126..=133 => (0, signal - 126),
+            230..=237 => (1, signal - 230),
+            _ => return None,
+        };
         let g = &self.inner.ledc.groups[group];
         let conf0 = g.read(channel * 0x14);
         let running = g.read(0xa0 + (conf0 & 3) * 8) & (3 << 23) == 0;
-        Some(if conf0 & 1 << 2 != 0 && running { g.read(channel * 0x14 + 0x10) >> 4 & 0x1f_ffff != 0 } else { conf0 & 1 << 3 != 0 })
+        Some(if conf0 & 1 << 2 != 0 && running {
+            g.read(channel * 0x14 + 0x10) >> 4 & 0x1f_ffff != 0
+        } else {
+            conf0 & 1 << 3 != 0
+        })
     }
     /// The LEDC groups' source clocks (HP_SYS_CLKRST LEDC_CTRL0, register storage here).
     fn ledc_source_hz(&self) -> [u64; 2] {
-        let ctrl = self.inner.unmodelled.get(&crate::ledc::CLK_CTRL).copied().unwrap_or(0);
+        let ctrl = self
+            .inner
+            .unmodelled
+            .get(&crate::ledc::CLK_CTRL)
+            .copied()
+            .unwrap_or(0);
         let rc = self.inner.clocks.rc_fast_hz();
-        [crate::ledc::Ledc::source_hz(0, ctrl, rc), crate::ledc::Ledc::source_hz(1, ctrl, rc)]
+        [
+            crate::ledc::Ledc::source_hz(0, ctrl, rc),
+            crate::ledc::Ledc::source_hz(1, ctrl, rc),
+        ]
     }
     /// Runs the LEDC duty changes; the pins they drive follow, and an ended change may interrupt.
     fn advance_ledc(&mut self, cycles: u64) {
-        if !self.inner.ledc.running() { return; }
+        if !self.inner.ledc.running() {
+            return;
+        }
         let hz = self.ledc_source_hz();
-        let before: [[u32; 8]; 2] = std::array::from_fn(|g| std::array::from_fn(|ch| self.inner.ledc.groups[g].read(ch as u32 * 0x14 + 0x10)));
+        let before: [[u32; 8]; 2] = std::array::from_fn(|g| {
+            std::array::from_fn(|ch| self.inner.ledc.groups[g].read(ch as u32 * 0x14 + 0x10))
+        });
         let mut ended = false;
-        for g in 0..2 { ended |= self.inner.ledc.groups[g].advance(cycles, hz[g], TIME_HZ); }
-        if ended { self.irq_dirty = true; }
-        let moved = (0..2).any(|g| (0..8).any(|ch| self.inner.ledc.groups[g].read(ch as u32 * 0x14 + 0x10) != before[g][ch]));
-        if moved && self.ledc_pins != 0 { self.deliver_ledc_levels(); }
+        for g in 0..2 {
+            ended |= self.inner.ledc.groups[g].advance(cycles, hz[g], TIME_HZ);
+        }
+        if ended {
+            self.irq_dirty = true;
+        }
+        let moved = (0..2).any(|g| {
+            (0..8)
+                .any(|ch| self.inner.ledc.groups[g].read(ch as u32 * 0x14 + 0x10) != before[g][ch])
+        });
+        if moved && self.ledc_pins != 0 {
+            self.deliver_ledc_levels();
+        }
     }
 
     /// The modem's TSF timers (802.11 timing synchronization, microseconds). The Wi-Fi library
@@ -421,42 +546,75 @@ impl SocBus {
     /// TSF adjustment is modelled).
     fn latch_tsf(&mut self) {
         let req = self.inner.unmodelled.get(&TSF_LATCH).copied().unwrap_or(0);
-        if req & 0xf == 0 { return; }
+        if req & 0xf == 0 {
+            return;
+        }
         let us = self.now_us();
         self.inner.unmodelled.insert(TSF_LATCH + 0xc, us as u32);
-        self.inner.unmodelled.insert(TSF_LATCH + 0x10, (us >> 32) as u32);
+        self.inner
+            .unmodelled
+            .insert(TSF_LATCH + 0x10, (us >> 32) as u32);
     }
 
     fn deliver_pin_levels(&mut self) {
         let levels = self.inner.pads.board_levels(self.board.pull_downs());
-        self.ledc_pins = (0..62).filter(|&p| self.inner.pads.routed_signal(p).is_some_and(|(s, _)| self.ledc_output(s).is_some())).fold(0, |m, p| m | 1 << p);
+        self.ledc_pins = (0..62)
+            .filter(|&p| {
+                self.inner
+                    .pads
+                    .routed_signal(p)
+                    .is_some_and(|(s, _)| self.ledc_output(s).is_some())
+            })
+            .fold(0, |m, p| m | 1 << p);
         self.apply_pin_levels(self.ledc_levels(levels));
     }
     /// After an LEDC write: only the LEDC-routed pins can change (`ledc_pins`).
-    fn deliver_ledc_levels(&mut self) { self.apply_pin_levels(self.ledc_levels(self.pin_levels)); }
+    fn deliver_ledc_levels(&mut self) {
+        self.apply_pin_levels(self.ledc_levels(self.pin_levels));
+    }
     /// `levels` with each LEDC-routed pin set to its channel's output, through the matrix's
     /// output invert (FUNC_OUT_SEL_CFG bit 9).
     fn ledc_levels(&self, mut levels: u64) -> u64 {
         let mut pins = self.ledc_pins;
         while pins != 0 {
-            let pin = pins.trailing_zeros() as usize; pins &= pins - 1;
-            let Some((signal, invert)) = self.inner.pads.routed_signal(pin) else { continue };
-            let Some(level) = self.ledc_output(signal) else { continue };
-            if level ^ invert { levels |= 1 << pin; } else { levels &= !(1u64 << pin); }
+            let pin = pins.trailing_zeros() as usize;
+            pins &= pins - 1;
+            let Some((signal, invert)) = self.inner.pads.routed_signal(pin) else {
+                continue;
+            };
+            let Some(level) = self.ledc_output(signal) else {
+                continue;
+            };
+            if level ^ invert {
+                levels |= 1 << pin;
+            } else {
+                levels &= !(1u64 << pin);
+            }
         }
         levels
     }
     fn apply_pin_levels(&mut self, levels: u64) {
         let diff = levels ^ self.pin_levels;
-        if diff == 0 { return; }
+        if diff == 0 {
+            return;
+        }
         self.pin_levels = levels;
-        let changes: Vec<(u8, bool)> = (0..64u8).filter(|&p| diff >> p & 1 != 0).map(|p| (p, levels >> p & 1 != 0)).collect();
-        if let Some(ev) = &mut self.gpio_events { for &(pin, level) in &changes { ev.push((self.cycles, pin, level)); } }
+        let changes: Vec<(u8, bool)> = (0..64u8)
+            .filter(|&p| diff >> p & 1 != 0)
+            .map(|p| (p, levels >> p & 1 != 0))
+            .collect();
+        if let Some(ev) = &mut self.gpio_events {
+            for &(pin, level) in &changes {
+                ev.push((self.cycles, pin, level));
+            }
+        }
         self.board.gpio_changes(&changes);
     }
 
     /// Emulated microseconds, on the run's time base (`cycles` at `periph::CPU_HZ`).
-    fn now_us(&self) -> u64 { self.cycles / (crate::periph::CPU_HZ / 1_000_000) }
+    fn now_us(&self) -> u64 {
+        self.cycles / (crate::periph::CPU_HZ / 1_000_000)
+    }
     /// The WiFi MAC's queued transmissions, then the virtual air and the network (`wifi.rs`).
     fn wifi_step(&mut self) {
         let now_us = self.now_us();
@@ -466,7 +624,9 @@ impl SocBus {
             self.irq_dirty = true;
         }
         if self.inner.wifi_mac.link.ap().is_some() {
-            if self.inner.wifi_air_step(now_us) { self.irq_dirty = true; }
+            if self.inner.wifi_air_step(now_us) {
+                self.irq_dirty = true;
+            }
             self.inner.wifi_mac.link.net_step(now_us);
         }
     }
@@ -474,13 +634,17 @@ impl SocBus {
     /// Each core's CLIC candidate in `clic_std` packing (`riscv_rv32::exec::CLIC_IRQ_*`).
     fn core_irqs(&self) -> [Option<u32>; 2] {
         std::array::from_fn(|core| {
-            if !self.inner.cores.clic_on(core) { return None; }
+            if !self.inner.cores.clic_on(core) {
+                return None;
+            }
             let c = &self.inner.interrupts.clic[core];
-            c.candidate().filter(|&(id, _)| id >= CLIC_EXT_OFFSET as usize).map(|(id, level)| {
-                (id as u32 - CLIC_EXT_OFFSET)
-                    | level << CLIC_IRQ_LEVEL_SHIFT
-                    | if c.vectored(id) { CLIC_IRQ_SHV } else { 0 }
-            })
+            c.candidate()
+                .filter(|&(id, _)| id >= CLIC_EXT_OFFSET as usize)
+                .map(|(id, level)| {
+                    (id as u32 - CLIC_EXT_OFFSET)
+                        | level << CLIC_IRQ_LEVEL_SHIFT
+                        | if c.vectored(id) { CLIC_IRQ_SHV } else { 0 }
+                })
         })
     }
 
@@ -493,16 +657,21 @@ impl SocBus {
     /// present differs from what it presented. Unchanged, its present is a no-op.
     #[inline]
     fn memory_written(&mut self) {
-        if !self.dev_dirty { return; }
+        if !self.dev_dirty {
+            return;
+        }
         self.refresh_clic_inputs();
         self.dev_dirty = false;
-        if self.presented != Some(self.core_irqs()) { self.irq_dirty = true; }
+        if self.presented != Some(self.core_irqs()) {
+            self.irq_dirty = true;
+        }
     }
 
     /// Plain memory, which no device sees on a CPU access (`memory_written`).
     #[inline(always)]
     fn plain_memory(address: u32) -> bool {
-        address >> 24 != 0x20 && (bus::S31Bus::is_ram_or_rom(address) || crate::cache::Cache::is_memory(address))
+        address >> 24 != 0x20
+            && (bus::S31Bus::is_ram_or_rom(address) || crate::cache::Cache::is_memory(address))
     }
 
     fn refresh_clic_inputs(&mut self) {
@@ -538,11 +707,12 @@ impl SocBus {
             }
         }
     }
-
 }
 
 impl esp_soc::SocBus for SocBus {
-    fn i2s_input(&mut self, port: usize) -> Option<&mut esp_periph::i2s::PcmInput> { self.inner.i2s.get_mut(port).map(|i| i.rx_input()) }
+    fn i2s_input(&mut self, port: usize) -> Option<&mut esp_periph::i2s::PcmInput> {
+        self.inner.i2s.get_mut(port).map(|i| i.rx_input())
+    }
     fn cycles(&self) -> u64 {
         self.cycles
     }
@@ -561,11 +731,22 @@ impl esp_soc::SocBus for SocBus {
         // The next LEDC duty step (a fade's end interrupt, or a pin's level).
         let ledc = if self.inner.ledc.running() {
             let hz = self.ledc_source_hz();
-            (0..2).filter_map(|g| self.inner.ledc.groups[g].cycles_until_step(hz[g], TIME_HZ)).min()
-        } else { None };
-        let board = match (board, ledc) { (Some(a), Some(b)) => Some(a.min(b)), (a, b) => a.or(b) };
-        let Some(ticks) = self.inner.periph.systimer.ticks_until_irq(stalled) else { return board };
-        if ticks == 0 { return Some(1); }
+            (0..2)
+                .filter_map(|g| self.inner.ledc.groups[g].cycles_until_step(hz[g], TIME_HZ))
+                .min()
+        } else {
+            None
+        };
+        let board = match (board, ledc) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        };
+        let Some(ticks) = self.inner.periph.systimer.ticks_until_irq(stalled) else {
+            return board;
+        };
+        if ticks == 0 {
+            return Some(1);
+        }
         let source = if self.inner.periph.systimer.source_rc_fast() {
             self.inner.clocks.rc_fast_hz().max(1)
         } else {
@@ -594,7 +775,11 @@ impl esp_soc::SocBus for SocBus {
     fn add_wifi_ap(&mut self, cfg: esp_soc::wifi::ApConfig) -> Result<(), String> {
         self.inner.wifi_mac.link.add_ap(cfg, &self.debug)
     }
-    fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+    fn attach_wifi(
+        &mut self,
+        cfg: esp_soc::wifi::ApConfig,
+        nat: Option<esp_soc::nat::Nat>,
+    ) -> Result<(), String> {
         self.inner.wifi_mac.link.attach_new(cfg, nat, &self.debug);
         Ok(())
     }
@@ -607,7 +792,9 @@ impl esp_soc::SocBus for SocBus {
         self.irq_dirty = true;
         Ok(())
     }
-    fn usb_link(&mut self) -> Option<&mut esp_periph::usb_otg::UsbLink> { self.inner.usb_otg.link.as_deref_mut() }
+    fn usb_link(&mut self) -> Option<&mut esp_periph::usb_otg::UsbLink> {
+        self.inner.usb_otg.link.as_deref_mut()
+    }
 
     fn refresh_irq(&mut self) -> bool {
         self.refresh_clic_inputs();
@@ -696,18 +883,22 @@ impl esp_soc::SocBus for SocBus {
         inner.interrupts.reset_cause = [cause << 1; 2];
         // Non-volatile across a chip reset: NOR contents (with guest writes), mask ROM, PCB.
         let nor = self.inner.cache.take_flash();
-        if !nor.is_empty() { self.flash = nor; }
+        if !nor.is_empty() {
+            self.flash = nor;
+        }
         let _ = inner.cache.set_flash(&self.flash);
         if let Some(image) = &self.rom_image {
             inner.mspi.enable_legacy_rom_lengths();
             let _ = inner.load(bus::ROM_BASE, image, image.len());
         }
-        if let Some(b) = &self.board_inputs { let _ = b.apply(&mut inner, mac); }
+        if let Some(b) = &self.board_inputs {
+            let _ = b.apply(&mut inner, mac);
+        }
         // The virtual AP is outside the chip: it survives the reset, as on the C6 (surviving_reboot).
         inner.wifi_mac.link = std::mem::take(&mut self.inner.wifi_mac.link).surviving_reboot();
         self.inner = inner;
-        self.attach_board_devices();                     // the board's I2C devices, on the new controllers
-        self.deliver_pin_levels();                       // the pads are back to their reset state
+        self.attach_board_devices(); // the board's I2C devices, on the new controllers
+        self.deliver_pin_levels(); // the pads are back to their reset state
         self.mac = mac;
         self.misc.log_unknown = log_unknown;
         self.misc.log_all = log_all;
@@ -799,7 +990,10 @@ impl esp_soc::SocBus for SocBus {
     }
 
     fn take_gpio_events(&mut self) -> Vec<(u64, u8, bool)> {
-        self.gpio_events.as_mut().map(std::mem::take).unwrap_or_default()
+        self.gpio_events
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
     }
 
     fn board(&mut self) -> &mut dyn BoardModel {
@@ -813,7 +1007,11 @@ impl esp_soc::SocBus for SocBus {
     /// The I2S controller that has sent the most frames (the Mosaico's speaker codec is on I2S0).
     fn audio(&self) -> (&[i16], u32) {
         let i = &self.inner.i2s;
-        let a = if i[1].frames_out > i[0].frames_out { &i[1] } else { &i[0] };
+        let a = if i[1].frames_out > i[0].frames_out {
+            &i[1]
+        } else {
+            &i[0]
+        };
         (&a.pcm, a.sample_rate)
     }
 
@@ -828,10 +1026,14 @@ impl esp_soc::SocBus for SocBus {
         self.debug = f.clone();
         self.misc.log_all = f.has("mmio");
         self.misc.log_unknown = f.has("mmio");
-        self.inner.spi2.log = f.has("spi"); self.inner.spi3.log = f.has("spi");
+        self.inner.spi2.log = f.has("spi");
+        self.inner.spi3.log = f.has("spi");
         esp_periph::Device::debug(&mut self.inner.axi_dma, f.has("dma"));
-        esp_periph::Device::debug(&mut self.inner.dma2d, f.has("dma2d")); esp_periph::Device::debug(&mut self.inner.ppa, f.has("ppa"));
-        for i in &mut self.inner.i2c { i.log = f.has("i2c"); }
+        esp_periph::Device::debug(&mut self.inner.dma2d, f.has("dma2d"));
+        esp_periph::Device::debug(&mut self.inner.ppa, f.has("ppa"));
+        for i in &mut self.inner.i2c {
+            i.log = f.has("i2c");
+        }
         esp_periph::Device::debug(&mut self.inner.wifi_mac, f.has("wifi"));
     }
 
@@ -851,7 +1053,11 @@ impl esp_soc::SocBus for SocBus {
     fn report(&self) -> String {
         let board = self.board.report();
         let u = &self.inner.unmodelled;
-        let list: Vec<String> = u.iter().take(48).map(|(a, v)| format!("{a:#010x}={v:#x}")).collect();
+        let list: Vec<String> = u
+            .iter()
+            .take(48)
+            .map(|(a, v)| format!("{a:#010x}={v:#x}"))
+            .collect();
         format!(
             "esp32s31: cycles={} flash={}KiB CLI Machine path (ROM boot + --boot app MMU map)\nesp32s31: {} unmodelled peripheral registers used as storage{}{}\nesp32s31: {} peripheral registers whose model refused an access (dropped; last value written): {}",
             self.cycles,
@@ -892,7 +1098,9 @@ impl Bus for SocBus {
         self.inner.fetch_ahead(pc)
     }
     fn read8(&mut self, a: u32) -> Result<u8, Fault> {
-        if !Self::plain_memory(a) { self.dev_dirty = true; }
+        if !Self::plain_memory(a) {
+            self.dev_dirty = true;
+        }
         match self.inner.read8(a) {
             Ok(v) => Ok(v),
             Err(e) => {
@@ -903,7 +1111,9 @@ impl Bus for SocBus {
         }
     }
     fn read16(&mut self, a: u32) -> Result<u16, Fault> {
-        if !Self::plain_memory(a) { self.dev_dirty = true; }
+        if !Self::plain_memory(a) {
+            self.dev_dirty = true;
+        }
         match self.inner.read16(a) {
             Ok(v) => Ok(v),
             Err(e) => {
@@ -914,7 +1124,9 @@ impl Bus for SocBus {
         }
     }
     fn read32(&mut self, a: u32) -> Result<u32, Fault> {
-        if !Self::plain_memory(a) { self.dev_dirty = true; }
+        if !Self::plain_memory(a) {
+            self.dev_dirty = true;
+        }
         match self.inner.read32(a) {
             Ok(v) => Ok(v),
             Err(e) => {
@@ -994,7 +1206,15 @@ impl Bus for SocBus {
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
         // The lines the models advanced here can raise without flagging `irq_dirty` themselves.
-        let lines = |b: &S31Bus| (b.usb_otg.irq(), b.rtc_wdt.irq(), b.periph.timg[0].irq_wdt(), b.periph.timg[1].irq_wdt(), b.periph.usb.irq());
+        let lines = |b: &S31Bus| {
+            (
+                b.usb_otg.irq(),
+                b.rtc_wdt.irq(),
+                b.periph.timg[0].irq_wdt(),
+                b.periph.timg[1].irq_wdt(),
+                b.periph.usb.irq(),
+            )
+        };
         let lines_before = lines(&self.inner);
         let hz = TIME_HZ;
         let before = self.inner.periph.systimer.irqs();
@@ -1017,39 +1237,61 @@ impl Bus for SocBus {
             let t = u64::from(cycles) * 40_000_000 + self.inner.i2c_frac;
             let (ticks, frac) = (t / hz, t % hz);
             self.inner.i2c_frac = frac;
-            for i in &mut self.inner.i2c { if i.is_active() { esp_periph::Device::tick(i, ticks); } }
+            for i in &mut self.inner.i2c {
+                if i.is_active() {
+                    esp_periph::Device::tick(i, ticks);
+                }
+            }
             self.irq_dirty = true;
         }
-        if self.inner.spi2.dma_tx_pending.is_some() || self.inner.spi3.dma_tx_pending.is_some() { self.deliver_spi(); }
+        if self.inner.spi2.dma_tx_pending.is_some() || self.inner.spi3.dma_tx_pending.is_some() {
+            self.deliver_spi();
+        }
         for n in 0..2 {
             if self.inner.i2s[n].poll_active() {
                 let mut changed = self.inner.i2s_tx(n, u64::from(cycles));
-                if self.inner.i2s[n].rx_running() { changed |= self.inner.i2s_rx(n, u64::from(cycles)); }
-                if changed { self.irq_dirty = true; }
+                if self.inner.i2s[n].rx_running() {
+                    changed |= self.inner.i2s_rx(n, u64::from(cycles));
+                }
+                if changed {
+                    self.irq_dirty = true;
+                }
             }
         }
         self.advance_ledc(u64::from(cycles));
         // Emulated time for the board (TE), in nanoseconds.
         let t = u128::from(cycles) * 1_000_000_000 + u128::from(self.board_ns_frac);
-        self.board_ns += (t / u128::from(hz)) as u64; self.board_ns_frac = (t % u128::from(hz)) as u64;
+        self.board_ns += (t / u128::from(hz)) as u64;
+        self.board_ns_frac = (t % u128::from(hz)) as u64;
         self.board.advance_to(self.board_ns);
         let edges = self.board.take_edges();
         if !edges.is_empty() {
-            for e in edges { let _ = self.inner.pads.set_input(usize::from(e.pin), Some(e.level)); }
+            for e in edges {
+                let _ = self.inner.pads.set_input(usize::from(e.pin), Some(e.level));
+            }
             self.irq_dirty = true;
         }
         // USB Serial/JTAG: the attached host's SOF. IDF's connection monitor clears SOF_INT_RAW on
         // every FreeRTOS tick and stops console output once it has seen none for 3 ms.
         esp_periph::Device::tick(&mut self.inner.periph.usb, u64::from(cycles));
         esp_periph::Device::tick(&mut self.inner.usb_otg, u64::from(cycles));
-        if self.inner.usb_otg.pending() { self.inner.run_usb_otg(); }
+        if self.inner.usb_otg.pending() {
+            self.inner.run_usb_otg();
+        }
         // Machine time drives the RTC domains (timer + calibration) that were formerly opt-in:
         // TIMG0 RTC_CALI counter both count from the modeled source rates.
-        self.inner.rtc_timer.advance_cpu_cycles(cycles as u64, hz, self.inner.clocks.rtc_slow_hz());
+        self.inner
+            .rtc_timer
+            .advance_cpu_cycles(cycles as u64, hz, self.inner.clocks.rtc_slow_hz());
         self.inner.check_psram_fetch();
-        let source = self.inner.clocks.calibration_hz(self.inner.rtc_calibration.source());
+        let source = self
+            .inner
+            .clocks
+            .calibration_hz(self.inner.rtc_calibration.source());
         let group = self.inner.periph.timg[0].wdt.clock_read();
-        self.inner.rtc_calibration.advance_cpu(cycles as u64, hz, source, group);
+        self.inner
+            .rtc_calibration
+            .advance_cpu(cycles as u64, hz, source, group);
         self.wifi_step();
         self.poll_chip_reset();
         // Non-zero only when an interrupt line may have moved (emu_core Bus::tick): every other
@@ -1072,10 +1314,16 @@ mod tests {
     #[test]
     fn devkit_flash_id_follows_the_size() {
         for (mb, id) in [(1, 0x14), (2, 0x15), (4, 0x16), (8, 0x17), (16, 0x18)] {
-            assert_eq!(BoardInputs::devkit_sized(mb << 20).unwrap().flash_id, [0xef, 0x40, id], "{mb} MiB");
+            assert_eq!(
+                BoardInputs::devkit_sized(mb << 20).unwrap().flash_id,
+                [0xef, 0x40, id],
+                "{mb} MiB"
+            );
         }
         assert_eq!(BoardInputs::hello_w25q16().flash_id, [0xef, 0x40, 0x15]);
-        for bytes in [0, 3 << 20, 32 << 20, 512 << 10] { assert!(BoardInputs::devkit_sized(bytes).is_none(), "{bytes}"); }
+        for bytes in [0, 3 << 20, 32 << 20, 512 << 10] {
+            assert!(BoardInputs::devkit_sized(bytes).is_none(), "{bytes}");
+        }
     }
 
     /// EX265: a store to plain memory no longer ends the dispatch when the interrupt refresh it
@@ -1088,16 +1336,25 @@ mod tests {
         b.irq_dirty = false;
         let _ = esp_soc::SocBus::refresh_irq(b);
         b.write32(bus::SRAM_BASE + 0x100, 1).unwrap();
-        assert!(!b.irq_dirty && !b.dev_dirty, "nothing moved since the refresh");
+        assert!(
+            !b.irq_dirty && !b.dev_dirty,
+            "nothing moved since the refresh"
+        );
         let _ = b.read32(bus::UART0_BASE + 0x1c);
         assert!(b.dev_dirty, "a device read may have side effects");
         b.write32(bus::SRAM_BASE + 0x104, 1).unwrap();
-        assert!(!b.dev_dirty && !b.irq_dirty, "refreshed at the store, and nothing to present");
+        assert!(
+            !b.dev_dirty && !b.irq_dirty,
+            "refreshed at the store, and nothing to present"
+        );
         S31::select_core(b, 0);
         assert!(b.dev_dirty, "a new dispatch may follow host input");
         b.presented = None;
         b.write32(bus::SRAM_BASE + 0x108, 1).unwrap();
-        assert!(b.irq_dirty, "a core whose input was dropped must be presented again");
+        assert!(
+            b.irq_dirty,
+            "a core whose input was dropped must be presented again"
+        );
         b.irq_dirty = false;
         b.write32(bus::UART0_BASE + 0x10, 0).unwrap();
         assert!(b.irq_dirty, "a device store still ends the dispatch");
@@ -1120,7 +1377,11 @@ mod tests {
         m.cores[0].pc = bus::SRAM_BASE;
         let stop = m.run(8);
         assert!(matches!(stop, esp_soc::Stop::MaxInsns), "{stop:?}");
-        assert!(m.cores[0].insn_count >= 8, "core0 retired {}", m.cores[0].insn_count);
+        assert!(
+            m.cores[0].insn_count >= 8,
+            "core0 retired {}",
+            m.cores[0].insn_count
+        );
         assert!(m.bus.cycles() >= 8);
         assert!(m.cores[1].insn_count == 0, "core1 still held in reset");
     }
@@ -1168,18 +1429,19 @@ mod tests {
         bus.write32(GPIO_BASE + 0x38, 1 << 8).unwrap();
         bus.write32(GPIO_BASE + 0xaf4 + 8 * 4, 126).unwrap();
         bus.write32(ch + 8, 0).unwrap();
-        bus.write32(ch, 1 << 2 | 1 << 4).unwrap();                    // SIG_OUT_EN, PARA_UP, duty 0
+        bus.write32(ch, 1 << 2 | 1 << 4).unwrap(); // SIG_OUT_EN, PARA_UP, duty 0
         assert!(!pin(&bus));
         assert_eq!(bus.read32(ch).unwrap() & 1 << 4, 0, "PARA_UP clears itself");
-        bus.write32(ch + 8, 100 << 4).unwrap();                       // ledc_set_duty, no update
+        bus.write32(ch + 8, 100 << 4).unwrap(); // ledc_set_duty, no update
         assert!(!pin(&bus), "the old duty stays in effect");
-        bus.write32(ch + 0xc, 1 << 31).unwrap();                      // DUTY_START
+        bus.write32(ch + 0xc, 1 << 31).unwrap(); // DUTY_START
         assert!(pin(&bus));
-        bus.write32(ch + 0xa0, 1 << 23).unwrap();                     // timer 0 paused: idle level 0
+        bus.write32(ch + 0xa0, 1 << 23).unwrap(); // timer 0 paused: idle level 0
         assert!(!pin(&bus));
         bus.write32(ch + 0xa0, 0).unwrap();
         assert!(pin(&bus));
-        bus.write32(GPIO_BASE + 0xaf4 + 8 * 4, 126 | 1 << 9).unwrap(); // OUT_INV_SEL
+        bus.write32(GPIO_BASE + 0xaf4 + 8 * 4, 126 | 1 << 9)
+            .unwrap(); // OUT_INV_SEL
         assert!(!pin(&bus));
     }
 
@@ -1189,7 +1451,8 @@ mod tests {
         let mut bus = SocBus::new(1 << 20, [0; 6]);
         assert_eq!(bus.reset_cause, esp_periph::RST_POWERON);
         // esp_cpu_reset → LP_AONCLKRST_HPCORE0_SW_RESET (bit 20) via ResetControl.
-        bus.write32(crate::reset::BASE, 0x4001_0000 | (1 << 20)).unwrap();
+        bus.write32(crate::reset::BASE, 0x4001_0000 | (1 << 20))
+            .unwrap();
         assert!(bus.inner.reset.request.is_some());
         bus.poll_chip_reset();
         assert!(bus.sw_reset);
@@ -1220,18 +1483,33 @@ mod tests {
         use emu_core::Bus;
         let mut bus = SocBus::new(1 << 20, [0; 6]);
         bus.board = crate::board::make_board("mosaico").unwrap();
-        for pin in [44u32, 60] { bus.write32(IO_MUX_BASE + 4 * pin, 0x1200).unwrap(); }
-        bus.write32(GPIO_BASE + 0x14, 1 << (44 - 32)).unwrap();           // RESET high, power enable low
-        bus.write32(GPIO_BASE + 0x44, 1 << (44 - 32) | 1 << (60 - 32)).unwrap();
+        for pin in [44u32, 60] {
+            bus.write32(IO_MUX_BASE + 4 * pin, 0x1200).unwrap();
+        }
+        bus.write32(GPIO_BASE + 0x14, 1 << (44 - 32)).unwrap(); // RESET high, power enable low
+        bus.write32(GPIO_BASE + 0x44, 1 << (44 - 32) | 1 << (60 - 32))
+            .unwrap();
         let spi = bus::GPSPI2;
         let send = |bus: &mut SocBus, lead: u32, cmd: u32, data: &[u8]| {
-            bus.write32(spi + 0x10, 1 << 30 | if data.is_empty() { 0 } else { 1 << 27 | 1 << 13 }).unwrap();
+            bus.write32(
+                spi + 0x10,
+                1 << 30
+                    | if data.is_empty() {
+                        0
+                    } else {
+                        1 << 27 | 1 << 13
+                    },
+            )
+            .unwrap();
             bus.write32(spi + 0x14, 31 << 27).unwrap();
             bus.write32(spi + 0x04, lead << 24 | cmd << 8).unwrap();
-            bus.write32(spi + 0x1c, (data.len() as u32 * 8).max(1) - 1).unwrap();
+            bus.write32(spi + 0x1c, (data.len() as u32 * 8).max(1) - 1)
+                .unwrap();
             for (i, w) in data.chunks(4).enumerate() {
-                let mut b = [0u8; 4]; b[..w.len()].copy_from_slice(w);
-                bus.write32(spi + 0x98 + 4 * i as u32, u32::from_le_bytes(b)).unwrap();
+                let mut b = [0u8; 4];
+                b[..w.len()].copy_from_slice(w);
+                bus.write32(spi + 0x98 + 4 * i as u32, u32::from_le_bytes(b))
+                    .unwrap();
             }
             bus.write32(spi, 1 << 24).unwrap();
             assert_eq!(bus.read32(spi).unwrap() & 1 << 24, 0, "USR done");
@@ -1246,7 +1524,11 @@ mod tests {
         // GPIO 60 high cuts the panel's supply: the next window is not taken
         bus.write32(GPIO_BASE + 0x14, 1 << (60 - 32)).unwrap();
         send(&mut bus, 0x32, 0x2c, &[0x12, 0x34]);
-        assert_eq!(bus.board.display().unwrap().3, 0, "an unpowered panel lost its RAM");
+        assert_eq!(
+            bus.board.display().unwrap().3,
+            0,
+            "an unpowered panel lost its RAM"
+        );
     }
 
     /// hal_get_tsf_time: setting bit n of 0x2010D814 latches emulated microseconds into
@@ -1262,10 +1544,21 @@ mod tests {
         bus.write32(TSF_LATCH, 0).unwrap();
         bus.cycles += 10 * TIME_HZ;
         bus.write32(TSF_LATCH, 1 << 4).unwrap();
-        assert_eq!(bus.read32(TSF_LATCH + 0xc).unwrap(), 5_000_007, "no request, no latch");
+        assert_eq!(
+            bus.read32(TSF_LATCH + 0xc).unwrap(),
+            5_000_007,
+            "no request, no latch"
+        );
         bus.cycles = 5000 * TIME_HZ;
         bus.write32(TSF_LATCH, 1).unwrap();
-        assert_eq!(bus.read32(TSF_LATCH + 0xc).unwrap(), 5_000_000_000u64 as u32);
-        assert_eq!(bus.read32(TSF_LATCH + 0x10).unwrap(), 1, "the high word carries");
+        assert_eq!(
+            bus.read32(TSF_LATCH + 0xc).unwrap(),
+            5_000_000_000u64 as u32
+        );
+        assert_eq!(
+            bus.read32(TSF_LATCH + 0x10).unwrap(),
+            1,
+            "the high word carries"
+        );
     }
 }

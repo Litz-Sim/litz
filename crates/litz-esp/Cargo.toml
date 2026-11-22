@@ -7,30 +7,32 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
-esp-periph = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
-esp-soc = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
-esp32 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
-esp32c3 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
-esp32c6 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
-esp32p4 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
-esp32s3 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
-esp32s31 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1", version = "0.4.0", optional = true }
-litz-ble = { version = "0.0.1", path = "../litz-ble", optional = true }
-litz-board = { version = "0.0.1", path = "../litz-board", optional = true }
-litz-net = { version = "0.0.1", path = "../litz-net", optional = true }
-litz-core = { version = "0.0.1", path = "../litz-core" }
-litz-mcu = { version = "0.0.1", path = "../litz-mcu" }
+litz-esp-periph = { version = "0.1.0", path = "../../vendor/esp-periph", optional = true }
+litz-esp-soc = { version = "0.1.0", path = "../../vendor/esp-soc", optional = true }
+litz-esp32 = { version = "0.1.0", path = "../../vendor/esp32", optional = true }
+litz-esp32c3 = { version = "0.1.0", path = "../../vendor/esp32c3", optional = true }
+litz-esp32c6 = { version = "0.1.0", path = "../../vendor/esp32c6", optional = true }
+litz-esp32p4 = { version = "0.1.0", path = "../../vendor/esp32p4", optional = true }
+litz-esp32s3 = { version = "0.1.0", path = "../../vendor/esp32s3", optional = true }
+litz-esp32s31 = { version = "0.1.0", path = "../../vendor/esp32s31", optional = true }
+litz-ble = { version = "0.1.0", path = "../litz-ble", optional = true }
+litz-board = { version = "0.1.0", path = "../litz-board", optional = true }
+litz-net = { version = "0.1.0", path = "../litz-net", optional = true }
+litz-core = { version = "0.1.0", path = "../litz-core" }
+litz-mcu = { version = "0.1.0", path = "../litz-mcu" }
 gdbstub = "0.7.10"
 
 [features]
-esp32c3 = ["dep:esp32c3", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
-esp32c6 = ["dep:esp32c6", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
-esp32 = ["dep:esp32", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
-esp32s3 = ["dep:esp32s3", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
-esp32p4 = ["dep:esp32p4", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
-esp32s31 = ["dep:esp32s31", "dep:esp-soc", "dep:esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32c3 = ["dep:litz-esp32c3", "dep:litz-esp-soc", "dep:litz-esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32c6 = ["dep:litz-esp32c6", "dep:litz-esp-soc", "dep:litz-esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32 = ["dep:litz-esp32", "dep:litz-esp-soc", "dep:litz-esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32s3 = ["dep:litz-esp32s3", "dep:litz-esp-soc", "dep:litz-esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32p4 = ["dep:litz-esp32p4", "dep:litz-esp-soc", "dep:litz-esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
+esp32s31 = ["dep:litz-esp32s31", "dep:litz-esp-soc", "dep:litz-esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]
 
 [[test]]
 name = "c3_boot"
@@ -41,8 +43,8 @@ name = "c3_boot"
 required-features = ["esp32c3"]
 
 [dev-dependencies]
-esp-soc = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
-litz-board = { path = "../litz-board" }
-litz-catalog = { path = "../litz-catalog" }
-litz-diagram = { path = "../litz-diagram" }
-litz-fixture = { path = "../litz-fixture" }
+litz-esp-soc = { version = "0.1.0", path = "../../vendor/esp-soc" }
+litz-board = { version = "0.1.0", path = "../litz-board" }
+litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
+litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
+litz-fixture = { version = "0.1.0", path = "../litz-fixture" }

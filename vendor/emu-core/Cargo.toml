@@ -1,0 +1,14 @@
+[package]
+name = "litz-emu-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Litz fork of esp32sim: What every emulated CPU shares: the bus contract, the Core trait, traps, clocks, and the AArch64 encoder"
+
+repository = "https://github.com/Litz-Sim/litz"
+homepage = "https://github.com/Litz-Sim/litz#readme"
+
+[lib]
+name = "emu_core"
+
+[dependencies]

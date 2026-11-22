@@ -1,13 +1,17 @@
 //! GPIO38 interrupt register addresses and fields follow the ESP-IDF v6.1 headers
 //! cited in `tests/co5300.rs`; the fields also match ESP-IDF v5.5.4.
 use emu_core::Bus;
-use esp_periph::i2c::I2cDevice;
 use esp32s3::board::{make_board, BoardEdge, BoardModel, StopWatch};
+use esp_periph::i2c::I2cDevice;
 
 type Devices = Vec<(u8, u8, Box<dyn I2cDevice>)>;
 
 fn device(devices: &mut Devices, address: u8) -> &mut dyn I2cDevice {
-    &mut *devices.iter_mut().find(|(bus, addr, _)| *bus == 0 && *addr == address).unwrap().2
+    &mut *devices
+        .iter_mut()
+        .find(|(bus, addr, _)| *bus == 0 && *addr == address)
+        .unwrap()
+        .2
 }
 
 fn read(devices: &mut Devices, address: u8, reg: u8, count: usize) -> Vec<u8> {
@@ -71,8 +75,13 @@ fn factory_devices_and_active_low_button_inputs() {
         let mut board = make_board(name).unwrap();
         assert_eq!(board.name(), "stopwatch");
         let devices = board.i2c_devices();
-        assert_eq!(devices.iter().map(|(bus, addr, _)| (*bus, *addr)).collect::<Vec<_>>(),
-            [(0, 0x6e), (0, 0x4f), (0, 0x15)]);
+        assert_eq!(
+            devices
+                .iter()
+                .map(|(bus, addr, _)| (*bus, *addr))
+                .collect::<Vec<_>>(),
+            [(0, 0x6e), (0, 0x4f), (0, 0x15)]
+        );
         assert_eq!(board.named_pin("a"), Some(2));
         assert_eq!(board.named_pin("btn_b"), Some(1));
         assert_eq!(board.named_pin("missing"), None);
@@ -120,11 +129,25 @@ fn reset_pulse_between_board_callbacks_clears_pixels_and_tear_state() {
     command(&mut board, 0x35, &[0]);
     let us = esp32s3::periph::CPU_HZ / 1_000_000;
     board.advance_to(15_000 * us);
-    assert_eq!(board.take_edges(), [BoardEdge { cycle: 15_000 * us, pin: 38, level: true }]);
+    assert_eq!(
+        board.take_edges(),
+        [BoardEdge {
+            cycle: 15_000 * us,
+            pin: 38,
+            level: true
+        }]
+    );
     let before = board.display_version();
     update(&mut devices, 0x4f, 0x05, 0, 0x18);
     update(&mut devices, 0x4f, 0x05, 0x18, 0);
-    assert_eq!(board.take_edges(), [BoardEdge { cycle: 15_000 * us, pin: 38, level: false }]);
+    assert_eq!(
+        board.take_edges(),
+        [BoardEdge {
+            cycle: 15_000 * us,
+            pin: 38,
+            level: false
+        }]
+    );
     assert_eq!(board.next_deadline(), None);
     assert!(board.display().unwrap().2.iter().all(|&p| p == 0));
     assert!(board.display_version() > before);
@@ -200,5 +223,8 @@ fn synthetic_scan_uses_cpu_cycles_and_drives_gpio38_interrupts() {
     bus.tick((120 * us) as u32);
     assert_eq!(bus.read32(0x6000_4040).unwrap() & (1 << 6), 0);
     assert_eq!(bus.read32(0x6000_4068).unwrap(), 1 << 6);
-    assert_eq!(bus.gpio_events.as_deref(), Some(&[(9_600 * us, 38, true), (9_720 * us, 38, false)][..]));
+    assert_eq!(
+        bus.gpio_events.as_deref(),
+        Some(&[(9_600 * us, 38, true), (9_720 * us, 38, false)][..])
+    );
 }

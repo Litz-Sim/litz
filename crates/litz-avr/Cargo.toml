@@ -7,10 +7,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
-litz-board = { version = "0.0.1", path = "../litz-board" }
-litz-core = { version = "0.0.1", path = "../litz-core" }
+litz-board = { version = "0.1.0", path = "../litz-board" }
+litz-core = { version = "0.1.0", path = "../litz-core" }
 
 [dev-dependencies]
 litz-catalog = { path = "../litz-catalog" }

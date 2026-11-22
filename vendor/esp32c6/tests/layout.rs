@@ -14,6 +14,9 @@ fn cold_devices_do_not_grow_the_native_hot_bus() {
     // both Linux CI targets. Adding other Peripherals/SocBus fields is harmless.
     let periph = Peripherals::new([0; 6]);
     assert_eq!(size_of_val(&periph.optional), size_of::<usize>());
-    assert_eq!(size_of::<Option<Box<OptionalPeripherals>>>(), size_of::<usize>());
+    assert_eq!(
+        size_of::<Option<Box<OptionalPeripherals>>>(),
+        size_of::<usize>()
+    );
     assert!(size_of::<OptionalPeripherals>() > size_of_val(&periph.optional));
 }

@@ -97,33 +97,86 @@ pub struct Mosaico {
     /// PWR_SW asserted (driven low): the firmware asked for power off.
     pub shutdown_requested: bool,
 }
-impl Default for Mosaico { fn default() -> Self { Self::new() } }
+impl Default for Mosaico {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Mosaico {
     pub const WIDTH: usize = 480;
     pub const HEIGHT: usize = 480;
     pub fn new() -> Self {
-        Mosaico { panel: Co5300::new(Self::WIDTH, Self::HEIGHT, 0), powered: false, in_reset: false, amp: false, gpio_events: 0, dropped: 0, touch: Default::default(), nand: crate::spi_nand::SpiNand::new(), te_level: false, te_now: 0, touch_int_low: false, touch_release_at: None, te_edges: Vec::new(), imu: Default::default(),
-                  motor: false, motor_starts: 0, motor_ns: 0, motor_since: 0, motor_led: [[0; 3]], motor_updates: 0, shutdown_requested: false }
+        Mosaico {
+            panel: Co5300::new(Self::WIDTH, Self::HEIGHT, 0),
+            powered: false,
+            in_reset: false,
+            amp: false,
+            gpio_events: 0,
+            dropped: 0,
+            touch: Default::default(),
+            nand: crate::spi_nand::SpiNand::new(),
+            te_level: false,
+            te_now: 0,
+            touch_int_low: false,
+            touch_release_at: None,
+            te_edges: Vec::new(),
+            imu: Default::default(),
+            motor: false,
+            motor_starts: 0,
+            motor_ns: 0,
+            motor_since: 0,
+            motor_led: [[0; 3]],
+            motor_updates: 0,
+            shutdown_requested: false,
+        }
     }
     /// Emulated nanoseconds the motor has run, including the current run.
-    pub fn motor_ns(&self) -> u64 { self.motor_ns + if self.motor { self.te_now.saturating_sub(self.motor_since) } else { 0 } }
+    pub fn motor_ns(&self) -> u64 {
+        self.motor_ns
+            + if self.motor {
+                self.te_now.saturating_sub(self.motor_since)
+            } else {
+                0
+            }
+    }
     fn set_motor(&mut self, on: bool) {
-        if on == self.motor { return; }
-        if on { self.motor_starts += 1; self.motor_since = self.te_now; } else { self.motor_ns += self.te_now.saturating_sub(self.motor_since); }
+        if on == self.motor {
+            return;
+        }
+        if on {
+            self.motor_starts += 1;
+            self.motor_since = self.te_now;
+        } else {
+            self.motor_ns += self.te_now.saturating_sub(self.motor_since);
+        }
         self.motor = on;
         self.motor_led = [if on { MOTOR_COLOUR } else { [0; 3] }];
         self.motor_updates += 1;
     }
 }
 impl BoardModel for Mosaico {
-    fn name(&self) -> &'static str { "mosaico" }
-    fn uses_gpio_edges(&self) -> bool { false }
+    fn name(&self) -> &'static str {
+        "mosaico"
+    }
+    fn uses_gpio_edges(&self) -> bool {
+        false
+    }
     fn gpio_changes(&mut self, changes: &[(u8, bool)]) {
         for &(pin, level) in changes {
             self.gpio_events += 1;
             match pin {
-                PIN_LCD_POWER_N => { if level && self.powered { self.panel.reset(); } self.powered = !level; }
-                PIN_LCD_RESET => { if !level { self.panel.reset(); } self.in_reset = !level; }
+                PIN_LCD_POWER_N => {
+                    if level && self.powered {
+                        self.panel.reset();
+                    }
+                    self.powered = !level;
+                }
+                PIN_LCD_RESET => {
+                    if !level {
+                        self.panel.reset();
+                    }
+                    self.in_reset = !level;
+                }
                 PIN_PA => self.amp = level,
                 PIN_MOTOR => self.set_motor(level),
                 PIN_POWER_SWITCH => self.shutdown_requested = !level,
@@ -131,69 +184,182 @@ impl BoardModel for Mosaico {
             }
         }
     }
-    fn gpio_events(&self) -> u64 { self.gpio_events }
-    fn pull_downs(&self) -> u64 { 1 << PIN_MOTOR }
+    fn gpio_events(&self) -> u64 {
+        self.gpio_events
+    }
+    fn pull_downs(&self) -> u64 {
+        1 << PIN_MOTOR
+    }
     /// The motor's indicator: one "LED", lit while it runs.
-    fn leds(&self) -> Option<(&[[u8; 3]], u64)> { Some((&self.motor_led, self.motor_updates)) }
-    fn input_levels(&self) -> Vec<(u8, bool)> { vec![(PIN_LCD_TE, self.te_level), (PIN_TOUCH_INT, !self.touch_int_low), (PIN_AI_BUTTON, true), (PIN_BOOT_BUTTON, true)] }
+    fn leds(&self) -> Option<(&[[u8; 3]], u64)> {
+        Some((&self.motor_led, self.motor_updates))
+    }
+    fn input_levels(&self) -> Vec<(u8, bool)> {
+        vec![
+            (PIN_LCD_TE, self.te_level),
+            (PIN_TOUCH_INT, !self.touch_int_low),
+            (PIN_AI_BUTTON, true),
+            (PIN_BOOT_BUTTON, true),
+        ]
+    }
     /// The S31 machine passes emulated time in nanoseconds. TE runs only while the panel is powered
     /// and out of reset; a jump over several frames yields the level at `now` (one edge pair at most).
     fn advance_to(&mut self, now: esp_soc::board::VirtualCycle) {
         self.te_now = now;
-        self.imu.cycle.store(now, std::sync::atomic::Ordering::Relaxed);
+        self.imu
+            .cycle
+            .store(now, std::sync::atomic::Ordering::Relaxed);
         if self.touch_release_at.is_some_and(|t| now >= t) {
-            self.touch_release_at = None; self.touch_int_low = false;
-            self.te_edges.push(esp_soc::board::BoardEdge { cycle: now, pin: PIN_TOUCH_INT, level: true });
+            self.touch_release_at = None;
+            self.touch_int_low = false;
+            self.te_edges.push(esp_soc::board::BoardEdge {
+                cycle: now,
+                pin: PIN_TOUCH_INT,
+                level: true,
+            });
         }
         let level = self.powered && !self.in_reset && now % TE_PERIOD_NS < TE_HIGH_NS;
         if level != self.te_level {
             self.te_level = level;
-            self.te_edges.push(esp_soc::board::BoardEdge { cycle: now, pin: PIN_LCD_TE, level });
+            self.te_edges.push(esp_soc::board::BoardEdge {
+                cycle: now,
+                pin: PIN_LCD_TE,
+                level,
+            });
         }
     }
     fn named_pin(&self, name: &str) -> Option<u8> {
-        match name { "ai" | "power" | "btn1" | "button" => Some(PIN_AI_BUTTON), "boot" | "btn2" => Some(PIN_BOOT_BUTTON), _ => None }
+        match name {
+            "ai" | "power" | "btn1" | "button" => Some(PIN_AI_BUTTON),
+            "boot" | "btn2" => Some(PIN_BOOT_BUTTON),
+            _ => None,
+        }
     }
-    fn take_edges(&mut self) -> Vec<esp_soc::board::BoardEdge> { std::mem::take(&mut self.te_edges) }
+    fn take_edges(&mut self) -> Vec<esp_soc::board::BoardEdge> {
+        std::mem::take(&mut self.te_edges)
+    }
     /// The next TE edge, in the same emulated nanoseconds `advance_to` takes, so an idle machine
     /// wakes for it instead of jumping over the 1 ms blanking pulse.
     fn next_deadline(&self) -> Option<esp_soc::board::VirtualCycle> {
-        if !self.powered || self.in_reset { return None; }
+        if !self.powered || self.in_reset {
+            return None;
+        }
         let now = self.te_now;
         let phase = now % TE_PERIOD_NS;
-        let te = now - phase + if phase < TE_HIGH_NS { TE_HIGH_NS } else { TE_PERIOD_NS };
+        let te = now - phase
+            + if phase < TE_HIGH_NS {
+                TE_HIGH_NS
+            } else {
+                TE_PERIOD_NS
+            };
         Some(self.touch_release_at.map_or(te, |t| t.min(te)))
     }
     fn i2c_devices(&mut self) -> Vec<(u8, u8, Box<dyn esp_periph::i2c::I2cDevice>)> {
-        vec![(0, crate::cst9220::ADDRESS, Box::new(crate::cst9220::Cst9220::new(self.touch.clone(), Self::WIDTH as u16, Self::HEIGHT as u16))),
-             (0, crate::bq27220::ADDRESS, Box::new(crate::bq27220::Bq27220::new())),
-             (0, ES8311_ADDRESS, Box::new(esp_periph::i2c::Reg8Device::new("es8311", &[(0xfd, 0x83), (0xfe, 0x11)]))),
-             (0, BMI270_ADDRESS, Box::new(esp_soc::devices::Bmi270::new(self.imu.clone(), 1_000_000_000))),
-             (0, BMM150_ADDRESSES[0], Box::new(esp_soc::devices::Bmm150::with_motion(Default::default(), self.imu.clone(), 1_000_000_000))),
-             (0, BMM150_ADDRESSES[1], Box::new(esp_soc::devices::Bmm150::with_motion(Default::default(), self.imu.clone(), 1_000_000_000)))]
+        vec![
+            (
+                0,
+                crate::cst9220::ADDRESS,
+                Box::new(crate::cst9220::Cst9220::new(
+                    self.touch.clone(),
+                    Self::WIDTH as u16,
+                    Self::HEIGHT as u16,
+                )),
+            ),
+            (
+                0,
+                crate::bq27220::ADDRESS,
+                Box::new(crate::bq27220::Bq27220::new()),
+            ),
+            (
+                0,
+                ES8311_ADDRESS,
+                Box::new(esp_periph::i2c::Reg8Device::new(
+                    "es8311",
+                    &[(0xfd, 0x83), (0xfe, 0x11)],
+                )),
+            ),
+            (
+                0,
+                BMI270_ADDRESS,
+                Box::new(esp_soc::devices::Bmi270::new(
+                    self.imu.clone(),
+                    1_000_000_000,
+                )),
+            ),
+            (
+                0,
+                BMM150_ADDRESSES[0],
+                Box::new(esp_soc::devices::Bmm150::with_motion(
+                    Default::default(),
+                    self.imu.clone(),
+                    1_000_000_000,
+                )),
+            ),
+            (
+                0,
+                BMM150_ADDRESSES[1],
+                Box::new(esp_soc::devices::Bmm150::with_motion(
+                    Default::default(),
+                    self.imu.clone(),
+                    1_000_000_000,
+                )),
+            ),
+        ]
     }
-    fn set_imu_motion(&mut self, mode: u32) -> bool { self.imu.mode.store(mode, std::sync::atomic::Ordering::Relaxed); true }
-    fn imu_motion(&self) -> u32 { self.imu.mode.load(std::sync::atomic::Ordering::Relaxed) }
+    fn set_imu_motion(&mut self, mode: u32) -> bool {
+        self.imu
+            .mode
+            .store(mode, std::sync::atomic::Ordering::Relaxed);
+        true
+    }
+    fn imu_motion(&self) -> u32 {
+        self.imu.mode.load(std::sync::atomic::Ordering::Relaxed)
+    }
     fn touch(&mut self, x: u16, y: u16, down: bool) {
         *self.touch.lock().unwrap() = crate::cst9220::Touch { down, x, y };
         // A new report: INT falls (again, for a move while down) and, on release, rises 1 ms later.
-        if self.touch_int_low { self.te_edges.push(esp_soc::board::BoardEdge { cycle: self.te_now, pin: PIN_TOUCH_INT, level: true }); }
+        if self.touch_int_low {
+            self.te_edges.push(esp_soc::board::BoardEdge {
+                cycle: self.te_now,
+                pin: PIN_TOUCH_INT,
+                level: true,
+            });
+        }
         self.touch_int_low = true;
-        self.te_edges.push(esp_soc::board::BoardEdge { cycle: self.te_now, pin: PIN_TOUCH_INT, level: false });
+        self.te_edges.push(esp_soc::board::BoardEdge {
+            cycle: self.te_now,
+            pin: PIN_TOUCH_INT,
+            level: false,
+        });
         self.touch_release_at = (!down).then_some(self.te_now + TOUCH_RELEASE_NS);
     }
     fn spi_transfer(&mut self, host: u8, tx: &[u8], rx_len: usize) -> Vec<u8> {
-        if host == 3 { return self.nand.transaction(tx, rx_len); }
+        if host == 3 {
+            return self.nand.transaction(tx, rx_len);
+        }
         if host == 2 {
-            if self.powered && !self.in_reset { self.panel.transaction(tx); } else { self.dropped += 1; }
+            if self.powered && !self.in_reset {
+                self.panel.transaction(tx);
+            } else {
+                self.dropped += 1;
+            }
         }
         vec![0xff; rx_len]
     }
     fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> {
-        Some((Self::WIDTH as u32, Self::HEIGHT as u32, self.panel.frame.clone(), self.panel.pixels_written))
+        Some((
+            Self::WIDTH as u32,
+            Self::HEIGHT as u32,
+            self.panel.frame.clone(),
+            self.panel.pixels_written,
+        ))
     }
-    fn display_version(&self) -> u64 { self.panel.pixels_written }
-    fn display_frames(&self) -> u64 { self.panel.frames }
+    fn display_version(&self) -> u64 {
+        self.panel.pixels_written
+    }
+    fn display_frames(&self) -> u64 {
+        self.panel.frames
+    }
     fn report(&self) -> String {
         let n = self.nand.stats;
         format!("[emu] mosaico: CO5300 {} RAMWR, {} pixels; power {}, reset {}; {} transactions dropped; gpio events {}; speaker amp {}\n[emu] mosaico: NAND {} page reads, {} programs, {} erases, {} refused\n[emu] mosaico: motor {}, {} starts, {} ms on; PWR_SW {}",
@@ -224,7 +390,11 @@ mod tests {
     #[test]
     fn motor_runs_while_gpio8_is_high_and_lights_its_indicator() {
         let mut b = Mosaico::new();
-        assert_eq!(b.pull_downs(), 1 << PIN_MOTOR, "an undriven motor pin reads off");
+        assert_eq!(
+            b.pull_downs(),
+            1 << PIN_MOTOR,
+            "an undriven motor pin reads off"
+        );
         assert_eq!(b.leds(), Some((&[[0, 0, 0]][..], 0)));
         b.advance_to(1_000_000);
         b.gpio_changes(&[(PIN_MOTOR, true)]);
@@ -236,8 +406,16 @@ mod tests {
         assert_eq!(b.motor_ns(), 200_000_000, "running: counted up to now");
         b.gpio_changes(&[(PIN_MOTOR, false)]);
         b.advance_to(500_000_000);
-        assert_eq!((b.motor, b.motor_starts, b.motor_ns()), (false, 1, 200_000_000));
-        assert!(b.report().contains("motor off, 1 starts, 200 ms on; PWR_SW released"), "{}", b.report());
+        assert_eq!(
+            (b.motor, b.motor_starts, b.motor_ns()),
+            (false, 1, 200_000_000)
+        );
+        assert!(
+            b.report()
+                .contains("motor off, 1 starts, 200 ms on; PWR_SW released"),
+            "{}",
+            b.report()
+        );
         b.gpio_changes(&[(PIN_POWER_SWITCH, false)]);
         assert!(b.report().contains("PWR_SW asserted"), "{}", b.report());
     }
@@ -247,6 +425,10 @@ mod tests {
         let b = Mosaico::new();
         assert_eq!(b.named_pin("ai"), Some(7));
         assert_eq!(b.named_pin("boot"), Some(61));
-        assert!(b.input_levels().contains(&(PIN_AI_BUTTON, true)) && b.input_levels().contains(&(PIN_BOOT_BUTTON, true)), "released: high");
+        assert!(
+            b.input_levels().contains(&(PIN_AI_BUTTON, true))
+                && b.input_levels().contains(&(PIN_BOOT_BUTTON, true)),
+            "released: high"
+        );
     }
 }

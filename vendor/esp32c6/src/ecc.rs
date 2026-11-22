@@ -58,13 +58,21 @@ struct Curve {
 impl Curve {
     fn new() -> Self {
         Self {
-            p: vec![0xffffffff, 0xffffffff, 0xffffffff, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xffffffff],
-            b: vec![0x27d2604b, 0x3bce3c3e, 0xcc53b0f6, 0x651d06b0, 0x769886bc, 0xb3ebbd55, 0xaa3a93e7, 0x5ac635d8],
+            p: vec![
+                0xffffffff, 0xffffffff, 0xffffffff, 0x00000000, 0x00000000, 0x00000000, 0x00000001,
+                0xffffffff,
+            ],
+            b: vec![
+                0x27d2604b, 0x3bce3c3e, 0xcc53b0f6, 0x651d06b0, 0x769886bc, 0xb3ebbd55, 0xaa3a93e7,
+                0x5ac635d8,
+            ],
         }
     }
     fn valid(&self, x: &[u32], y: &[u32]) -> bool {
         let p = &self.p;
-        if !(x.iter().rev().cmp(p.iter().rev()).is_lt() && y.iter().rev().cmp(p.iter().rev()).is_lt()) {
+        if !(x.iter().rev().cmp(p.iter().rev()).is_lt()
+            && y.iter().rev().cmp(p.iter().rev()).is_lt())
+        {
             return false;
         }
         let rhs = add(
@@ -83,7 +91,11 @@ struct Point {
 }
 impl Point {
     fn infinity() -> Self {
-        Self { x: vec![], y: vec![], z: vec![] }
+        Self {
+            x: vec![],
+            y: vec![],
+            z: vec![],
+        }
     }
     fn double(&self, p: &[u32]) -> Self {
         if zero(&self.z) || zero(&self.y) {
@@ -104,7 +116,11 @@ impl Point {
     }
     fn add_affine(&self, x: &[u32], y: &[u32], p: &[u32]) -> Self {
         if zero(&self.z) {
-            return Self { x: x.to_vec(), y: y.to_vec(), z: vec![1] };
+            return Self {
+                x: x.to_vec(),
+                y: y.to_vec(),
+                z: vec![1],
+            };
         }
         let zz = mul(&self.z, &self.z, p);
         let h = sub(&mul(x, &zz, p), &self.x, p);
@@ -121,7 +137,11 @@ impl Point {
         let v = mul(&self.x, &hh, p);
         let nx = sub(&sub(&mul(&r, &r, p), &hhh, p), &mul(&v, &[2], p), p);
         let ny = sub(&mul(&r, &sub(&v, &nx, p), p), &mul(&self.y, &hhh, p), p);
-        Self { x: nx, y: ny, z: mul(&self.z, &h, p) }
+        Self {
+            x: nx,
+            y: ny,
+            z: mul(&self.z, &h, p),
+        }
     }
     fn affine(self, p: &[u32]) -> (Number, Number) {
         if zero(&self.z) {
@@ -145,13 +165,20 @@ pub struct Ecc {
 }
 impl Default for Ecc {
     fn default() -> Self {
-        Self { mem: [0; 24], conf: 1 << 31, raw: 0, ena: 0 }
+        Self {
+            mem: [0; 24],
+            conf: 1 << 31,
+            raw: 0,
+            ena: 0,
+        }
     }
 }
 impl Ecc {
     /// PCR ECC_CONF ECC_RST_EN (pcr_reg.h:1333-1336), pulsed by ecc_ll_reset_register
     /// (hal/esp32c6/include/hal/ecc_ll.h:40-44), returns the accelerator to its reset state.
-    pub fn reset(&mut self) { *self = Self::default(); }
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
     fn calculate(&mut self) {
         let mode = (self.conf >> 5) & 7;
         if !matches!(mode, 0 | 2 | 3) || self.conf & 4 == 0 {
@@ -165,7 +192,9 @@ impl Ecc {
         self.conf &= !1;
         // VERIFICATION_RESULT (RO/SS, ecc_mult_reg.h:111-113) is the verification outcome;
         // plain point multiplication (mode 0) verifies nothing and leaves it (inferred).
-        if mode != 0 { self.conf = (self.conf & !256) | if valid { 256 } else { 0 }; }
+        if mode != 0 {
+            self.conf = (self.conf & !256) | if valid { 256 } else { 0 };
+        }
         if mode != 2 && (mode == 0 || valid) {
             let mut point = Point::infinity();
             for bit in (0..n * 32).rev() {
@@ -220,8 +249,14 @@ impl Device for Ecc {
 #[cfg(test)]
 mod tests {
     use super::*;
-    const G256X: &[u32] = &[0xd898c296, 0xf4a13945, 0x2deb33a0, 0x77037d81, 0x63a440f2, 0xf8bce6e5, 0xe12c4247, 0x6b17d1f2];
-    const G256Y: &[u32] = &[0x37bf51f5, 0xcbb64068, 0x6b315ece, 0x2bce3357, 0x7c0f9e16, 0x8ee7eb4a, 0xfe1a7f9b, 0x4fe342e2];
+    const G256X: &[u32] = &[
+        0xd898c296, 0xf4a13945, 0x2deb33a0, 0x77037d81, 0x63a440f2, 0xf8bce6e5, 0xe12c4247,
+        0x6b17d1f2,
+    ];
+    const G256Y: &[u32] = &[
+        0x37bf51f5, 0xcbb64068, 0x6b315ece, 0x2bce3357, 0x7c0f9e16, 0x8ee7eb4a, 0xfe1a7f9b,
+        0x4fe342e2,
+    ];
     fn write_number(ecc: &mut Ecc, offset: u32, value: &[u32]) {
         for (i, word) in value.iter().enumerate() {
             ecc.write(offset + i as u32 * 4, *word);
@@ -234,21 +269,39 @@ mod tests {
     }
     #[test]
     fn scalar_results_match_independent_openssl_vectors() {
-        type Vector = (&'static [u32], &'static [u32], &'static [u32], &'static [u32], &'static [u32]);
+        type Vector = (
+            &'static [u32],
+            &'static [u32],
+            &'static [u32],
+            &'static [u32],
+            &'static [u32],
+        );
         let vectors: &[Vector] = &[
             (
                 G256X,
                 G256Y,
                 &[0x02],
-                &[0x47669978, 0xa60b48fc, 0x77f21b35, 0xc08969e2, 0x04b51ac3, 0x8a523803, 0x8d034f7e, 0x7cf27b18],
-                &[0x227873d1, 0x9e04b79d, 0x3ce98229, 0xba7dade6, 0x9f7430db, 0x293d9ac6, 0xdb8ed040, 0x07775510],
+                &[
+                    0x47669978, 0xa60b48fc, 0x77f21b35, 0xc08969e2, 0x04b51ac3, 0x8a523803,
+                    0x8d034f7e, 0x7cf27b18,
+                ],
+                &[
+                    0x227873d1, 0x9e04b79d, 0x3ce98229, 0xba7dade6, 0x9f7430db, 0x293d9ac6,
+                    0xdb8ed040, 0x07775510,
+                ],
             ),
             (
                 G256X,
                 G256Y,
                 &[0x89abcdef, 0x1234567],
-                &[0xda672482, 0x2257323f, 0xd8e93468, 0x00275bca, 0x92a2ac0b, 0x11d5d1aa, 0xb9f52c7f, 0x3988322a],
-                &[0xaacd9918, 0x97732034, 0xc8bd90c7, 0x001e3a0e, 0x3d57dc02, 0x0014311c, 0xf116c19c, 0x855b7389],
+                &[
+                    0xda672482, 0x2257323f, 0xd8e93468, 0x00275bca, 0x92a2ac0b, 0x11d5d1aa,
+                    0xb9f52c7f, 0x3988322a,
+                ],
+                &[
+                    0xaacd9918, 0x97732034, 0xc8bd90c7, 0x001e3a0e, 0x3d57dc02, 0x0014311c,
+                    0xf116c19c, 0x855b7389,
+                ],
             ),
         ];
         for &(x, y, key, expected_x, expected_y) in vectors {
@@ -282,7 +335,10 @@ mod tests {
         write_number(
             &mut ecc,
             0x120,
-            &[0xffffffff, 0xffffffff, 0xffffffff, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xffffffff],
+            &[
+                0xffffffff, 0xffffffff, 0xffffffff, 0x00000000, 0x00000000, 0x00000000, 0x00000001,
+                0xffffffff,
+            ],
         );
         ecc.write(0x1c, 0x45);
         assert_eq!(ecc.read(0x1c) & 256, 0);
@@ -291,10 +347,24 @@ mod tests {
     fn noncanonical_point_congruent_to_valid_point_is_rejected() {
         let mut ecc = Ecc::default();
         // Independently calculated y = sqrt(b) mod p: (0,y) is on P-256.
-        write_number(&mut ecc, 0x140, &[0x174f93f4, 0x28bf856a, 0x1dae8717, 0x541c2af3, 0x84a06bb6, 0x2433bd5d, 0x0e2f83d7, 0x66485c78]);
+        write_number(
+            &mut ecc,
+            0x140,
+            &[
+                0x174f93f4, 0x28bf856a, 0x1dae8717, 0x541c2af3, 0x84a06bb6, 0x2433bd5d, 0x0e2f83d7,
+                0x66485c78,
+            ],
+        );
         ecc.write(0x1c, 0x45);
         assert_eq!(ecc.read(0x1c) & 256, 256);
-        write_number(&mut ecc, 0x120, &[0xffffffff, 0xffffffff, 0xffffffff, 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0xffffffff]);
+        write_number(
+            &mut ecc,
+            0x120,
+            &[
+                0xffffffff, 0xffffffff, 0xffffffff, 0x00000000, 0x00000000, 0x00000000, 0x00000001,
+                0xffffffff,
+            ],
+        );
         let before = ecc.mem;
         ecc.write(0x1c, 0x65);
         assert_eq!(ecc.read(0x1c) & 256, 0);
@@ -337,8 +407,12 @@ mod tests {
 
     #[test]
     fn zero_scalar_and_group_order_produce_infinity() {
-        for key in [&[0][..],
-            &[0xfc632551, 0xf3b9cac2, 0xa7179e84, 0xbce6faad, 0xffffffff, 0xffffffff, 0x00000000, 0xffffffff],
+        for key in [
+            &[0][..],
+            &[
+                0xfc632551, 0xf3b9cac2, 0xa7179e84, 0xbce6faad, 0xffffffff, 0xffffffff, 0x00000000,
+                0xffffffff,
+            ],
         ] {
             let mut ecc = Ecc::default();
             write_number(&mut ecc, 0x100, key);

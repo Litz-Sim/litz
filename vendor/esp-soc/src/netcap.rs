@@ -38,7 +38,10 @@ use std::sync::{Arc, Mutex};
 /// station: `FromStation` is transmitted by it (air capture TX), `ToStation` is received by it
 /// (air capture RX).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Dir { FromStation = 0, ToStation = 1 }
+pub enum Dir {
+    FromStation = 0,
+    ToStation = 1,
+}
 
 impl Dir {
     /// The station transmitted this frame (air capture TX).
@@ -77,10 +80,14 @@ pub fn pcap_global_header_for(linktype: u32) -> [u8; 24] {
 }
 
 /// The Ethernet capture's global header: linktype 1 (Ethernet).
-pub fn pcap_global_header() -> [u8; 24] { pcap_global_header_for(LINKTYPE_ETHERNET) }
+pub fn pcap_global_header() -> [u8; 24] {
+    pcap_global_header_for(LINKTYPE_ETHERNET)
+}
 
 /// The air capture's global header: linktype 105 (IEEE 802.11).
-pub fn air_pcap_global_header() -> [u8; 24] { pcap_global_header_for(LINKTYPE_IEEE802_11) }
+pub fn air_pcap_global_header() -> [u8; 24] {
+    pcap_global_header_for(LINKTYPE_IEEE802_11)
+}
 
 /// One pcap record: header (seconds, microseconds, captured and original length) and the frame.
 pub fn pcap_record(ts_us: u64, frame: &[u8]) -> Vec<u8> {
@@ -138,20 +145,30 @@ impl NetCapture {
         Ok(())
     }
     /// Keep frames for the board page (`take_live`).
-    pub fn enable_live(&mut self) { self.live.get_or_insert_with(VecDeque::new); }
-    pub fn live_enabled(&self) -> bool { self.live.is_some() }
+    pub fn enable_live(&mut self) {
+        self.live.get_or_insert_with(VecDeque::new);
+    }
+    pub fn live_enabled(&self) -> bool {
+        self.live.is_some()
+    }
     /// Record one frame. A pcap write error ends the pcap output, with one line saying so.
     pub fn record(&mut self, dir: Dir, ts_us: u64, frame: &[u8]) {
         self.frames += 1;
         if let Some(sink) = self.pcap.as_mut() {
-            if let Err(e) = sink.write_all(&pcap_record(ts_us, frame)).and_then(|_| sink.flush()) {
+            if let Err(e) = sink
+                .write_all(&pcap_record(ts_us, frame))
+                .and_then(|_| sink.flush())
+            {
                 eprintln!("[emu] --pcap: {e}; capture stopped");
                 self.pcap = None;
             }
         }
         if let Some(q) = self.live.as_mut() {
             let msg = ws_message(dir, ts_us, frame);
-            if q.len() >= LIVE_FRAMES_MAX || self.live_bytes + msg.len() > LIVE_BYTES_MAX { self.live_dropped += 1; return; }
+            if q.len() >= LIVE_FRAMES_MAX || self.live_bytes + msg.len() > LIVE_BYTES_MAX {
+                self.live_dropped += 1;
+                return;
+            }
             self.live_bytes += msg.len();
             q.push_back(msg);
         }
@@ -159,7 +176,10 @@ impl NetCapture {
     /// The page messages queued since the last call.
     pub fn take_live(&mut self) -> Vec<Vec<u8>> {
         self.live_bytes = 0;
-        self.live.as_mut().map(|q| q.drain(..).collect()).unwrap_or_default()
+        self.live
+            .as_mut()
+            .map(|q| q.drain(..).collect())
+            .unwrap_or_default()
     }
 }
 
@@ -188,20 +208,30 @@ impl AirCapture {
         Ok(())
     }
     /// Keep frames for the board page (`take_live`).
-    pub fn enable_live(&mut self) { self.live.get_or_insert_with(VecDeque::new); }
-    pub fn live_enabled(&self) -> bool { self.live.is_some() }
+    pub fn enable_live(&mut self) {
+        self.live.get_or_insert_with(VecDeque::new);
+    }
+    pub fn live_enabled(&self) -> bool {
+        self.live.is_some()
+    }
     /// Record one 802.11 frame. A pcap write error ends the pcap output, with one line saying so.
     pub fn record(&mut self, dir: Dir, ts_us: u64, frame: &[u8]) {
         self.frames += 1;
         if let Some(sink) = self.pcap.as_mut() {
-            if let Err(e) = sink.write_all(&pcap_record(ts_us, frame)).and_then(|_| sink.flush()) {
+            if let Err(e) = sink
+                .write_all(&pcap_record(ts_us, frame))
+                .and_then(|_| sink.flush())
+            {
                 eprintln!("[emu] --pcap-air: {e}; capture stopped");
                 self.pcap = None;
             }
         }
         if let Some(q) = self.live.as_mut() {
             let msg = ws_air_message(dir, ts_us, frame);
-            if q.len() >= LIVE_FRAMES_MAX || self.live_bytes + msg.len() > LIVE_BYTES_MAX { self.live_dropped += 1; return; }
+            if q.len() >= LIVE_FRAMES_MAX || self.live_bytes + msg.len() > LIVE_BYTES_MAX {
+                self.live_dropped += 1;
+                return;
+            }
             self.live_bytes += msg.len();
             q.push_back(msg);
         }
@@ -209,7 +239,10 @@ impl AirCapture {
     /// The page messages queued since the last call.
     pub fn take_live(&mut self) -> Vec<Vec<u8>> {
         self.live_bytes = 0;
-        self.live.as_mut().map(|q| q.drain(..).collect()).unwrap_or_default()
+        self.live
+            .as_mut()
+            .map(|q| q.drain(..).collect())
+            .unwrap_or_default()
     }
 }
 
@@ -220,8 +253,13 @@ mod tests {
     #[derive(Clone, Default)]
     struct Buf(Arc<Mutex<Vec<u8>>>);
     impl Write for Buf {
-        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> { self.0.lock().unwrap().extend_from_slice(b); Ok(b.len()) }
-        fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
     }
 
     #[test]
@@ -232,7 +270,13 @@ mod tests {
         cap.record(Dir::FromStation, 1_500_000, &[0xaa; 60]);
         cap.record(Dir::ToStation, 2_000_007, &[0xbb; 42]);
         let b = buf.0.lock().unwrap().clone();
-        assert_eq!(&b[..24], &[0xd4, 0xc3, 0xb2, 0xa1, 2, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 1, 0, 0, 0]);
+        assert_eq!(
+            &b[..24],
+            &[
+                0xd4, 0xc3, 0xb2, 0xa1, 2, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 1, 0,
+                0, 0
+            ]
+        );
         let u = |o: usize| u32::from_le_bytes(b[o..o + 4].try_into().unwrap());
         assert_eq!((u(24), u(28), u(32), u(36)), (1, 500_000, 60, 60));
         assert_eq!(&b[40..100], &[0xaa; 60]);
@@ -246,11 +290,17 @@ mod tests {
         let buf = Buf::default();
         let mut cap = AirCapture::default();
         cap.set_pcap(Box::new(buf.clone())).unwrap();
-        cap.record(Dir::FromStation, 100_000, &[0x80; 40]);      // a beacon, RX/TX relative to the station
+        cap.record(Dir::FromStation, 100_000, &[0x80; 40]); // a beacon, RX/TX relative to the station
         cap.record(Dir::ToStation, 1_500_007, &[0x50; 30]);
         let b = buf.0.lock().unwrap().clone();
         // the same global header as the Ethernet capture, with link type 105 (0x69) instead of 1
-        assert_eq!(&b[..24], &[0xd4, 0xc3, 0xb2, 0xa1, 2, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 105, 0, 0, 0]);
+        assert_eq!(
+            &b[..24],
+            &[
+                0xd4, 0xc3, 0xb2, 0xa1, 2, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 105,
+                0, 0, 0
+            ]
+        );
         let u = |o: usize| u32::from_le_bytes(b[o..o + 4].try_into().unwrap());
         assert_eq!((u(24), u(28), u(32), u(36)), (0, 100_000, 40, 40));
         assert_eq!(&b[40..80], &[0x80; 40]);
@@ -269,9 +319,14 @@ mod tests {
         assert_eq!(ws_air_message(Dir::ToStation, 0, &[])[..2], [6, 1]);
         let mut cap = AirCapture::default();
         cap.record(Dir::ToStation, 0, &[1]);
-        assert!(cap.take_live().is_empty(), "nothing kept until live is enabled");
+        assert!(
+            cap.take_live().is_empty(),
+            "nothing kept until live is enabled"
+        );
         cap.enable_live();
-        for i in 0..LIVE_FRAMES_MAX + 3 { cap.record(Dir::ToStation, i as u64, &[0; 64]); }
+        for i in 0..LIVE_FRAMES_MAX + 3 {
+            cap.record(Dir::ToStation, i as u64, &[0; 64]);
+        }
         assert_eq!(cap.live_dropped, 3);
         assert_eq!(cap.take_live().len(), LIVE_FRAMES_MAX);
     }
@@ -283,14 +338,23 @@ mod tests {
         assert_eq!(ws_message(Dir::FromStation, 0, &[])[..2], [5, 0]);
         let mut cap = NetCapture::default();
         cap.record(Dir::FromStation, 0, &[1]);
-        assert!(cap.take_live().is_empty(), "nothing kept until live is enabled");
+        assert!(
+            cap.take_live().is_empty(),
+            "nothing kept until live is enabled"
+        );
         cap.enable_live();
-        for i in 0..LIVE_FRAMES_MAX + 3 { cap.record(Dir::FromStation, i as u64, &[0; 64]); }
+        for i in 0..LIVE_FRAMES_MAX + 3 {
+            cap.record(Dir::FromStation, i as u64, &[0; 64]);
+        }
         assert_eq!(cap.live_dropped, 3);
         let live = cap.take_live();
         assert_eq!(live.len(), LIVE_FRAMES_MAX);
         assert_eq!(live[1][2..10], 1u64.to_le_bytes());
         cap.record(Dir::ToStation, 9, &[0; 64]);
-        assert_eq!(cap.take_live().len(), 1, "room again after the queue was taken");
+        assert_eq!(
+            cap.take_live().len(),
+            1,
+            "room again after the queue was taken"
+        );
     }
 }

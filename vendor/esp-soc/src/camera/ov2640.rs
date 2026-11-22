@@ -30,7 +30,13 @@ pub struct Ov2640 {
 }
 impl Ov2640 {
     pub fn new(state: Arc<Mutex<Ov2640State>>) -> Self {
-        let mut sensor = Self { regs: [[0; 256]; 2], bank: 1, addr: 0, pointer: true, state };
+        let mut sensor = Self {
+            regs: [[0; 256]; 2],
+            bank: 1,
+            addr: 0,
+            pointer: true,
+            state,
+        };
         sensor.reset();
         sensor
     }
@@ -54,18 +60,25 @@ impl Ov2640 {
         let width = (u32::from(dsp[0x5a]) | (u32::from(dsp[0x5c] & 3) << 8)) * 4;
         let height = (u32::from(dsp[0x5b]) | (u32::from(dsp[0x5c] & 4) << 6)) * 4;
         *self.state.lock().unwrap() = Ov2640State {
-            width, height, image_mode: dsp[0xda],
+            width,
+            height,
+            image_mode: dsp[0xda],
             // ov2640_regs.h:COM2_STDBY, RESET_DVP. DSP bypass is not a
             // converted DSP output; conservatively withhold a usable stream.
-            streaming: width != 0 && height != 0 && self.regs[1][0x09] & 0x10 == 0
-                && dsp[0xe0] & 4 == 0 && dsp[0x05] & 1 == 0,
+            streaming: width != 0
+                && height != 0
+                && self.regs[1][0x09] & 0x10 == 0
+                && dsp[0xe0] & 4 == 0
+                && dsp[0x05] & 1 == 0,
         };
     }
 }
 impl I2cDevice for Ov2640 {
     fn start(&mut self, read: bool) -> bool {
         // SCCB_Read sends pointer+STOP, then a separate read transaction.
-        if !read { self.pointer = true; }
+        if !read {
+            self.pointer = true;
+        }
         true
     }
     fn write(&mut self, value: u8) -> bool {
@@ -87,6 +100,10 @@ impl I2cDevice for Ov2640 {
         true
     }
     fn read(&mut self) -> u8 {
-        if self.addr == 0xff { self.bank } else { self.regs[self.bank as usize][self.addr as usize] }
+        if self.addr == 0xff {
+            self.bank
+        } else {
+            self.regs[self.bank as usize][self.addr as usize]
+        }
     }
 }

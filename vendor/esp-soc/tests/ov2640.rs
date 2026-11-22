@@ -56,7 +56,9 @@ fn ov2640_classic_controller_replays_public_sccb_transactions() {
     let transfer = |bus: &mut I2c<16>, bytes: &[u8], reading: bool| {
         bus.write(0x18, 3 << 12);
         bus.write(0x24, u32::MAX);
-        for &byte in bytes { bus.write(0x1c, u32::from(byte)); }
+        for &byte in bytes {
+            bus.write(0x1c, u32::from(byte));
+        }
         bus.write(0x58, 0);
         bus.write(0x5c, (1 << 11) | (1 << 8) | bytes.len() as u32);
         if reading {
@@ -84,9 +86,15 @@ fn ov2640_classic_controller_replays_public_sccb_transactions() {
             }
         }
     }
-    assert_eq!(*state.lock().unwrap(), Ov2640State {
-        width: 1600, height: 1200, image_mode: 8, streaming: true,
-    });
+    assert_eq!(
+        *state.lock().unwrap(),
+        Ov2640State {
+            width: 1600,
+            height: 1200,
+            image_mode: 8,
+            streaming: true,
+        }
+    );
 }
 
 #[test]
@@ -133,19 +141,39 @@ fn ov2640_bank_isolated_ordinary_writes() {
 fn ov2640_public_qqvga_vga_and_format_sequences() {
     let (mut sensor, state) = sensor();
     for (trace, width, height, image_mode) in [
-        (QQ_RGB, 160, 120, 8), (VGA_RGB, 640, 480, 8),
-        (QQ_YUV, 160, 120, 0), (VGA_JPEG, 640, 480, 0x12),
+        (QQ_RGB, 160, 120, 8),
+        (VGA_RGB, 640, 480, 8),
+        (QQ_YUV, 160, 120, 0),
+        (VGA_JPEG, 640, 480, 0x12),
     ] {
         replay(&mut sensor, trace);
-        assert_eq!(*state.lock().unwrap(), Ov2640State { width, height, image_mode, streaming: true });
+        assert_eq!(
+            *state.lock().unwrap(),
+            Ov2640State {
+                width,
+                height,
+                image_mode,
+                streaming: true
+            }
+        );
     }
     // Also change size/format on the same live sensor, without software reset.
     for (trace, width, height, image_mode) in [
-        (QQ_RGB, 160, 120, 8), (VGA_JPEG, 640, 480, 0x12),
-        (QQ_YUV, 160, 120, 0), (VGA_RGB, 640, 480, 8),
+        (QQ_RGB, 160, 120, 8),
+        (VGA_JPEG, 640, 480, 0x12),
+        (QQ_YUV, 160, 120, 0),
+        (VGA_RGB, 640, 480, 8),
     ] {
         replay(&mut sensor, trace.strip_prefix(RESET).unwrap());
-        assert_eq!(*state.lock().unwrap(), Ov2640State { width, height, image_mode, streaming: true });
+        assert_eq!(
+            *state.lock().unwrap(),
+            Ov2640State {
+                width,
+                height,
+                image_mode,
+                streaming: true
+            }
+        );
     }
     // Driver grayscale uses the exact YUV422 sequence, not a Y8 register mode.
     replay(&mut sensor, QQ_YUV);
@@ -156,12 +184,21 @@ fn ov2640_public_qqvga_vga_and_format_sequences() {
 fn ov2640_public_uxga_requires_high_geometry_bits() {
     let (mut sensor, state) = sensor();
     replay(&mut sensor, UXGA_RGB);
-    assert_eq!(*state.lock().unwrap(), Ov2640State {
-        width: 1600, height: 1200, image_mode: 8, streaming: true,
-    });
+    assert_eq!(
+        *state.lock().unwrap(),
+        Ov2640State {
+            width: 1600,
+            height: 1200,
+            image_mode: 8,
+            streaming: true,
+        }
+    );
     // Isolate each extension and ignore reserved ZMHH bits.
     write(&mut sensor, 0x5c, 0xf9);
-    assert_eq!((state.lock().unwrap().width, read(&mut sensor, 0x5c)), (1600, 0xf9));
+    assert_eq!(
+        (state.lock().unwrap().width, read(&mut sensor, 0x5c)),
+        (1600, 0xf9)
+    );
     assert_eq!(state.lock().unwrap().height, 176);
     write(&mut sensor, 0x5c, 0xfc);
     assert_eq!(state.lock().unwrap().width, 576);
@@ -177,7 +214,11 @@ fn ov2640_com7_reset_clears_both_banks_and_stream() {
     write(&mut sensor, 0x44, 0x3d);
     write(&mut sensor, 0x12, 0x80);
     assert_eq!(*state.lock().unwrap(), Ov2640State::default());
-    assert_eq!(read(&mut sensor, 0xff), 1, "driver bank cache survives software reset");
+    assert_eq!(
+        read(&mut sensor, 0xff),
+        1,
+        "driver bank cache survives software reset"
+    );
     assert_eq!(read(&mut sensor, 0x12), 0, "COM7_SRST self-clears");
     assert_eq!(read(&mut sensor, 0x44), 0);
     assert_eq!(read(&mut sensor, 0x0a), 0x26);
@@ -205,10 +246,25 @@ fn ov2640_stream_gates_are_bank_specific_and_reversible() {
     write(&mut sensor, 0x09, 2);
     assert!(state.lock().unwrap().streaming);
     // Sensor-bank aliases must not change DSP geometry/format/reset/bypass.
-    for (reg, value) in [(0x5a, 1), (0x5b, 2), (0x5c, 7), (0xda, 0x10), (0xe0, 4), (0x05, 1)] {
+    for (reg, value) in [
+        (0x5a, 1),
+        (0x5b, 2),
+        (0x5c, 7),
+        (0xda, 0x10),
+        (0xe0, 4),
+        (0x05, 1),
+    ] {
         write(&mut sensor, reg, value);
     }
-    assert_eq!(*state.lock().unwrap(), Ov2640State { width: 160, height: 120, image_mode: 8, streaming: true });
+    assert_eq!(
+        *state.lock().unwrap(),
+        Ov2640State {
+            width: 160,
+            height: 120,
+            image_mode: 8,
+            streaming: true
+        }
+    );
     write(&mut sensor, 0xff, 0);
     write(&mut sensor, 0x09, 0x10);
     write(&mut sensor, 0x12, 0x80); // Not sensor COM7; must not reset.

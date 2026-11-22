@@ -12,7 +12,13 @@ fn empty_and_failed_admission_have_no_tcp_occupancy() {
     mock.s().refuse_connect = true;
     let mut nat = mock.nat();
     counts(&nat, 0, 0);
-    nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[127, 0, 0, 1], &segment(199, 0, SYN, &[]), 0);
+    nat.tcp_in(
+        &[2; 6],
+        &[10, 0, 2, 15],
+        &[127, 0, 0, 1],
+        &segment(199, 0, SYN, &[]),
+        0,
+    );
     counts(&nat, 0, 0);
     assert!(nat.tcp.is_empty());
     assert_eq!(nat.tcp_opened, 0);
@@ -23,15 +29,31 @@ fn connecting_snapshot_does_not_consume_ready_or_refused_results() {
     for refused in [false, true] {
         let mock = Mock::default();
         let mut nat = mock.nat();
-        nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[127, 0, 0, 1], &segment(199, 0, SYN, &[]), 7);
+        nat.tcp_in(
+            &[2; 6],
+            &[10, 0, 2, 15],
+            &[127, 0, 0, 1],
+            &segment(199, 0, SYN, &[]),
+            7,
+        );
         counts(&nat, 1, 0);
         let id = mock.s().next;
-        mock.s().states.insert(id, if refused { Connect::Failed(ErrorKind::ConnectionRefused) } else { Connect::Open });
+        mock.s().states.insert(
+            id,
+            if refused {
+                Connect::Failed(ErrorKind::ConnectionRefused)
+            } else {
+                Connect::Open
+            },
+        );
         counts(&nat, 1, 0);
         assert!(nat.tcp[0].state == FlowState::Connecting(id));
         assert_eq!(nat.tcp[0].last_activity_us, 7);
         assert!(nat.tcp[0].unacked.is_empty());
-        assert_eq!((nat.tcp_opened, nat.tcp_refused, nat.bytes_to_guest), (0, 0, 0));
+        assert_eq!(
+            (nat.tcp_opened, nat.tcp_refused, nat.bytes_to_guest),
+            (0, 0, 0)
+        );
         let frames = nat.poll(8);
         assert_eq!(frames.len(), 1);
         if refused {
@@ -50,10 +72,17 @@ fn connecting_snapshot_does_not_consume_ready_or_refused_results() {
 fn guest_reset_is_excluded_before_poll_without_pruning() {
     let (socket, _host) = socket_pair();
     let (mut nat, id) = std_nat(StdTcp::Connected(socket));
-    let mut c = flow(); c.state = FlowState::Connected(id);
+    let mut c = flow();
+    c.state = FlowState::Connected(id);
     nat.tcp.push(c);
     counts(&nat, 1, 0);
-    nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[127, 0, 0, 1], &segment(200, 100, RST, &[]), 1);
+    nat.tcp_in(
+        &[2; 6],
+        &[10, 0, 2, 15],
+        &[127, 0, 0, 1],
+        &segment(200, 100, RST, &[]),
+        1,
+    );
     counts(&nat, 0, 0);
     assert_eq!(nat.tcp.len(), 1);
     assert_eq!(nat.tcp[0].last_activity_us, 1);
@@ -63,9 +92,11 @@ fn guest_reset_is_excluded_before_poll_without_pruning() {
 
 #[test]
 fn disconnected_connector_is_active_until_poll_reports_host_abort() {
-    let (tx, rx) = channel(); drop(tx);
+    let (tx, rx) = channel();
+    drop(tx);
     let (mut nat, id) = std_nat(StdTcp::Connecting(rx));
-    let mut c = flow(); c.state = FlowState::Connecting(id);
+    let mut c = flow();
+    c.state = FlowState::Connecting(id);
     nat.tcp.push(c);
     counts(&nat, 1, 0);
     let frames = nat.poll(1);
@@ -77,10 +108,18 @@ fn disconnected_connector_is_active_until_poll_reports_host_abort() {
 #[test]
 fn mixed_snapshot_counts_states_not_cumulative_statistics() {
     let mut nat = Mock::default().nat();
-    for state in [FlowState::Closed, FlowState::TimeWait, FlowState::Connected(1), FlowState::Connecting(2)] {
-        let mut c = flow(); c.state = state; nat.tcp.push(c);
+    for state in [
+        FlowState::Closed,
+        FlowState::TimeWait,
+        FlowState::Connected(1),
+        FlowState::Connecting(2),
+    ] {
+        let mut c = flow();
+        c.state = state;
+        nat.tcp.push(c);
     }
-    nat.tcp_opened = 100; nat.tcp_refused = 200;
+    nat.tcp_opened = 100;
+    nat.tcp_refused = 200;
     counts(&nat, 2, 1);
     assert_eq!(nat.tcp.len(), 4);
     assert_eq!((nat.tcp_opened, nat.tcp_refused), (100, 200));
@@ -92,8 +131,10 @@ fn host_io_failure_closes_flow_only_when_polled() {
     // Deterministically exercise host write-error/RST without a peer-delivery race.
     socket.shutdown(std::net::Shutdown::Both).unwrap();
     let (mut nat, id) = std_nat(StdTcp::Connected(socket));
-    let mut c = flow(); c.state = FlowState::Connected(id);
-    c.to_host.extend(b"pending"); nat.tcp.push(c);
+    let mut c = flow();
+    c.state = FlowState::Connected(id);
+    c.to_host.extend(b"pending");
+    nat.tcp.push(c);
     counts(&nat, 1, 0);
     assert_eq!(nat.tcp[0].to_host.len(), 7);
     assert_eq!(nat.bytes_to_host, 0);
@@ -107,24 +148,44 @@ fn host_io_failure_closes_flow_only_when_polled() {
 fn half_close_unacked_fin_and_final_ack_retry_remain_occupied() {
     let (socket, mut host) = socket_pair();
     let (mut nat, id) = std_nat(StdTcp::Connected(socket));
-    let mut c = flow(); c.state = FlowState::Connected(id);
+    let mut c = flow();
+    c.state = FlowState::Connected(id);
     nat.tcp.push(c);
-    nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[127, 0, 0, 1], &segment(200, 100, ACK | FIN, b"hello"), 0);
+    nat.tcp_in(
+        &[2; 6],
+        &[10, 0, 2, 15],
+        &[127, 0, 0, 1],
+        &segment(200, 100, ACK | FIN, b"hello"),
+        0,
+    );
     counts(&nat, 1, 0); // guest write is still draining
     nat.poll(1);
-    let mut received = Vec::new(); host.read_to_end(&mut received).unwrap();
+    let mut received = Vec::new();
+    host.read_to_end(&mut received).unwrap();
     assert_eq!(received, b"hello");
     counts(&nat, 1, 0); // guest half closed, host can still reply
     host.shutdown(std::net::Shutdown::Write).unwrap();
     let sent = poll_ready(&mut nat, 2);
     counts(&nat, 1, 0); // both closed, but host FIN unacknowledged
     assert_eq!(nat.poll(RETRANSMIT_US + 2), sent);
-    nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[127, 0, 0, 1], &segment(206, 101, ACK, &[]), RETRANSMIT_US + 3);
+    nat.tcp_in(
+        &[2; 6],
+        &[10, 0, 2, 15],
+        &[127, 0, 0, 1],
+        &segment(206, 101, ACK, &[]),
+        RETRANSMIT_US + 3,
+    );
     counts(&nat, 1, 0); // only poll enters TimeWait
     nat.poll(RETRANSMIT_US + 4);
     counts(&nat, 0, 1);
     let at = nat.tcp[0].last_activity_us;
-    let reply = nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[127, 0, 0, 1], &segment(205, 101, ACK | FIN, &[]), at);
+    let reply = nat.tcp_in(
+        &[2; 6],
+        &[10, 0, 2, 15],
+        &[127, 0, 0, 1],
+        &segment(205, 101, ACK | FIN, &[]),
+        at,
+    );
     assert_eq!(reply.len(), 1);
     counts(&nat, 0, 1);
     assert_eq!(nat.tcp[0].last_activity_us, at);
@@ -137,7 +198,9 @@ fn half_close_unacked_fin_and_final_ack_retry_remain_occupied() {
 #[test]
 fn idle_timeout_requires_poll_and_counts_do_not_refresh_activity() {
     let mut nat = Mock::default().nat();
-    let mut c = flow(); c.state = FlowState::Connecting(1); nat.tcp.push(c);
+    let mut c = flow();
+    c.state = FlowState::Connecting(1);
+    nat.tcp.push(c);
     nat.poll(IDLE_CLOSE_US - 1);
     counts(&nat, 1, 0);
     assert_eq!(nat.tcp[0].last_activity_us, 0);

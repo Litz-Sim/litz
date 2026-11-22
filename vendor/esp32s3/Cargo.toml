@@ -1,15 +1,21 @@
 [package]
-name = "esp32s3"
-version = "0.4.0"
+name = "litz-esp32s3"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "ESP32-S3 SoC emulation (memory map, cache MMU, peripherals) on the xtensa-lx7 core"
+description = "Litz fork of esp32sim: ESP32-S3 SoC emulation (memory map, cache MMU, peripherals) on the xtensa-lx7 core"
+
+repository = "https://github.com/Litz-Sim/litz"
+homepage = "https://github.com/Litz-Sim/litz#readme"
+
+[lib]
+name = "esp32s3"
 
 [dependencies]
-emu-core = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
-esp-periph = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
-esp-soc = { path = "../esp-soc" }
-xtensa-lx7 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+litz-emu-core = { version = "0.1.0", path = "../emu-core" }
+litz-esp-periph = { version = "0.1.0", path = "../esp-periph" }
+litz-esp-soc = { version = "0.1.0", path = "../esp-soc" }
+litz-xtensa-lx7 = { version = "0.1.0", path = "../xtensa-lx7" }
 
 [features]
-cache-inline = ["xtensa-lx7/wasm-cache-inline"]
+cache-inline = ["litz-xtensa-lx7/wasm-cache-inline"]

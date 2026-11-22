@@ -11,12 +11,12 @@
 //!   like S3/P4 local `IntMatrix`; see `interrupts.rs`. MWDT stages stay in `TimgS31` (shared
 //!   `TimerGroup` has no stage WDT); PCR clock words stay on the bus (not Device blocks).
 
+use emu_core::Fault;
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{
-    device_set, mmio, Aes, Device, DeviceSet, Misc, WriteEffect, NO_SOURCE, Systimer,
-    TimerGroup, Uart, UartLayout, UsbSerialJtag,
+    device_set, mmio, Aes, Device, DeviceSet, Misc, Systimer, TimerGroup, Uart, UartLayout,
+    UsbSerialJtag, WriteEffect, NO_SOURCE,
 };
-use emu_core::Fault;
 
 use crate::efuse::Efuse;
 use crate::mwdt::Mwdt;
@@ -78,7 +78,10 @@ impl SystimerS31 {
             return Err(Fault::Prohibited);
         }
         if value & 2 != 0 {
-            *self = Self { clock: value & 0x1b, ..Self::default() };
+            *self = Self {
+                clock: value & 0x1b,
+                ..Self::default()
+            };
             return Ok(());
         }
         self.clock = value & 0x1b;
@@ -96,7 +99,11 @@ impl SystimerS31 {
         if cycles == 0 || !self.counter_on() || cpu_hz == 0 || stalled == [true, true] {
             return;
         }
-        let source = if self.source_rc_fast() { rc_fast_hz } else { 40_000_000 };
+        let source = if self.source_rc_fast() {
+            rc_fast_hz
+        } else {
+            40_000_000
+        };
         if source == 0 {
             return;
         }
@@ -230,7 +237,11 @@ impl Default for UsbS31 {
     fn default() -> Self {
         let mut usj = UsbSerialJtag::new(CPU_HZ);
         usj.connected = false;
-        Self { usj, clock: 1, attached: false }
+        Self {
+            usj,
+            clock: 1,
+            attached: false,
+        }
     }
 }
 
@@ -485,7 +496,7 @@ mod tests {
         t.advance_ticks(4, [false; 2]);
         assert_eq!(t.st.int_raw & 1, 1);
         Device::write(&mut t, 0x6c, 1); // clear
-        // Enter period mode — wrap auto COMP_LOAD from current count
+                                        // Enter period mode — wrap auto COMP_LOAD from current count
         Device::write(&mut t, 0x34, (1 << 30) | 4);
         t.advance_ticks(12, [false; 2]);
         assert_ne!(t.st.int_raw & 1, 0);

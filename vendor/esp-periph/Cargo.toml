@@ -1,0 +1,15 @@
+[package]
+name = "litz-esp-periph"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Litz fork of esp32sim: Register-level models of the peripheral IP Espressif chips share, and the Device/MMIO plumbing that mounts them"
+
+repository = "https://github.com/Litz-Sim/litz"
+homepage = "https://github.com/Litz-Sim/litz#readme"
+
+[lib]
+name = "esp_periph"
+
+[dependencies]
+litz-emu-core = { version = "0.1.0", path = "../emu-core" }

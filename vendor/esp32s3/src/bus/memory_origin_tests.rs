@@ -4,7 +4,9 @@ fn timed_bus() -> SocBus {
     let mut bus = SocBus::new(65536, 65536, [0; 6]);
     bus.mmu[0] = MMU_SPIRAM;
     bus.enable_approximate_cache(crate::approximate_cache::CacheConfig {
-        capacity_bytes: 64, ways: 1, ..Default::default()
+        capacity_bytes: 64,
+        ways: 1,
+        ..Default::default()
     });
     bus.set_approximate_cache_contention(true);
     bus.begin_timing_batch(1, 100);
@@ -37,7 +39,11 @@ fn dma_does_not_evict_or_dirty_cpu_lines() {
     bus.read32(DBUS_LOW).unwrap();
     assert_eq!(bus.take_timing_penalty(), 0);
     bus.read32(DBUS_LOW + 64).unwrap();
-    assert_eq!(bus.take_timing_penalty(), 120, "DMA did not dirty the victim");
+    assert_eq!(
+        bus.take_timing_penalty(),
+        120,
+        "DMA did not dirty the victim"
+    );
 }
 
 #[test]
@@ -46,7 +52,10 @@ fn unpriced_accesses_preserve_data_versions_faults_and_cpu_debt() {
     // Alias the next MMU page so split accesses exercise the byte fallback.
     bus.mmu[1] = MMU_SPIRAM;
     // EX110: decoded code depends on both pages, so every write there must be recorded.
-    for a in [DBUS_LOW, DBUS_LOW + PAGE] { let v = bus.code_page(a); bus.note_code_page(v); }
+    for a in [DBUS_LOW, DBUS_LOW + PAGE] {
+        let v = bus.code_page(a);
+        bus.note_code_page(v);
+    }
     bus.write32(DBUS_LOW + 128, 1).unwrap();
     let stats = bus.approximate_cache_stats();
     let versions = bus.page_ver.clone();
@@ -54,15 +63,30 @@ fn unpriced_accesses_preserve_data_versions_faults_and_cpu_debt() {
     assert_eq!(bus.read8_unpriced(DBUS_LOW).unwrap(), 0xab);
     bus.write16_unpriced(DBUS_LOW + PAGE - 1, 0x1234).unwrap();
     assert_eq!(bus.read16_unpriced(DBUS_LOW + PAGE - 1).unwrap(), 0x1234);
-    bus.write32_unpriced(DBUS_LOW + PAGE - 2, 0x12345678).unwrap();
-    assert_eq!(bus.read32_unpriced(DBUS_LOW + PAGE - 2).unwrap(), 0x12345678);
-    assert_ne!(bus.page_ver, versions, "DMA/host writes still invalidate decoded code");
+    bus.write32_unpriced(DBUS_LOW + PAGE - 2, 0x12345678)
+        .unwrap();
+    assert_eq!(
+        bus.read32_unpriced(DBUS_LOW + PAGE - 2).unwrap(),
+        0x12345678
+    );
+    assert_ne!(
+        bus.page_ver, versions,
+        "DMA/host writes still invalidate decoded code"
+    );
     assert!(bus.read32_unpriced(0).is_err());
     assert_eq!(bus.last_fault, Some((0, false)));
     assert_eq!(bus.approximate_cache_stats(), stats);
-    assert_eq!(bus.take_timing_penalty(), 120, "existing CPU debt is retained");
+    assert_eq!(
+        bus.take_timing_penalty(),
+        120,
+        "existing CPU debt is retained"
+    );
     bus.read32(DBUS_LOW + 64).unwrap();
-    assert_eq!(bus.take_timing_penalty(), 216, "CPU writes still dirty the victim");
+    assert_eq!(
+        bus.take_timing_penalty(),
+        216,
+        "CPU writes still dirty the victim"
+    );
 }
 
 /// EX110: with nothing decoded, a store writes its bytes and records nothing. The first decode
@@ -72,10 +96,14 @@ fn unpriced_accesses_preserve_data_versions_faults_and_cpu_debt() {
 fn unwatched_mappings_skip_version_bookkeeping_until_code_arrives() {
     let mut bus = SocBus::new(65536, 65536, [0; 6]);
     bus.mmu[0] = MMU_SPIRAM;
-    let before = bus.page_ver.clone();                  // sizing the table already bumped flash/PSRAM
-    bus.write32(DRAM_LOW, 1).unwrap();                  // also publishes the SRAM mapping
+    let before = bus.page_ver.clone(); // sizing the table already bumped flash/PSRAM
+    bus.write32(DRAM_LOW, 1).unwrap(); // also publishes the SRAM mapping
     bus.write32(DBUS_LOW, 2).unwrap();
-    assert_eq!((bus.read32(DRAM_LOW).unwrap(), bus.read32(DBUS_LOW).unwrap()), (1, 2), "bytes land either way");
+    assert_eq!(
+        (bus.read32(DRAM_LOW).unwrap(), bus.read32(DBUS_LOW).unwrap()),
+        (1, 2),
+        "bytes land either way"
+    );
     assert_eq!(bus.page_ver, before, "no decoded consumer, no bookkeeping");
 
     // IRAM and DRAM are one SRAM: watching an IRAM page watches the DRAM alias of the same bytes.
@@ -83,7 +111,10 @@ fn unwatched_mappings_skip_version_bookkeeping_until_code_arrives() {
     bus.note_code_page(vidx);
     let before = bus.page_ver.clone();
     bus.write32(DRAM_LOW, 3).unwrap();
-    assert_ne!(bus.page_ver, before, "the published mapping was dropped when its block became code");
+    assert_ne!(
+        bus.page_ver, before,
+        "the published mapping was dropped when its block became code"
+    );
     let before = bus.page_ver.clone();
     bus.write32(DBUS_LOW, 4).unwrap();
     assert_eq!(bus.page_ver, before, "an unrelated mapping still skips");
@@ -95,7 +126,10 @@ fn unwatched_mappings_skip_version_bookkeeping_until_code_arrives() {
     bus.note_code_page(vidx);
     let before = bus.page_ver.clone();
     bus.write32(IRAM_LOW + 0xfffc, 5).unwrap();
-    assert_ne!(bus.page_ver, before, "the page before a code page is recorded");
+    assert_ne!(
+        bus.page_ver, before,
+        "the page before a code page is recorded"
+    );
 }
 
 /// EX110: a flash remap changes which bytes a cache-window pc names without any write, so it
@@ -107,7 +141,10 @@ fn remap_still_invalidates_unwatched_flash_and_psram() {
     bus.write32(DBUS_LOW, 7).unwrap();
     let before = bus.page_ver.clone();
     bus.invalidate_tlb();
-    assert_ne!(bus.page_ver, before, "a remap invalidates decoded code without a write");
+    assert_ne!(
+        bus.page_ver, before,
+        "a remap invalidates decoded code without a write"
+    );
 }
 
 #[test]
@@ -147,10 +184,18 @@ fn chip_reset_clears_timing_state_but_keeps_configuration() {
     bus.mmu[0] = MMU_SPIRAM;
     bus.begin_timing_batch(1, 150);
     assert_eq!(bus.read32(DBUS_LOW + 64).unwrap(), 43);
-    assert_eq!(bus.take_timing_penalty(), 120, "no pre-reset dirty victim or resource debt");
+    assert_eq!(
+        bus.take_timing_penalty(),
+        120,
+        "no pre-reset dirty victim or resource debt"
+    );
     bus.begin_timing_batch(0, 270);
     bus.read32(DBUS_LOW).unwrap();
-    assert_eq!(bus.take_timing_penalty(), 80 + 120, "configured burst service survives");
+    assert_eq!(
+        bus.take_timing_penalty(),
+        80 + 120,
+        "configured burst service survives"
+    );
     bus.mmu[1] = 0;
     bus.begin_timing_batch(0, 1000);
     bus.read32(DBUS_LOW + PAGE).unwrap();
@@ -169,7 +214,11 @@ fn core_reset_preserves_the_shared_cache() {
     assert_eq!(bus.read32(DBUS_LOW).unwrap(), 42);
     assert_eq!(bus.take_timing_penalty(), 0);
     bus.read32(DBUS_LOW + 64).unwrap();
-    assert_eq!(bus.take_timing_penalty(), 216, "shared dirty line survives core reset");
+    assert_eq!(
+        bus.take_timing_penalty(),
+        216,
+        "shared dirty line survives core reset"
+    );
 }
 
 #[test]
@@ -188,34 +237,85 @@ fn host_peek_does_not_warm_cpu_cache() {
 fn dma_run_copy_matches_the_word_loop() {
     let make = || {
         let mut bus = SocBus::new(4 << 16, 4 << 16, [0; 6]);
-        bus.mmu[0] = MMU_SPIRAM; bus.mmu[1] = MMU_SPIRAM | 1; bus.mmu[2] = 0; bus.mmu[3] = MMU_SPIRAM | 1;   // page 2 is flash, page 3 aliases page 1
-        // EX110: watch part of the destination space, so comparing page versions still has teeth
-        // for the run copy and covers both the recorded and the skipped mapping.
-        for a in [DRAM_LOW, DBUS_LOW] { let v = bus.code_page(a); bus.note_code_page(v); }
+        bus.mmu[0] = MMU_SPIRAM;
+        bus.mmu[1] = MMU_SPIRAM | 1;
+        bus.mmu[2] = 0;
+        bus.mmu[3] = MMU_SPIRAM | 1; // page 2 is flash, page 3 aliases page 1
+                                     // EX110: watch part of the destination space, so comparing page versions still has teeth
+                                     // for the run copy and covers both the recorded and the skipped mapping.
+        for a in [DRAM_LOW, DBUS_LOW] {
+            let v = bus.code_page(a);
+            bus.note_code_page(v);
+        }
         let mut seed = 0x9e37_79b9u32;
-        for buf in [&mut bus.sram, &mut bus.psram, &mut bus.flash] { for b in buf.iter_mut() { seed = seed.wrapping_mul(1664525).wrapping_add(1013904223); *b = (seed >> 24) as u8; } }
+        for buf in [&mut bus.sram, &mut bus.psram, &mut bus.flash] {
+            for b in buf.iter_mut() {
+                seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+                *b = (seed >> 24) as u8;
+            }
+        }
         bus
     };
     let (mut a, mut b) = (make(), make());
     let mut seed = 0x1234_5678u32;
-    let mut rnd = move |n: u32| { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; seed % n };
-    let bases = [DRAM_LOW, DRAM_LOW + 0xff00, IRAM_LOW + 0x8000, DBUS_LOW, DBUS_LOW + 0xff80, DBUS_LOW + 0x1_0000, DBUS_LOW + 0x1_ff00,
-                 DBUS_LOW + 0x2_0000, DBUS_LOW + 0x3_0000, DBUS_LOW + 0x3_ff00, PERIPH_BASE, 0x3FCF_FF00, 0x2000_0000];
+    let mut rnd = move |n: u32| {
+        seed ^= seed << 13;
+        seed ^= seed >> 17;
+        seed ^= seed << 5;
+        seed % n
+    };
+    let bases = [
+        DRAM_LOW,
+        DRAM_LOW + 0xff00,
+        IRAM_LOW + 0x8000,
+        DBUS_LOW,
+        DBUS_LOW + 0xff80,
+        DBUS_LOW + 0x1_0000,
+        DBUS_LOW + 0x1_ff00,
+        DBUS_LOW + 0x2_0000,
+        DBUS_LOW + 0x3_0000,
+        DBUS_LOW + 0x3_ff00,
+        PERIPH_BASE,
+        0x3FCF_FF00,
+        0x2000_0000,
+    ];
     let (mut fast, mut faults) = (0u32, 0u32);
     for round in 0..6000 {
         let align = |v: u32, r: u32| if r.is_multiple_of(3) { v } else { v & !3 };
         let src = bases[rnd(bases.len() as u32) as usize].wrapping_add(align(rnd(0x300), round));
-        let dst = if rnd(4) == 0 { src.wrapping_add(rnd(64)).wrapping_sub(32) & if round.is_multiple_of(3) { !0 } else { !3 } }
-                  else { bases[rnd(bases.len() as u32) as usize].wrapping_add(align(rnd(0x300), round)) };
-        if SocBus::is_periph(dst) || SocBus::is_periph(dst.wrapping_add(0x1_2000)) { continue; }   // random register writes drive devices
-        let n = match rnd(4) { 0 => rnd(16), 1 => rnd(600), 2 => 4092, _ => rnd(0x1_2000) };
+        let dst = if rnd(4) == 0 {
+            src.wrapping_add(rnd(64)).wrapping_sub(32)
+                & if round.is_multiple_of(3) { !0 } else { !3 }
+        } else {
+            bases[rnd(bases.len() as u32) as usize].wrapping_add(align(rnd(0x300), round))
+        };
+        if SocBus::is_periph(dst) || SocBus::is_periph(dst.wrapping_add(0x1_2000)) {
+            continue;
+        } // random register writes drive devices
+        let n = match rnd(4) {
+            0 => rnd(16),
+            1 => rnd(600),
+            2 => 4092,
+            _ => rnd(0x1_2000),
+        };
         (a.last_fault, b.last_fault) = (None, None);
         let (ra, rb) = (a.dma_copy(src, dst, n), b.dma_copy_reference(src, dst, n));
         assert_eq!(ra.is_ok(), rb.is_ok(), "{src:#x}->{dst:#x} n={n}");
-        if let (Err(x), Err(y)) = (&ra, &rb) { assert_eq!(std::mem::discriminant(x), std::mem::discriminant(y)); faults += 1; } else { fast += 1; }
+        if let (Err(x), Err(y)) = (&ra, &rb) {
+            assert_eq!(std::mem::discriminant(x), std::mem::discriminant(y));
+            faults += 1;
+        } else {
+            fast += 1;
+        }
         assert_eq!(a.last_fault, b.last_fault, "{src:#x}->{dst:#x} n={n}");
-        assert!(a.page_ver == b.page_ver, "page versions {src:#x}->{dst:#x} n={n}");
-        assert!(a.sram == b.sram && a.psram == b.psram && a.flash == b.flash, "bytes {src:#x}->{dst:#x} n={n}");
+        assert!(
+            a.page_ver == b.page_ver,
+            "page versions {src:#x}->{dst:#x} n={n}"
+        );
+        assert!(
+            a.sram == b.sram && a.psram == b.psram && a.flash == b.flash,
+            "bytes {src:#x}->{dst:#x} n={n}"
+        );
     }
     assert!(fast > 1000 && faults > 300, "{fast} {faults}");
 }
@@ -233,8 +333,16 @@ fn next_block_prefix_stores_invalidate_the_watched_previous_page() {
         bus.note_code_page(previous);
         let before = bus.page_ver.clone();
         bus.write8(address, 2).unwrap();
-        assert_eq!(bus.page_ver[previous as usize], before[previous as usize] + 1, "offset {offset}");
-        assert_eq!(bus.page_ver[current as usize], before[current as usize] + 1, "offset {offset}");
+        assert_eq!(
+            bus.page_ver[previous as usize],
+            before[previous as usize] + 1,
+            "offset {offset}"
+        );
+        assert_eq!(
+            bus.page_ver[current as usize],
+            before[current as usize] + 1,
+            "offset {offset}"
+        );
         assert_eq!(bus.read8(address).unwrap(), 2);
     }
 }

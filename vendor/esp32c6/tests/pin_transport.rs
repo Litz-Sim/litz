@@ -182,7 +182,9 @@ fn board_reset_deadlines_interrupts_and_output_enable() {
     b.write32(0x6009_104c, 32).unwrap();
     b.tick(160000);
     assert_eq!(b.gpio_input() & 32, 0);
-    assert!(b.take_gpio_events().contains(&(stimulus_cycle + 48000, 5, true)));
+    assert!(b
+        .take_gpio_events()
+        .contains(&(stimulus_cycle + 48000, 5, true)));
     assert_eq!(
         state.lock().unwrap().delivered.last().unwrap().cycle,
         stimulus_cycle + 208000
@@ -222,7 +224,8 @@ fn external_c6_arduino_pin_transport() {
     m.bus.attach_board_devices();
     m.console.capture = true;
     m.console.mask = 2;
-    m.load_rom(&std::fs::read(rom).expect("readable esp32c6_rev0_rom.elf")).unwrap();
+    m.load_rom(&std::fs::read(rom).expect("readable esp32c6_rev0_rom.elf"))
+        .unwrap();
     m.write_flash(
         0,
         &std::fs::read(build.join("firmware.factory.bin"))

@@ -34,11 +34,7 @@ fn public_driver_camera_lifecycle() {
     ] {
         m.write_flash(
             offset,
-            &fs::read(
-                root.join("esp32/tests/fixtures/classic-camera")
-                    .join(name),
-            )
-            .unwrap(),
+            &fs::read(root.join("esp32/tests/fixtures/classic-camera").join(name)).unwrap(),
         )
         .unwrap();
     }

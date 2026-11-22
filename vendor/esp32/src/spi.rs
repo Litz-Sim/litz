@@ -187,7 +187,11 @@ impl ClassicGpSpi {
 
     pub(crate) fn dma_fault(&mut self, tx: bool) {
         self.dma_int_raw |= if tx { 1 << 1 } else { 1 << 2 };
-        if tx { self.out_active = false; } else { self.in_active = false; }
+        if tx {
+            self.out_active = false;
+        } else {
+            self.in_active = false;
+        }
         self.pending = None;
     }
 

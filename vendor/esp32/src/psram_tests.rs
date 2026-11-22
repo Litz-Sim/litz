@@ -1,6 +1,6 @@
 use super::*;
-use xtensa_lx7::bus::Bus;
 use esp_soc::SocBus as _;
+use xtensa_lx7::bus::Bus;
 #[path = "psram_cache_tests.rs"]
 mod cache_tests;
 use cache_tests::enable_cache;
@@ -13,7 +13,11 @@ fn sram_miss_dispatch_preserves_window_and_absent_faults() {
     map(&mut b, 0, 0);
     map(&mut b, 127, 127);
     for a in [0x3f800000, 0x3fbffffc] {
-        assert_eq!(b.write32(a, 0x12345678), Ok(()), "PSRAM store miss dispatch");
+        assert_eq!(
+            b.write32(a, 0x12345678),
+            Ok(()),
+            "PSRAM store miss dispatch"
+        );
         assert_eq!(b.read32(a), Ok(0x12345678), "PSRAM load miss dispatch");
         assert_eq!(b.fetch(a), Err(Fault::Prohibited), "PSRAM is data only");
     }
@@ -110,7 +114,11 @@ fn sram_remap_absent_invalid_bounds_and_both_banks() {
     assert_eq!(b.read8(LOW), Err(Fault::Unmapped));
     assert_eq!(b.write8(LOW, 1), Err(Fault::Unmapped));
     b.set_psram_size(4 << 20).unwrap();
-    assert_eq!(b.read8(LOW), Err(Fault::Unmapped), "configuration invalidates tables");
+    assert_eq!(
+        b.read8(LOW),
+        Err(Fault::Unmapped),
+        "configuration invalidates tables"
+    );
     enable_cache(&mut b);
     map(&mut b, 0, 0);
     b.write8(LOW, 42).unwrap();
@@ -175,7 +183,10 @@ fn sram_configuration_reset_loader_and_flash_separation() {
     assert!(b.psram.iter().all(|&v| v == 0));
     assert_eq!(b.read8(LOW), Err(Fault::Unmapped));
     assert!(b.load_bytes(LOW, &[1]).is_err());
-    assert!(b.mmu.iter().all(|t| t[1152..1280].iter().all(|&v| v == 256)));
+    assert!(b
+        .mmu
+        .iter()
+        .all(|t| t[1152..1280].iter().all(|&v| v == 256)));
     b.set_psram_size(0).unwrap();
     map(&mut b, 0, 0);
     assert_eq!(b.read8(LOW), Err(Fault::Unmapped));

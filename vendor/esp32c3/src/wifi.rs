@@ -17,7 +17,8 @@ pub struct FeIq {
 impl Device for FeIq {
     fn read(&mut self, off: u32) -> u32 {
         if off == 0x174 {
-            return self.ram.read(off) | (u32::from(self.done_at.is_some_and(|t| self.now_cycles >= t)) << 16);
+            return self.ram.read(off)
+                | (u32::from(self.done_at.is_some_and(|t| self.now_cycles >= t)) << 16);
         }
         self.ram.read(off)
     }
@@ -25,7 +26,9 @@ impl Device for FeIq {
         if off == 0x144 && value & 3 == 3 && self.ram.read(off) & 3 != 3 {
             self.done_at = Some((self.now_cycles / 2 + 80) * 2);
         }
-        if off != 0x174 { self.ram.write(off, value); }
+        if off != 0x174 {
+            self.ram.write(off, value);
+        }
         WriteEffect::NONE
     }
 }
@@ -57,7 +60,9 @@ impl I2cMst {
         }
     }
     pub fn write(&mut self, off: u32, v: u32) {
-        if off == 0 || off == 4 { self.ana.write(0, v); }
+        if off == 0 || off == 4 {
+            self.ana.write(0, v);
+        }
         self.ram.write(off, v);
     }
 }

@@ -4,14 +4,17 @@ use crate::{Machine, Soc, SocBus};
 /// Parse the return value shared by CLI, browser and network stubs.
 pub fn stub_spec(spec: &str) -> Result<(&str, u32), String> {
     let (name, value) = spec.split_once('=').unwrap_or((spec, "0"));
-    if name.is_empty() { return Err("stub name must not be empty".into()); }
+    if name.is_empty() {
+        return Err("stub name must not be empty".into());
+    }
     let value = match value {
         "true" => 1,
         "false" => 0,
         value => match value.strip_prefix("0x") {
             Some(hex) => u32::from_str_radix(hex, 16),
             None => value.parse(),
-        }.map_err(|_| format!("invalid return value in {spec:?}: expected u32, true or false"))?,
+        }
+        .map_err(|_| format!("invalid return value in {spec:?}: expected u32, true or false"))?,
     };
     Ok((name, value))
 }
@@ -56,7 +59,9 @@ impl TryFrom<u32> for LoadKind {
 /// its bootloader still is.
 pub fn check_flash_image<S: Soc>(flash: &[u8]) -> Result<(), String> {
     for (what, off) in [("bootloader", S::BOOTLOADER_OFFSET), ("app", 0x10000)] {
-        if let Some(image) = flash.get(off..) { S::check_image(image).map_err(|e| format!("({what} at {off:#x}) {e}"))?; }
+        if let Some(image) = flash.get(off..) {
+            S::check_image(image).map_err(|e| format!("({what} at {off:#x}) {e}"))?;
+        }
     }
     Ok(())
 }
@@ -65,10 +70,19 @@ impl<S: Soc> Machine<S> {
     pub fn load_input(&mut self, kind: LoadKind, data: &[u8]) -> Result<(), String> {
         match kind {
             LoadKind::Rom => self.load_rom(data),
-            LoadKind::Bootloader => { S::check_image(data).map_err(|e| format!("the bootloader {e}"))?; self.write_flash(S::BOOTLOADER_OFFSET, data) }
-            LoadKind::Flash => { check_flash_image::<S>(data).map_err(|e| format!("the flash image {e}"))?; self.write_flash(0, data) }
+            LoadKind::Bootloader => {
+                S::check_image(data).map_err(|e| format!("the bootloader {e}"))?;
+                self.write_flash(S::BOOTLOADER_OFFSET, data)
+            }
+            LoadKind::Flash => {
+                check_flash_image::<S>(data).map_err(|e| format!("the flash image {e}"))?;
+                self.write_flash(0, data)
+            }
             LoadKind::Partitions => self.write_flash(0x8000, data),
-            LoadKind::App => { S::check_image(data).map_err(|e| format!("the app {e}"))?; self.write_flash(0x10000, data) }
+            LoadKind::App => {
+                S::check_image(data).map_err(|e| format!("the app {e}"))?;
+                self.write_flash(0x10000, data)
+            }
             LoadKind::Symbols => self.add_symbols(data),
             LoadKind::Script => {
                 let text = std::str::from_utf8(data).map_err(|_| "script is not UTF-8")?;
@@ -76,22 +90,33 @@ impl<S: Soc> Machine<S> {
             }
             LoadKind::CameraPicture if data.starts_with(&[0xff, 0xd8]) => {
                 let jpeg = crate::picture::Jpeg::parse(data.to_vec()).map_err(|e| e.to_string())?;
-                self.bus.board().set_camera_jpeg(jpeg).map_err(|e| e.to_string())
+                self.bus
+                    .board()
+                    .set_camera_jpeg(jpeg)
+                    .map_err(|e| e.to_string())
             }
             LoadKind::CameraPicture => {
                 let picture = crate::picture::parse(data)?;
-                self.bus.board().set_camera_picture(picture).map_err(str::to_owned)?;
+                self.bus
+                    .board()
+                    .set_camera_picture(picture)
+                    .map_err(str::to_owned)?;
                 Ok(())
             }
-            LoadKind::SdCard => self.bus.attach_sd_card(Box::new(esp_periph::sdmmc::MemStore(data.to_vec())), Default::default()).map(|_| ()),
+            LoadKind::SdCard => self
+                .bus
+                .attach_sd_card(
+                    Box::new(esp_periph::sdmmc::MemStore(data.to_vec())),
+                    Default::default(),
+                )
+                .map(|_| ()),
         }
     }
 
     /// Resolve a symbol first, then a hexadecimal address with a required `0x` prefix.
     pub fn resolve_stub(&self, name: &str) -> Option<u32> {
-        self.sym_addr(name).or_else(|| {
-            u32::from_str_radix(name.strip_prefix("0x")?, 16).ok()
-        })
+        self.sym_addr(name)
+            .or_else(|| u32::from_str_radix(name.strip_prefix("0x")?, 16).ok())
     }
 
     /// Trace every symbol with this prefix, or one exact name when suffixed with `$`.

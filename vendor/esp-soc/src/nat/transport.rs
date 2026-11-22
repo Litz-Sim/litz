@@ -9,7 +9,11 @@ pub type FlowId = u32;
 
 /// Where a TCP connection begun by `NatTransport::tcp_connect` stands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Connect { Pending, Open, Failed(io::ErrorKind) }
+pub enum Connect {
+    Pending,
+    Open,
+    Failed(io::ErrorKind),
+}
 
 /// The outcome of a name lookup begun by `NatTransport::resolve`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,11 +49,17 @@ pub trait NatTransport {
     /// Where DNS datagrams go when the transport does not resolve names itself.
     fn resolver(&self) -> [u8; 4];
     /// Start a name lookup (qtype 1 A, 28 AAAA). None: relay DNS datagrams to `resolver()`.
-    fn resolve(&mut self, _name: &str, _qtype: u16) -> Option<u32> { None }
+    fn resolve(&mut self, _name: &str, _qtype: u16) -> Option<u32> {
+        None
+    }
     /// A finished lookup started by `resolve`.
-    fn resolved(&mut self) -> Option<(u32, Resolve)> { None }
+    fn resolved(&mut self) -> Option<(u32, Resolve)> {
+        None
+    }
     /// A connection from the host side to forward to the guest (`--hostfwd`), already open: its
     /// flow, the guest address and the guest port. The NAT sends the station a SYN from the gateway
     /// once it knows the station's MAC; until the guest's SYN-ACK nothing is read from the flow.
-    fn tcp_accept(&mut self) -> Option<(FlowId, [u8; 4], u16)> { None }
+    fn tcp_accept(&mut self) -> Option<(FlowId, [u8; 4], u16)> {
+        None
+    }
 }

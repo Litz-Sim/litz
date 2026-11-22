@@ -1,0 +1,15 @@
+[package]
+name = "litz-riscv-rv32"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Litz fork of esp32sim: RV32IMC(A)(F)(Zb*, Zcb, Zcmp) interpreter for the ESP32-C3, C6 and P4 RISC-V cores"
+
+repository = "https://github.com/Litz-Sim/litz"
+homepage = "https://github.com/Litz-Sim/litz#readme"
+
+[lib]
+name = "riscv_rv32"
+
+[dependencies]
+litz-emu-core = { version = "0.1.0", path = "../emu-core" }

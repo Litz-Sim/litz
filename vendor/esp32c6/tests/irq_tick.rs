@@ -54,7 +54,9 @@ fn sleeping_core_wakes_when_the_timer_source_changes() {
     alarm(&mut m.bus);
     let entry = esp32c6::bus::SRAM_LOW;
     // addi s0,s0,1; jal zero,-4. The trap handler is a deterministic counter.
-    m.bus.load_bytes(entry, &[0x13, 0x04, 0x14, 0x00, 0x6f, 0xf0, 0xdf, 0xff]).unwrap();
+    m.bus
+        .load_bytes(entry, &[0x13, 0x04, 0x14, 0x00, 0x6f, 0xf0, 0xdf, 0xff])
+        .unwrap();
     m.cores[0].pc = entry;
     m.cores[0].mtvec = entry;
     m.cores[0].mstatus |= 8;

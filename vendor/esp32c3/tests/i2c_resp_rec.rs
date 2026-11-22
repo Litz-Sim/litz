@@ -9,20 +9,24 @@ const NACK: u32 = 1 << 10;
 
 struct Device;
 impl I2cDevice for Device {
-    fn write(&mut self, _: u8) -> bool { true }
-    fn read(&mut self) -> u8 { 0x5a }
+    fn write(&mut self, _: u8) -> bool {
+        true
+    }
+    fn read(&mut self) -> u8 {
+        0x5a
+    }
 }
 
 /// START, address+R with ack check, one byte read, STOP.
 fn read_byte(bus: &mut esp32c3::bus::SocBus, addr: u8) {
     for (off, value) in [
-        (0x24, u32::MAX),                       // INT_CLR
-        (0x1c, ((addr << 1) | 1) as u32),       // TX FIFO: address, read
-        (0x58, 6 << 11),                        // RSTART
-        (0x5c, 1 << 11 | 1 << 8 | 1),           // WRITE 1 byte, ack check
-        (0x60, 3 << 11 | 1),                    // READ 1 byte
-        (0x64, 2 << 11),                        // STOP
-        (0x04, 1 << 5),                         // TRANS_START
+        (0x24, u32::MAX),                 // INT_CLR
+        (0x1c, ((addr << 1) | 1) as u32), // TX FIFO: address, read
+        (0x58, 6 << 11),                  // RSTART
+        (0x5c, 1 << 11 | 1 << 8 | 1),     // WRITE 1 byte, ack check
+        (0x60, 3 << 11 | 1),              // READ 1 byte
+        (0x64, 2 << 11),                  // STOP
+        (0x04, 1 << 5),                   // TRANS_START
     ] {
         bus.write32(BASE + off, value).unwrap();
     }
@@ -39,12 +43,24 @@ fn resp_rec_is_set_after_an_acknowledged_transaction_and_clear_after_a_nack() {
 
     read_byte(bus, 0x42);
     assert_eq!(bus.read32(INT_RAW).unwrap() & NACK, 0, "acknowledged");
-    assert_eq!(bus.read32(SR).unwrap() & 1, 1, "RESP_REC set: the slave acknowledged");
+    assert_eq!(
+        bus.read32(SR).unwrap() & 1,
+        1,
+        "RESP_REC set: the slave acknowledged"
+    );
 
     read_byte(bus, 0x43);
     assert_ne!(bus.read32(INT_RAW).unwrap() & NACK, 0, "no device at 0x43");
-    assert_eq!(bus.read32(SR).unwrap() & 1, 0, "RESP_REC clear after a NACK");
+    assert_eq!(
+        bus.read32(SR).unwrap() & 1,
+        0,
+        "RESP_REC clear after a NACK"
+    );
 
     read_byte(bus, 0x42);
-    assert_eq!(bus.read32(SR).unwrap() & 1, 1, "and set again by the next acknowledged transaction");
+    assert_eq!(
+        bus.read32(SR).unwrap() & 1,
+        1,
+        "and set again by the next acknowledged transaction"
+    );
 }

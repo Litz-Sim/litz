@@ -1,0 +1,21 @@
+[package]
+name = "litz-xtensa-lx7"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Litz fork of esp32sim: Xtensa LX7 (ESP32-S3 configuration) instruction-level emulator core"
+
+repository = "https://github.com/Litz-Sim/litz"
+homepage = "https://github.com/Litz-Sim/litz#readme"
+
+[lib]
+name = "xtensa_lx7"
+
+[dependencies]
+litz-emu-core = { version = "0.1.0", path = "../emu-core" }
+
+[features]
+wasm-jit-tests = []
+wasm-jit-profile = []
+wasm-cpu-profile = []
+wasm-cache-inline = []

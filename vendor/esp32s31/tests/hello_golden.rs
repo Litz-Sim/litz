@@ -56,9 +56,8 @@ fn rom_elf() -> String {
 #[ignore = "needs S31_ROM_ELF or ESP32SIM_ROM_DIR and tools/fetch-s31-firmware.sh images"]
 fn idf61_hello_world_prints_from_mask_rom_spi_boot() {
     let rom = std::fs::read(rom_elf()).unwrap();
-    let dir = std::env::var("S31_FIRMWARE_DIR").unwrap_or_else(|_| {
-        concat!(env!("CARGO_MANIFEST_DIR"), "/firmware").into()
-    });
+    let dir = std::env::var("S31_FIRMWARE_DIR")
+        .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/firmware").into());
     let mut m = boot_hello(&rom, &dir);
     let mut n = 0u64;
     // Drive through the 10 s countdown; SYSTIMER next_deadline lets idle skip FreeRTOS delays.
@@ -137,9 +136,8 @@ fn idf61_hello_world_prints_from_mask_rom_spi_boot() {
 #[test]
 #[ignore = "needs tools/fetch-s31-firmware.sh app image only (no ROM ELF)"]
 fn boot_app_skips_rom_and_reaches_hello_entry() {
-    let dir = std::env::var("S31_FIRMWARE_DIR").unwrap_or_else(|_| {
-        concat!(env!("CARGO_MANIFEST_DIR"), "/firmware").into()
-    });
+    let dir = std::env::var("S31_FIRMWARE_DIR")
+        .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/firmware").into());
     let mut m = esp32s31::machine([0x10, 0x20, 0x30, 0x40, 0x50, 0x60], 2 << 20);
     m.bus
         .write_flash(
@@ -159,6 +157,9 @@ fn boot_app_skips_rom_and_reaches_hello_entry() {
     // million instructions should not immediately trap on an unmapped fetch.
     match m.run(100_000) {
         esp_soc::Stop::MaxInsns => {}
-        other => panic!("boot_app entry trapped early: {other:?} pc={:#x}", m.cores[0].pc),
+        other => panic!(
+            "boot_app entry trapped early: {other:?} pc={:#x}",
+            m.cores[0].pc
+        ),
     }
 }

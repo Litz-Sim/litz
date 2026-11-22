@@ -1,9 +1,9 @@
 [package]
-name = "esp-soc"
-version = "0.4.0"
+name = "litz-esp-soc"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "The machine around an Espressif SoC: scheduler, device time, console, scripts, web push, loaders, boards — generic over the chip"
+description = "Litz fork of esp32sim: The machine around an Espressif SoC: scheduler, device time, console, scripts, web push, loaders, boards — generic over the chip"
 
 # A patch of the upstream crate at `d043ff1`. It differs from that revision in
 # one place: the virtual peripheral's GATT table can be installed by the host
@@ -11,9 +11,15 @@ description = "The machine around an Espressif SoC: scheduler, device time, cons
 # a native ESP32 reach the circuit's beacons. Remove this copy once the upstream
 # crate carries `Ble::set_peer_gatt` and accepts nearby addresses in
 # `LE_CREATE_CONNECTION`.
+repository = "https://github.com/Litz-Sim/litz"
+homepage = "https://github.com/Litz-Sim/litz#readme"
+
+[lib]
+name = "esp_soc"
+
 [dependencies]
-emu-core = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
-esp-periph = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+litz-emu-core = { version = "0.1.0", path = "../emu-core" }
+litz-esp-periph = { version = "0.1.0", path = "../esp-periph" }
 
 [features]
 wasm-cpu-profile = []

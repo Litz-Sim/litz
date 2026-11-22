@@ -8,27 +8,60 @@ pub const LP: u32 = 0x2070_6000;
 pub const HP0: u32 = 0x2050_5000;
 pub const HP1: u32 = 0x2058_a000;
 const COUNTS: [usize; 3] = [29, 31, 39];
-struct Domain { controls: [u16; 39], bus_error: bool, keep_clock: bool, date: u32 }
-impl Domain {
-    fn new(date: u32) -> Self { Self { controls: [0x11; 39], bus_error: false, keep_clock: true, date } }
+struct Domain {
+    controls: [u16; 39],
+    bus_error: bool,
+    keep_clock: bool,
+    date: u32,
 }
-pub struct Permissions { domains: [Domain; 3], pub writes: u64 }
+impl Domain {
+    fn new(date: u32) -> Self {
+        Self {
+            controls: [0x11; 39],
+            bus_error: false,
+            keep_clock: true,
+            date,
+        }
+    }
+}
+pub struct Permissions {
+    domains: [Domain; 3],
+    pub writes: u64,
+}
 impl Default for Permissions {
-    fn default() -> Self { Self { domains: [Domain::new(38_834_752), Domain::new(38_834_736), Domain::new(38_834_720)], writes: 0 } }
+    fn default() -> Self {
+        Self {
+            domains: [
+                Domain::new(38_834_752),
+                Domain::new(38_834_736),
+                Domain::new(38_834_720),
+            ],
+            writes: 0,
+        }
+    }
 }
 impl Permissions {
     fn register(address: u32) -> Option<(usize, u32)> {
         for (id, base, size) in [(0, LP, 0x800), (1, HP0, 0x1000), (2, HP1, 0x1000)] {
-            if let Some(off) = address.checked_sub(base).filter(|&o| o < size) { return Some((id, off)); }
+            if let Some(off) = address.checked_sub(base).filter(|&o| o < size) {
+                return Some((id, off));
+            }
         }
         None
     }
-    pub fn is_mmio(address: u32) -> bool { Self::register(address).is_some() }
+    pub fn is_mmio(address: u32) -> bool {
+        Self::register(address).is_some()
+    }
     pub fn read(&self, address: u32) -> Result<u32, Fault> {
         let (id, off) = Self::register(address).ok_or(Fault::Unmapped)?;
-        if off & 3 != 0 { return Err(Fault::Misaligned); }
-        let d = &self.domains[id]; let end = if id == 0 { 0x800 } else { 0x1000 };
-        if (off / 4) < COUNTS[id] as u32 { return Ok(d.controls[(off / 4) as usize].into()); }
+        if off & 3 != 0 {
+            return Err(Fault::Misaligned);
+        }
+        let d = &self.domains[id];
+        let end = if id == 0 { 0x800 } else { 0x1000 };
+        if (off / 4) < COUNTS[id] as u32 {
+            return Ok(d.controls[(off / 4) as usize].into());
+        }
         match off {
             0x300 => Ok(0), // IRQ disabled; enabling it is unsupported, not silently ignored.
             o if o == end - 16 => Ok(u32::from(d.bus_error)),
@@ -39,23 +72,31 @@ impl Permissions {
     }
     pub fn write(&mut self, address: u32, value: u32) -> Result<(), Fault> {
         let (id, off) = Self::register(address).ok_or(Fault::Unmapped)?;
-        if off & 3 != 0 { return Err(Fault::Misaligned); }
-        let d = &mut self.domains[id]; let end = if id == 0 { 0x800 } else { 0x1000 };
+        if off & 3 != 0 {
+            return Err(Fault::Misaligned);
+        }
+        let d = &mut self.domains[id];
+        let end = if id == 0 { 0x800 } else { 0x1000 };
         if (off / 4) < COUNTS[id] as u32 {
             let word = &mut d.controls[(off / 4) as usize];
             if *word & 0x100 == 0 {
                 // The header disables error replies by default but does not specify the
                 // returned read data. Do not invent zero/stall semantics: a restricted
                 // TEE profile requires the documented bus-error response in this subset.
-                if value & 0x11 != 0x11 && !d.bus_error { return Err(Fault::Prohibited); }
+                if value & 0x11 != 0x11 && !d.bus_error {
+                    return Err(Fault::Prohibited);
+                }
                 *word = (value & 0x1ff) as u16;
             }
-            self.writes += 1; return Ok(());
+            self.writes += 1;
+            return Ok(());
         }
         match off {
-            0x300 if value == 0 => {},
+            0x300 if value == 0 => {}
             o if o == end - 16 => {
-                if value & 1 == 0 && d.controls.iter().any(|v| v & 0x11 != 0x11) { return Err(Fault::Prohibited); }
+                if value & 1 == 0 && d.controls.iter().any(|v| v & 0x11 != 0x11) {
+                    return Err(Fault::Prohibited);
+                }
                 d.bus_error = value & 1 != 0;
             }
             o if o == end - 8 => d.keep_clock = value & 1 != 0, // automatic gating, not a bus-disable bit
@@ -82,24 +123,39 @@ impl Permissions {
             0x2050_8000..=0x2050_ffff => Some((1, 28)), // CRYPTO includes SHA
             0x2058_2000..=0x2058_2fff => Some((2, 31)), // IOMUX (separate GPIO ownership unconfirmed)
             _ => match address & !0xfff {
-                0x2070_0000 => Some((0, 0)), 0x2070_1000 => Some((0, 1)),
+                0x2070_0000 => Some((0, 0)),
+                0x2070_1000 => Some((0, 1)),
                 0x2071_0000 => Some((0, 14)), // LP_PERICLKRST
-                0x2070_2000 => Some((0, 2)), 0x2070_4000 => Some((0, 4)),
-                0x2071_5000 => Some((0, 17)), 0x2080_0000 => Some((0, 9)), 0x2080_1000 => Some((0, 10)), 0x2081_4000 => Some((0, 22)),
-                0x2d00_2000 => Some((1, 2)), 0x2c00_0000 => Some((1, 5)), 0x2050_5000 => Some((1, 26)), 0x2050_6000 => Some((1, 27)), // KEY_MANAGER: HP_PERI0_PMS+0x6c
+                0x2070_2000 => Some((0, 2)),
+                0x2070_4000 => Some((0, 4)),
+                0x2071_5000 => Some((0, 17)),
+                0x2080_0000 => Some((0, 9)),
+                0x2080_1000 => Some((0, 10)),
+                0x2081_4000 => Some((0, 22)),
+                0x2d00_2000 => Some((1, 2)),
+                0x2c00_0000 => Some((1, 5)),
+                0x2050_5000 => Some((1, 26)),
+                0x2050_6000 => Some((1, 27)), // KEY_MANAGER: HP_PERI0_PMS+0x6c
                 0x2035_9000 => Some((1, 19)), // CNNT_SYS_REG
-                0x2038_a000 => Some((2, 10)), 0x2039_1000 => Some((2, 17)),
+                0x2038_a000 => Some((2, 10)),
+                0x2039_1000 => Some((2, 17)),
                 0x2039_9000 => Some((2, 24)), // HP_SYSTIMER_CTRL offset0x60
-                0x2058_0000 => Some((2, 29)), 0x2058_1000 => Some((2, 30)),
-                0x2058_5000 => Some((2, 33)), 0x2058_6000 => Some((2, 34)),
-                0x2058_7000 => Some((2, 35)), 0x2058_9000 => Some((2, 37)), 0x2058_a000 => Some((2, 38)),
+                0x2058_0000 => Some((2, 29)),
+                0x2058_1000 => Some((2, 30)),
+                0x2058_5000 => Some((2, 33)),
+                0x2058_6000 => Some((2, 34)),
+                0x2058_7000 => Some((2, 35)),
+                0x2058_9000 => Some((2, 37)),
+                0x2058_a000 => Some((2, 38)),
                 _ => None,
             },
         }
     }
     pub fn check(&self, address: u32, write: bool) -> Result<(), Fault> {
         if let Some((id, target)) = Self::target(address) {
-            if self.domains[id].controls[target] & (1 << if write { 4 } else { 0 }) == 0 { return Err(Fault::Prohibited); }
+            if self.domains[id].controls[target] & (1 << if write { 4 } else { 0 }) == 0 {
+                return Err(Fault::Prohibited);
+            }
         }
         Ok(())
     }
@@ -111,16 +167,24 @@ mod tests {
     #[test]
     fn real_target_permissions_and_lock_are_independent_across_domains() {
         let mut p = Permissions::default();
-        for base in [LP, HP0, HP1] { assert_eq!(p.read(base), Ok(0x11)); }
+        for base in [LP, HP0, HP1] {
+            assert_eq!(p.read(base), Ok(0x11));
+        }
         assert_eq!(p.write(HP1 + 0x28, 1), Err(Fault::Prohibited)); // unknown quiet-denial read semantics
         assert_eq!(p.read(HP1 + 0x28), Ok(0x11));
-        p.write(HP1 + 0xff0, 1).unwrap(); p.write(HP1 + 0x28, 0x101).unwrap();
-        assert_eq!(p.check(0x2038a000, false), Ok(())); assert_eq!(p.check(0x2038a000, true), Err(Fault::Prohibited));
-        assert_eq!(p.check(0x20391000, true), Ok(())); assert_eq!(p.check(0x2070002c, true), Ok(()));
-        p.write(HP1 + 0x28, 0xff).unwrap(); assert_eq!(p.read(HP1 + 0x28), Ok(0x101));
+        p.write(HP1 + 0xff0, 1).unwrap();
+        p.write(HP1 + 0x28, 0x101).unwrap();
+        assert_eq!(p.check(0x2038a000, false), Ok(()));
+        assert_eq!(p.check(0x2038a000, true), Err(Fault::Prohibited));
+        assert_eq!(p.check(0x20391000, true), Ok(()));
+        assert_eq!(p.check(0x2070002c, true), Ok(()));
+        p.write(HP1 + 0x28, 0xff).unwrap();
+        assert_eq!(p.read(HP1 + 0x28), Ok(0x101));
         assert_eq!(p.write(HP1 + 0xff0, 0), Err(Fault::Prohibited));
         assert_eq!(p.write(HP1 + 0x300, 1), Err(Fault::Prohibited));
-        assert_eq!(p.read(LP + 0x74), Err(Fault::Unmapped)); assert_eq!(p.read(HP0 + 0x7c), Err(Fault::Unmapped));
-        assert_eq!(p.read(HP1 + 0x9c), Err(Fault::Unmapped)); assert_eq!(p.write(HP1 + 1, 0xff), Err(Fault::Misaligned));
+        assert_eq!(p.read(LP + 0x74), Err(Fault::Unmapped));
+        assert_eq!(p.read(HP0 + 0x7c), Err(Fault::Unmapped));
+        assert_eq!(p.read(HP1 + 0x9c), Err(Fault::Unmapped));
+        assert_eq!(p.write(HP1 + 1, 0xff), Err(Fault::Misaligned));
     }
 }

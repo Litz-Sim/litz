@@ -1,12 +1,18 @@
 [package]
-name = "esp32s31"
-version = "0.4.0"
+name = "litz-esp32s31"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "ESP32-S31 on esp_soc::Machine: dual-hart, DeviceSet peripherals, ROM and Flash-MMU app boot"
+description = "Litz fork of esp32sim: ESP32-S31 on esp_soc::Machine: dual-hart, DeviceSet peripherals, ROM and Flash-MMU app boot"
+
+repository = "https://github.com/Litz-Sim/litz"
+homepage = "https://github.com/Litz-Sim/litz#readme"
+
+[lib]
+name = "esp32s31"
 
 [dependencies]
-emu-core = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
-esp-periph = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
-esp-soc = { path = "../esp-soc" }
-riscv-rv32 = { git = "https://github.com/mikroverk/esp32sim", rev = "d043ff1" }
+litz-emu-core = { version = "0.1.0", path = "../emu-core" }
+litz-esp-periph = { version = "0.1.0", path = "../esp-periph" }
+litz-esp-soc = { version = "0.1.0", path = "../esp-soc" }
+litz-riscv-rv32 = { version = "0.1.0", path = "../riscv-rv32" }

@@ -7,8 +7,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
 
 [dependencies]
-litz-core = { version = "0.0.1", path = "../litz-core" }
-litz-part-wit = { version = "0.0.1", path = "../litz-part-wit" }
+litz-core = { version = "0.1.0", path = "../litz-core" }
+litz-part-wit = { version = "0.1.0", path = "../litz-part-wit" }
 wasmtime = "50"

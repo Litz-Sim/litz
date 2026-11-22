@@ -669,11 +669,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
-name = "emu-core"
-version = "0.4.0"
-source = "git+https://github.com/mikroverk/esp32sim?rev=d043ff1#d043ff1dd3e53aca18a23f4f2b18bfb038a57667"
-
-[[package]]
 name = "encoding_rs"
 version = "0.8.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -701,84 +696,6 @@ checksum = "e35d6e78f4cebb90e51d543db8fe41528851d6deeef6ef21ebd4bfdc1e784776"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "esp-periph"
-version = "0.4.0"
-source = "git+https://github.com/mikroverk/esp32sim?rev=d043ff1#d043ff1dd3e53aca18a23f4f2b18bfb038a57667"
-dependencies = [
- "emu-core",
-]
-
-[[package]]
-name = "esp-soc"
-version = "0.4.0"
-dependencies = [
- "emu-core",
- "esp-periph",
-]
-
-[[package]]
-name = "esp32"
-version = "0.4.0"
-dependencies = [
- "emu-core",
- "esp-periph",
- "esp-soc",
- "xtensa-lx7",
-]
-
-[[package]]
-name = "esp32c3"
-version = "0.4.0"
-dependencies = [
- "emu-core",
- "esp-periph",
- "esp-soc",
- "riscv-rv32",
-]
-
-[[package]]
-name = "esp32c6"
-version = "0.4.0"
-dependencies = [
- "emu-core",
- "esp-periph",
- "esp-soc",
- "riscv-rv32",
-]
-
-[[package]]
-name = "esp32p4"
-version = "0.4.0"
-source = "git+https://github.com/mikroverk/esp32sim?rev=d043ff1#d043ff1dd3e53aca18a23f4f2b18bfb038a57667"
-dependencies = [
- "emu-core",
- "esp-periph",
- "esp-soc",
- "esp32c6",
- "riscv-rv32",
-]
-
-[[package]]
-name = "esp32s3"
-version = "0.4.0"
-dependencies = [
- "emu-core",
- "esp-periph",
- "esp-soc",
- "xtensa-lx7",
-]
-
-[[package]]
-name = "esp32s31"
-version = "0.4.0"
-dependencies = [
- "emu-core",
- "esp-periph",
- "esp-soc",
- "riscv-rv32",
 ]
 
 [[package]]
@@ -1174,7 +1091,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "litz"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-catalog",
  "litz-core",
@@ -1185,14 +1102,14 @@ dependencies = [
 
 [[package]]
 name = "litz-analog"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "litz-avr"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-board",
  "litz-catalog",
@@ -1202,11 +1119,11 @@ dependencies = [
 
 [[package]]
 name = "litz-ble"
-version = "0.0.1"
+version = "0.1.0"
 
 [[package]]
 name = "litz-board"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-analog",
  "litz-ble",
@@ -1223,7 +1140,7 @@ dependencies = [
 
 [[package]]
 name = "litz-catalog"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-diagram",
  "serde",
@@ -1233,14 +1150,14 @@ dependencies = [
 
 [[package]]
 name = "litz-chip-rv32"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "wit-bindgen",
 ]
 
 [[package]]
 name = "litz-cli"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-catalog",
  "litz-diagram",
@@ -1254,18 +1171,18 @@ dependencies = [
 
 [[package]]
 name = "litz-core"
-version = "0.0.1"
+version = "0.1.0"
 
 [[package]]
 name = "litz-decode"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-core",
 ]
 
 [[package]]
 name = "litz-diagram"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1274,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "litz-editor"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-catalog",
  "litz-diagram",
@@ -1283,8 +1200,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "litz-emu-core"
+version = "0.1.0"
+
+[[package]]
 name = "litz-engine"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-avr",
  "litz-ble",
@@ -1306,38 +1227,114 @@ dependencies = [
 
 [[package]]
 name = "litz-esp"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
- "esp-periph",
- "esp-soc",
- "esp32",
- "esp32c3",
- "esp32c6",
- "esp32p4",
- "esp32s3",
- "esp32s31",
  "gdbstub",
  "litz-ble",
  "litz-board",
  "litz-catalog",
  "litz-core",
  "litz-diagram",
+ "litz-esp-periph",
+ "litz-esp-soc",
+ "litz-esp32",
+ "litz-esp32c3",
+ "litz-esp32c6",
+ "litz-esp32p4",
+ "litz-esp32s3",
+ "litz-esp32s31",
  "litz-fixture",
  "litz-mcu",
  "litz-net",
 ]
 
 [[package]]
+name = "litz-esp-periph"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
+]
+
+[[package]]
+name = "litz-esp-soc"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
+ "litz-esp-periph",
+]
+
+[[package]]
+name = "litz-esp32"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
+ "litz-esp-periph",
+ "litz-esp-soc",
+ "litz-xtensa-lx7",
+]
+
+[[package]]
+name = "litz-esp32c3"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
+ "litz-esp-periph",
+ "litz-esp-soc",
+ "litz-riscv-rv32",
+]
+
+[[package]]
+name = "litz-esp32c6"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
+ "litz-esp-periph",
+ "litz-esp-soc",
+ "litz-riscv-rv32",
+]
+
+[[package]]
+name = "litz-esp32p4"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
+ "litz-esp-periph",
+ "litz-esp-soc",
+ "litz-esp32c6",
+ "litz-riscv-rv32",
+]
+
+[[package]]
+name = "litz-esp32s3"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
+ "litz-esp-periph",
+ "litz-esp-soc",
+ "litz-xtensa-lx7",
+]
+
+[[package]]
+name = "litz-esp32s31"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
+ "litz-esp-periph",
+ "litz-esp-soc",
+ "litz-riscv-rv32",
+]
+
+[[package]]
 name = "litz-fixture"
-version = "0.0.1"
+version = "0.1.0"
 
 [[package]]
 name = "litz-ieee802154"
-version = "0.0.1"
+version = "0.1.0"
 
 [[package]]
 name = "litz-mcp"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-catalog",
  "litz-core",
@@ -1349,14 +1346,14 @@ dependencies = [
 
 [[package]]
 name = "litz-mcu"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-core",
 ]
 
 [[package]]
 name = "litz-mcu-wasm"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-ble",
  "litz-board",
@@ -1375,14 +1372,14 @@ dependencies = [
 
 [[package]]
 name = "litz-mcu-wit"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "wit-parser 0.261.0",
 ]
 
 [[package]]
 name = "litz-net"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "getrandom 0.4.3",
  "rustls",
@@ -1392,42 +1389,42 @@ dependencies = [
 
 [[package]]
 name = "litz-part-74hc595"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "wit-bindgen",
 ]
 
 [[package]]
 name = "litz-part-display"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-part-sdk",
 ]
 
 [[package]]
 name = "litz-part-eeprom"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-part-sdk",
 ]
 
 [[package]]
 name = "litz-part-runaway"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-part-sdk",
 ]
 
 [[package]]
 name = "litz-part-sdk"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "wit-bindgen",
 ]
 
 [[package]]
 name = "litz-part-wasm"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-core",
  "litz-part-wit",
@@ -1436,14 +1433,14 @@ dependencies = [
 
 [[package]]
 name = "litz-part-wit"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "wit-parser 0.261.0",
 ]
 
 [[package]]
 name = "litz-project"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-diagram",
  "serde",
@@ -1453,11 +1450,18 @@ dependencies = [
 
 [[package]]
 name = "litz-radio"
-version = "0.0.1"
+version = "0.1.0"
+
+[[package]]
+name = "litz-riscv-rv32"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
+]
 
 [[package]]
 name = "litz-rp"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-board",
  "litz-core",
@@ -1466,7 +1470,7 @@ dependencies = [
 
 [[package]]
 name = "litz-wasm"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "litz-board",
  "litz-core",
@@ -1479,6 +1483,13 @@ dependencies = [
  "litz-net",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "litz-xtensa-lx7"
+version = "0.1.0"
+dependencies = [
+ "litz-emu-core",
 ]
 
 [[package]]
@@ -1870,14 +1881,6 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "riscv-rv32"
-version = "0.4.0"
-source = "git+https://github.com/mikroverk/esp32sim?rev=d043ff1#d043ff1dd3e53aca18a23f4f2b18bfb038a57667"
-dependencies = [
- "emu-core",
 ]
 
 [[package]]
@@ -3083,14 +3086,6 @@ dependencies = [
  "curve25519-dalek",
  "rand_core",
  "zeroize",
-]
-
-[[package]]
-name = "xtensa-lx7"
-version = "0.4.0"
-source = "git+https://github.com/mikroverk/esp32sim?rev=d043ff1#d043ff1dd3e53aca18a23f4f2b18bfb038a57667"
-dependencies = [
- "emu-core",
 ]
 
 [[package]]

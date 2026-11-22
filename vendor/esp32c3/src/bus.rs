@@ -70,47 +70,92 @@ impl SocBus {
             rtc_slow: vec![0; (RTC_SLOW_HIGH - RTC_SLOW_LOW) as usize],
             flash: vec![0xff; flash_size],
             mmu: [MMU_INVALID; MMU_ENTRIES],
-            periph: Peripherals::new(mac), board: Box::new(esp_soc::NoBoard), uart_pins: false, board_edges: false, pins_active: false,
-            cycles: 0, last_fault: None, irq_dirty: true, ena_latency: Default::default(), uart_busy: false, gpio_events: None, debug: Default::default(),
+            periph: Peripherals::new(mac),
+            board: Box::new(esp_soc::NoBoard),
+            uart_pins: false,
+            board_edges: false,
+            pins_active: false,
+            cycles: 0,
+            last_fault: None,
+            irq_dirty: true,
+            ena_latency: Default::default(),
+            uart_busy: false,
+            gpio_events: None,
+            debug: Default::default(),
         }
     }
 
     /// Resolve to (buffer, offset, writable). Cache windows go through the MMU.
     fn resolve(&mut self, addr: u32) -> Option<(&mut Vec<u8>, usize, bool)> {
         match addr {
-            DRAM_LOW..=0x3FCD_FFFF => Some((&mut self.sram, (addr - DRAM_LOW) as usize + DRAM_IN_SRAM, true)),
+            DRAM_LOW..=0x3FCD_FFFF => Some((
+                &mut self.sram,
+                (addr - DRAM_LOW) as usize + DRAM_IN_SRAM,
+                true,
+            )),
             IRAM_LOW..=0x403D_FFFF => Some((&mut self.sram, (addr - IRAM_LOW) as usize, true)),
-            IROM_MASK_LOW..=0x4005_FFFF => Some((&mut self.irom, (addr - IROM_MASK_LOW) as usize, false)),
-            DROM_MASK_LOW..=0x3FF1_FFFF => Some((&mut self.drom, (addr - DROM_MASK_LOW) as usize, false)),
-            RTC_SLOW_LOW..=0x5000_1FFF => Some((&mut self.rtc_slow, (addr - RTC_SLOW_LOW) as usize, true)),
+            IROM_MASK_LOW..=0x4005_FFFF => {
+                Some((&mut self.irom, (addr - IROM_MASK_LOW) as usize, false))
+            }
+            DROM_MASK_LOW..=0x3FF1_FFFF => {
+                Some((&mut self.drom, (addr - DROM_MASK_LOW) as usize, false))
+            }
+            RTC_SLOW_LOW..=0x5000_1FFF => {
+                Some((&mut self.rtc_slow, (addr - RTC_SLOW_LOW) as usize, true))
+            }
             DBUS_LOW..=0x3C7F_FFFF | IBUS_LOW..=0x427F_FFFF => {
                 // both buses index one flat table; software keeps their page ranges disjoint
                 let entry = self.mmu[((addr & 0x7F_FFFF) >> 16) as usize];
-                if entry & MMU_INVALID != 0 { return None; }
+                if entry & MMU_INVALID != 0 {
+                    return None;
+                }
                 let off = (entry & 0xff) as usize * PAGE as usize + (addr & 0xffff) as usize;
-                if off < self.flash.len() { Some((&mut self.flash, off, false)) } else { None }
+                if off < self.flash.len() {
+                    Some((&mut self.flash, off, false))
+                } else {
+                    None
+                }
             }
             _ => None,
         }
     }
 
     #[inline]
-    fn is_periph(addr: u32) -> bool { (PERIPH_BASE..PERIPH_END).contains(&addr) }
+    fn is_periph(addr: u32) -> bool {
+        (PERIPH_BASE..PERIPH_END).contains(&addr)
+    }
 
     fn periph_read(&mut self, addr: u32, size: u32) -> u32 {
         // IDF v5.5.4 components/soc/esp32c3/register/soc/gpio_reg.h: GPIO_IN/IN1.
-        if self.board_edges && matches!(addr & !3, 0x6000_403c | 0x6000_4040) { self.irq_dirty |= esp_soc::gpio::deliver_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles); }
+        if self.board_edges && matches!(addr & !3, 0x6000_403c | 0x6000_4040) {
+            self.irq_dirty |= esp_soc::gpio::deliver_board_inputs(
+                &mut *self.board,
+                &mut self.periph.gpio,
+                &mut self.gpio_events,
+                self.cycles,
+            );
+        }
         if (MMU_TABLE..MMU_TABLE + (MMU_ENTRIES as u32) * 4).contains(&addr) {
             return self.mmu[((addr - MMU_TABLE) >> 2) as usize];
         }
         let a = addr & !3;
         // RXFIFO_FULL follows the FIFO level (as on the classic ESP32): the mask ROM's shared UART0/UART1 handler reads
         // one FIFO and never clears the interrupt, so a stale level would re-enter it with nothing to read.
-        let uart = match a { 0x6000_0000 => Some(0), 0x6001_0000 => Some(1), _ => None };
+        let uart = match a {
+            0x6000_0000 => Some(0),
+            0x6001_0000 => Some(1),
+            _ => None,
+        };
         let before = uart.map(|i| self.periph.uart[i].irq());
         let w = self.periph.read32(a);
-        if let (Some(i), Some(before)) = (uart, before) { self.irq_dirty |= self.periph.uart[i].irq() != before; }
-        match size { 1 => (w >> ((addr & 3) * 8)) & 0xff, 2 => (w >> ((addr & 2) * 8)) & 0xffff, _ => w }
+        if let (Some(i), Some(before)) = (uart, before) {
+            self.irq_dirty |= self.periph.uart[i].irq() != before;
+        }
+        match size {
+            1 => (w >> ((addr & 3) * 8)) & 0xff,
+            2 => (w >> ((addr & 2) * 8)) & 0xffff,
+            _ => w,
+        }
     }
 
     /// SHA DMA after a write, out of line so idle MMIO writes test only `dma_pending`.
@@ -120,9 +165,15 @@ impl SocBus {
     #[cold]
     #[inline(never)]
     fn sha_dma_write(&mut self, a: u32) {
-        if !matches!(a & !0xfff, 0x6003_b000 | 0x6003_f000) { return; }
+        if !matches!(a & !0xfff, 0x6003_b000 | 0x6003_f000) {
+            return;
+        }
         if let Some(ch) = self.periph.gdma.gdma.out_channel_for(7) {
-            let mut memory = esp_periph::gdma::SramOut { base: DRAM_LOW, bytes: &mut self.sram[DRAM_IN_SRAM..], channel: &mut self.periph.gdma.gdma.out[ch] };
+            let mut memory = esp_periph::gdma::SramOut {
+                base: DRAM_LOW,
+                bytes: &mut self.sram[DRAM_IN_SRAM..],
+                channel: &mut self.periph.gdma.gdma.out[ch],
+            };
             self.periph.sha.dma_step(&mut memory);
         }
     }
@@ -138,35 +189,73 @@ impl SocBus {
         let fifo = matches!(a, 0x6000_0000 | 0x6001_0000);
         let v = match size {
             4 => v,
-            _ if fifo => if size == 1 { (v & 0xff) << ((addr & 3) * 8) } else { (v & 0xffff) << ((addr & 2) * 8) },
-            1 => { let old = self.periph.read32(a); let sh = (addr & 3) * 8; (old & !(0xff << sh)) | ((v & 0xff) << sh) }
-            _ => { let old = self.periph.read32(a); let sh = (addr & 2) * 8; (old & !(0xffff << sh)) | ((v & 0xffff) << sh) }
+            _ if fifo => {
+                if size == 1 {
+                    (v & 0xff) << ((addr & 3) * 8)
+                } else {
+                    (v & 0xffff) << ((addr & 2) * 8)
+                }
+            }
+            1 => {
+                let old = self.periph.read32(a);
+                let sh = (addr & 3) * 8;
+                (old & !(0xff << sh)) | ((v & 0xff) << sh)
+            }
+            _ => {
+                let old = self.periph.read32(a);
+                let sh = (addr & 2) * 8;
+                (old & !(0xffff << sh)) | ((v & 0xffff) << sh)
+            }
         };
-        let ena_port = match a { 0x6000_000c => Some(0), 0x6001_000c => Some(1), _ => None };
+        let ena_port = match a {
+            0x6000_000c => Some(0),
+            0x6001_000c => Some(1),
+            _ => None,
+        };
         let old_ena = ena_port.map_or(0, |i| self.periph.uart[i].int_ena);
         let drive = (self.periph.gpio.enable, self.periph.gpio.out);
         // Reuse the peripheral's pin-block classification; only those blocks start or stop I2C/RMT.
-        if self.periph.write32(a, v) { self.pins_active = self.pins_active(); }
-        if matches!(a & !0xfff, 0x6000_4000 | 0x6000_9000) && self.board.uses_gpio_waveform() {
-            self.board.gpio_waveform_at(self.cycles, esp_soc::pins::ChipPins::C3.routes(&self.periph.gpio, &self.periph.io_mux));
+        if self.periph.write32(a, v) {
+            self.pins_active = self.pins_active();
         }
-        if self.periph.sha.dma_pending { self.sha_dma_write(a); }
+        if matches!(a & !0xfff, 0x6000_4000 | 0x6000_9000) && self.board.uses_gpio_waveform() {
+            self.board.gpio_waveform_at(
+                self.cycles,
+                esp_soc::pins::ChipPins::C3.routes(&self.periph.gpio, &self.periph.io_mux),
+            );
+        }
+        if self.periph.sha.dma_pending {
+            self.sha_dma_write(a);
+        }
         if drive != (self.periph.gpio.enable, self.periph.gpio.out) {
             self.deliver_gpio_output();
         }
-        if let Some(port) = match a { 0x60000000 => Some(0), 0x60010000 => Some(1), _ => None } {
-            if self.uart_pins { self.board.uart_tx(self.cycles, self.periph.uart_route(port), v as u8); }
+        if let Some(port) = match a {
+            0x60000000 => Some(0),
+            0x60010000 => Some(1),
+            _ => None,
+        } {
+            if self.uart_pins {
+                self.board
+                    .uart_tx(self.cycles, self.periph.uart_route(port), v as u8);
+            }
         }
         // A SPI flash command must complete before the guest can read its result: firmware kicks
         // the command and polls/reads the data registers a few instructions later, well inside one
         // scheduling quantum. Running it at the quantum boundary instead loses the race and the
         // read returns zeros — which is exactly how `E memspi: no response` showed up on a
         // non-power-on boot while a power-on boot happened to survive it.
-        if self.periph.spi_exec { self.run_spi(); }
+        if self.periph.spi_exec {
+            self.run_spi();
+        }
         // SPI2 (0x6002_4000) or GDMA (0x6003_f000): either can be the last write before a DMA
         // data phase can run, as drivers start the out link before or after CMD.USR.
-        if matches!(a & !0xfff, 0x6002_4000 | 0x6003_f000) && self.periph.spi2.has_pending_transfer() {
-            if self.periph.spi2.dma_tx_pending.is_some() { self.spi2_dma_step(); }
+        if matches!(a & !0xfff, 0x6002_4000 | 0x6003_f000)
+            && self.periph.spi2.has_pending_transfer()
+        {
+            if self.periph.spi2.dma_tx_pending.is_some() {
+                self.spi2_dma_step();
+            }
             self.deliver_spi2_transfer();
         }
         // Interrupt delivery has latency on silicon (the interrupt matrix and the CPU's interrupt controller). The mask ROM's
@@ -174,7 +263,16 @@ impl SocBus {
         // the interrupt between the two runs the handler for the previous UART (USB) and faults. So an INT_ENA write lets the
         // block run on and its level is presented after `EnaLatency::CYCLES`.
         match ena_port {
-            Some(i) => { if self.ena_latency.on_write(old_ena, self.periph.uart[i].int_ena) { self.irq_dirty = true; } else { self.uart_busy = true; } }
+            Some(i) => {
+                if self
+                    .ena_latency
+                    .on_write(old_ena, self.periph.uart[i].int_ena)
+                {
+                    self.irq_dirty = true;
+                } else {
+                    self.uart_busy = true;
+                }
+            }
             None => self.irq_dirty = true,
         }
     }
@@ -190,21 +288,42 @@ impl SocBus {
     #[cold]
     #[inline(never)]
     fn spi2_dma_step(&mut self) {
-        let Some(bits) = self.periph.spi2.dma_tx_pending else { return };
-        let Some(ch) = self.periph.gdma.gdma.out_channel_for(0) else { return };
+        let Some(bits) = self.periph.spi2.dma_tx_pending else {
+            return;
+        };
+        let Some(ch) = self.periph.gdma.gdma.out_channel_for(0) else {
+            return;
+        };
         let wanted = bits.div_ceil(8) as usize;
         let mut payload = Vec::with_capacity(wanted);
-        let mut memory = esp_periph::gdma::SramOut { base: DRAM_LOW, bytes: &mut self.sram[DRAM_IN_SRAM..], channel: &mut self.periph.gdma.gdma.out[ch] };
+        let mut memory = esp_periph::gdma::SramOut {
+            base: DRAM_LOW,
+            bytes: &mut self.sram[DRAM_IN_SRAM..],
+            channel: &mut self.periph.gdma.gdma.out[ch],
+        };
         let result = esp_periph::gdma::gather_out(&mut memory, wanted, &mut payload);
         let c = &mut self.periph.gdma.gdma.out[ch];
-        c.running = false; c.buf_pos = 0;
+        c.running = false;
+        c.buf_pos = 0;
         let complete = match result {
-            Ok(next) => { c.desc = next; if next == 0 { c.int_raw |= 1 << 3; } payload.len() == wanted }
+            Ok(next) => {
+                c.desc = next;
+                if next == 0 {
+                    c.int_raw |= 1 << 3;
+                }
+                payload.len() == wanted
+            }
             Err(_) => false,
         };
         if !complete {
             c.int_raw |= 1 << 2;
-            if self.periph.spi2.log { eprintln!("[spi2] DMA descriptor fault ({} of {} bytes)", payload.len(), wanted); }
+            if self.periph.spi2.log {
+                eprintln!(
+                    "[spi2] DMA descriptor fault ({} of {} bytes)",
+                    payload.len(),
+                    wanted
+                );
+            }
             self.periph.spi2.fail_dma_tx();
             return;
         }
@@ -213,39 +332,63 @@ impl SocBus {
 
     #[inline(always)]
     fn pins_active(&self) -> bool {
-        self.board_edges || self.uart_pins || self.periph.rmt.rmt.is_running() || self.periph.i2c.is_active()
+        self.board_edges
+            || self.uart_pins
+            || self.periph.rmt.rmt.is_running()
+            || self.periph.i2c.is_active()
     }
 
     /// Attach controller 0 devices and reconnect board inputs after a reset.
     pub fn attach_board_devices(&mut self) {
         if self.board.uses_gpio_waveform() {
-            self.board.gpio_waveform_at(self.cycles, esp_soc::pins::ChipPins::C3.routes(&self.periph.gpio, &self.periph.io_mux));
+            self.board.gpio_waveform_at(
+                self.cycles,
+                esp_soc::pins::ChipPins::C3.routes(&self.periph.gpio, &self.periph.io_mux),
+            );
         }
         self.uart_pins = self.board.uses_uart_pins();
         self.board_edges = self.board.uses_gpio_edges();
         self.pins_active = self.pins_active();
         for (bus, address, device) in self.board.i2c_devices() {
-            if bus == 0 { self.periph.i2c.attach(address, device); }
+            if bus == 0 {
+                self.periph.i2c.attach(address, device);
+            }
         }
-        for (pin, level) in self.board.input_levels() { self.periph.gpio.set_input(pin, level); }
+        for (pin, level) in self.board.input_levels() {
+            self.periph.gpio.set_input(pin, level);
+        }
         self.periph.gpio.input_changes.clear();
         self.irq_dirty = true;
-        for pin in self.board.released_inputs() { esp_soc::SocBus::gpio_release_input(self, pin); }
+        for pin in self.board.released_inputs() {
+            esp_soc::SocBus::gpio_release_input(self, pin);
+        }
     }
 
     fn deliver_gpio_output(&mut self) {
         let changes = &self.periph.gpio.changes;
         if let Some(events) = &mut self.gpio_events {
-            events.extend(changes.iter().map(|&(pin, level)| (self.cycles, pin, level)));
+            events.extend(
+                changes
+                    .iter()
+                    .map(|&(pin, level)| (self.cycles, pin, level)),
+            );
         }
-        self.board.gpio_output_at(self.cycles, changes, self.periph.gpio.enable, self.periph.gpio.out);
+        self.board.gpio_output_at(
+            self.cycles,
+            changes,
+            self.periph.gpio.enable,
+            self.periph.gpio.out,
+        );
         self.periph.gpio.changes.clear();
     }
 
     fn deliver_spi2_transfer(&mut self) {
-        let Some(transfer) = self.periph.spi2.take_transfer() else { return };
+        let Some(transfer) = self.periph.spi2.take_transfer() else {
+            return;
+        };
         let rx = if self.board.uses_spi_pins() {
-            self.board.spi_transfer_pins(2, self.periph.spi2_pins(), &transfer.tx, transfer.rx_len)
+            self.board
+                .spi_transfer_pins(2, self.periph.spi2_pins(), &transfer.tx, transfer.rx_len)
         } else {
             self.board.spi_transfer(2, &transfer.tx, transfer.rx_len)
         };
@@ -272,14 +415,19 @@ impl SocBus {
 
     /// Write straight into flash (image loaders, not the guest).
     pub fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
-        let target = self.flash.get_mut(offset..).and_then(|tail| tail.get_mut(..data.len()))
+        let target = self
+            .flash
+            .get_mut(offset..)
+            .and_then(|tail| tail.get_mut(..data.len()))
             .ok_or("flash image too large")?;
         target.copy_from_slice(data);
         Ok(())
     }
 
     pub(crate) fn flash_off(&mut self, addr: u32) -> Option<usize> {
-        if !(IBUS_LOW..IBUS_HIGH).contains(&addr) && !(DBUS_LOW..DBUS_HIGH).contains(&addr) { return None; }
+        if !(IBUS_LOW..IBUS_HIGH).contains(&addr) && !(DBUS_LOW..DBUS_HIGH).contains(&addr) {
+            return None;
+        }
         self.resolve(addr).map(|(_, off, _)| off)
     }
 
@@ -288,12 +436,22 @@ impl SocBus {
         self.sram.get(offset..offset.checked_add(len)?)
     }
     fn sram32(&self, addr: u32) -> u32 {
-        self.sram_bytes(addr, 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()))
+        self.sram_bytes(addr, 4)
+            .map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()))
     }
     fn sram_store(&mut self, addr: u32, data: &[u8]) -> bool {
-        let Some(offset) = addr.checked_sub(DRAM_LOW).map(|a| a as usize + DRAM_IN_SRAM) else { return false; };
-        let Some(end) = offset.checked_add(data.len()) else { return false; };
-        let Some(dst) = self.sram.get_mut(offset..end) else { return false; };
+        let Some(offset) = addr
+            .checked_sub(DRAM_LOW)
+            .map(|a| a as usize + DRAM_IN_SRAM)
+        else {
+            return false;
+        };
+        let Some(end) = offset.checked_add(data.len()) else {
+            return false;
+        };
+        let Some(dst) = self.sram.get_mut(offset..end) else {
+            return false;
+        };
         dst.copy_from_slice(data);
         true
     }
@@ -307,43 +465,75 @@ impl SocBus {
     /// OUT_TOTAL_EOF); a malformed or short IN chain keeps what fits and raises IN_DSCR_ERR
     /// (with IN_DSCR_EMPTY when it ran out). The AES block reports done either way, as before.
     fn aes_dma_step(&mut self) {
-        let (out_ch, in_ch) = { let g = &self.periph.gdma.gdma; (g.out_channel_for(6), g.in_channel_for(6)) };
+        let (out_ch, in_ch) = {
+            let g = &self.periph.gdma.gdma;
+            (g.out_channel_for(6), g.in_channel_for(6))
+        };
         if let (Some(out_ch), Some(in_ch)) = (out_ch, in_ch) {
             self.periph.aes.dma_pending = false;
             let mut input = Vec::new();
-            let mut memory = esp_periph::gdma::SramOut { base: DRAM_LOW, bytes: &mut self.sram[DRAM_IN_SRAM..], channel: &mut self.periph.gdma.gdma.out[out_ch] };
+            let mut memory = esp_periph::gdma::SramOut {
+                base: DRAM_LOW,
+                bytes: &mut self.sram[DRAM_IN_SRAM..],
+                channel: &mut self.periph.gdma.gdma.out[out_ch],
+            };
             let result = esp_periph::gdma::gather_out(&mut memory, usize::MAX, &mut input);
             let c = &mut self.periph.gdma.gdma.out[out_ch];
-            c.running = false; c.buf_pos = 0;
+            c.running = false;
+            c.buf_pos = 0;
             match result {
-                Ok(next) => { c.desc = next; c.int_raw |= 1 << 3; }       // OUT_TOTAL_EOF
-                Err(_) => c.int_raw |= 1 << 2,                          // OUT_DSCR_ERR
+                Ok(next) => {
+                    c.desc = next;
+                    c.int_raw |= 1 << 3;
+                } // OUT_TOTAL_EOF
+                Err(_) => c.int_raw |= 1 << 2, // OUT_DSCR_ERR
             }
 
             let output = self.periph.aes.transform_blocks(&input);
             let mut channel = self.periph.gdma.gdma.inp[in_ch];
             let mut irq_changed = false;
-            if channel.receive(self, &output, Some(output.len() as u32), false, Self::is_periph, &mut irq_changed) {
-                channel.running = false; channel.desc = 0;
+            if channel.receive(
+                self,
+                &output,
+                Some(output.len() as u32),
+                false,
+                Self::is_periph,
+                &mut irq_changed,
+            ) {
+                channel.running = false;
+                channel.desc = 0;
             }
             self.periph.gdma.gdma.inp[in_ch] = channel;
         }
-        if self.periph.aes.dma_pending { return; }
-        self.periph.aes.state = 2;                                       // DONE
+        if self.periph.aes.dma_pending {
+            return;
+        }
+        self.periph.aes.state = 2; // DONE
         self.periph.aes.int_raw |= 1;
         self.irq_dirty = true;
     }
 
-    fn now_us(&self) -> u64 { self.cycles / (crate::periph::CPU_HZ / 1_000_000) }
+    fn now_us(&self) -> u64 {
+        self.cycles / (crate::periph::CPU_HZ / 1_000_000)
+    }
 
     /// WiFi MAC transmit: fetch the queued frames from their DMA descriptors and complete them.
     fn wifi_tx_step(&mut self) {
         let pending = std::mem::take(&mut self.periph.wifi.tx_pending);
         for (slot, desc) in pending {
-            let dw0 = self.sram32(desc); let pkt = self.sram32(desc.wrapping_add(4));
+            let dw0 = self.sram32(desc);
+            let pkt = self.sram32(desc.wrapping_add(4));
             let len = ((dw0 >> 12) & 0xfff) as usize;
             let frame = self.sram_bytes(pkt, len).unwrap_or_default().to_vec();
-            if self.periph.wifi.log || self.debug.has("wifi-frames") { eprintln!("[wifi] TX slot {} desc {:#010x} pkt {:#010x} {}", slot, desc, pkt, esp_soc::wifi::describe(&frame)); }
+            if self.periph.wifi.log || self.debug.has("wifi-frames") {
+                eprintln!(
+                    "[wifi] TX slot {} desc {:#010x} pkt {:#010x} {}",
+                    slot,
+                    desc,
+                    pkt,
+                    esp_soc::wifi::describe(&frame)
+                );
+            }
             self.periph.wifi.tx_done(slot);
             self.irq_dirty = true;
             let now_us = self.now_us();
@@ -354,9 +544,16 @@ impl SocBus {
     /// The virtual air: beacons/responses from the AP and frames from the network backend land in the RX ring.
     fn wifi_air_step(&mut self) {
         let now_us = self.now_us();
-        if self.periph.wifi.link.nothing_due(now_us) { return; }
-        let busy = { let d = self.periph.wifi.link.last_rx_desc(); d != 0 && self.sram32(d) & esp_soc::wifi::RX_DESC_HAS_DATA != 0 };
-        if let Some(frame) = self.periph.wifi.link.next_rx(now_us, busy) { self.wifi_rx_deliver(&frame, now_us); }
+        if self.periph.wifi.link.nothing_due(now_us) {
+            return;
+        }
+        let busy = {
+            let d = self.periph.wifi.link.last_rx_desc();
+            d != 0 && self.sram32(d) & esp_soc::wifi::RX_DESC_HAS_DATA != 0
+        };
+        if let Some(frame) = self.periph.wifi.link.next_rx(now_us, busy) {
+            self.wifi_rx_deliver(&frame, now_us);
+        }
     }
 
     /// The receive descriptor at `desc` (a masked pointer from `rx_next`) as the DMA would use it for a
@@ -367,10 +564,15 @@ impl SocBus {
     /// C3 to `rx_base`, where the S3 overwrites the descriptor in place. A driver that processes frames
     /// in order never gets there.
     fn wifi_rx_armed(&self, desc: u32, total: usize) -> Option<(u32, u32, u32, u32)> {
-        if desc == 0 { return None; }
+        if desc == 0 {
+            return None;
+        }
         let d = desc | esp_periph::DMA_ADDR_BASE;
-        let dw0 = self.sram32(d); let buf = self.sram32(d.wrapping_add(4)); let next = self.sram32(d.wrapping_add(8));
-        (dw0 & (3 << 30) == 1 << 31 && buf != 0 && (dw0 & 0xfff) as usize >= total).then_some((d, dw0, buf, next))
+        let dw0 = self.sram32(d);
+        let buf = self.sram32(d.wrapping_add(4));
+        let next = self.sram32(d.wrapping_add(8));
+        (dw0 & (3 << 30) == 1 << 31 && buf != 0 && (dw0 & 0xfff) as usize >= total)
+            .then_some((d, dw0, buf, next))
     }
 
     /// Write one received frame into the next RX descriptor (rx_ctrl header + frame + FCS) and raise the RX event.
@@ -379,28 +581,60 @@ impl SocBus {
         // As on the S3 (EX238): a descriptor that is not usable means the receive DMA has stopped; a
         // `BASE_RX_DSCR` write since the last frame is the hand-over of a fresh list, so try once more there.
         let mut armed = self.wifi_rx_armed(self.periph.wifi.rx_next, total);
-        if armed.is_none() && self.periph.wifi.rx_restart_at_base() { armed = self.wifi_rx_armed(self.periph.wifi.rx_next, total); }
+        if armed.is_none() && self.periph.wifi.rx_restart_at_base() {
+            armed = self.wifi_rx_armed(self.periph.wifi.rx_next, total);
+        }
         // Neither a head nor a pending base: no receive ring yet, counted apart from lost frames (#276).
-        if self.periph.wifi.rx_next == 0 { self.periph.wifi.link.drop_rx_unarmed(); return; }
-        let Some((desc, dw0, buf, next)) = armed else { self.periph.wifi.link.drop_rx(); return; };
+        if self.periph.wifi.rx_next == 0 {
+            self.periph.wifi.link.drop_rx_unarmed();
+            return;
+        }
+        let Some((desc, dw0, buf, next)) = armed else {
+            self.periph.wifi.link.drop_rx();
+            return;
+        };
         // A network around's frames carry its own channel and signal (`VirtualAp::rx_meta`)
-        let (chan, rssi, log) = { let link = &self.periph.wifi.link; let (c, r) = link.rx_meta(frame); (c as u32, r, link.ap().unwrap().log) };
+        let (chan, rssi, log) = {
+            let link = &self.periph.wifi.link;
+            let (c, r) = link.rx_meta(frame);
+            (c as u32, r, link.ap().unwrap().log)
+        };
         let mut b = Vec::with_capacity(total);
         let bcast = frame.len() >= 5 && frame[4] & 1 == 1;
         // filter-match nibble: bit 28 is the "accepted by the address filter" bit the blob's RX path
         // requires in the C3 blob; inherited from the S3 model, not measured on C3 silicon.
-        let fm = if bcast { 1u32 << 28 } else { (1u32 << 28) | (1u32 << 29) };
-        let w0: u32 = fm | (rssi as u8 as u32);   // rssi (−40 dBm for the access point), 1 Mbps, legacy
-        let w2: u32 = (chan << 16) | (chan << 20);                                        // channel, secondary
-        let w5: u32 = 0xa6;                                                                // noise floor -90
-        let w11: u32 = (frame.len() + 4) as u32 & 0xfff;                    // sig_len (incl. FCS), rx_state OK
-        for w in [w0, 0, w2, now_us as u32, 0, w5, 0, 0, 0, 0, 0, w11] { b.extend_from_slice(&w.to_le_bytes()); }
-        b.extend_from_slice(frame); b.extend_from_slice(&esp_soc::wifi::fcs(frame).to_le_bytes());
-        if !self.sram_store(buf, &b) { self.periph.wifi.link.drop_rx(); return; }
-        let ndw0 = (dw0 & !(0xfff << 12)) | ((total as u32) << 12) | (1 << 30) | (1 << 31);   // length; owner AND has_data set (S3-derived, checked with C3 firmware only)
+        let fm = if bcast {
+            1u32 << 28
+        } else {
+            (1u32 << 28) | (1u32 << 29)
+        };
+        let w0: u32 = fm | (rssi as u8 as u32); // rssi (−40 dBm for the access point), 1 Mbps, legacy
+        let w2: u32 = (chan << 16) | (chan << 20); // channel, secondary
+        let w5: u32 = 0xa6; // noise floor -90
+        let w11: u32 = (frame.len() + 4) as u32 & 0xfff; // sig_len (incl. FCS), rx_state OK
+        for w in [w0, 0, w2, now_us as u32, 0, w5, 0, 0, 0, 0, 0, w11] {
+            b.extend_from_slice(&w.to_le_bytes());
+        }
+        b.extend_from_slice(frame);
+        b.extend_from_slice(&esp_soc::wifi::fcs(frame).to_le_bytes());
+        if !self.sram_store(buf, &b) {
+            self.periph.wifi.link.drop_rx();
+            return;
+        }
+        let ndw0 = (dw0 & !(0xfff << 12)) | ((total as u32) << 12) | (1 << 30) | (1 << 31); // length; owner AND has_data set (S3-derived, checked with C3 firmware only)
         self.sram_store(desc, &ndw0.to_le_bytes());
-        self.periph.wifi.rx_filled(desc, next);   // rx_last's 0x01 prefix is S3-derived
-        if log { let d = esp_soc::wifi::describe(frame); if d.contains("auth")||d.contains("assoc") { eprintln!("[wifi] RX AUTH/ASSOC -> desc {:#010x} buf {:#010x} {}", desc, buf, d); } else { eprintln!("[wifi] RX -> desc {:#010x} {}", desc, d); } }
+        self.periph.wifi.rx_filled(desc, next); // rx_last's 0x01 prefix is S3-derived
+        if log {
+            let d = esp_soc::wifi::describe(frame);
+            if d.contains("auth") || d.contains("assoc") {
+                eprintln!(
+                    "[wifi] RX AUTH/ASSOC -> desc {:#010x} buf {:#010x} {}",
+                    desc, buf, d
+                );
+            } else {
+                eprintln!("[wifi] RX -> desc {:#010x} {}", desc, d);
+            }
+        }
         self.irq_dirty = true;
     }
 
@@ -416,16 +650,27 @@ impl SocBus {
     }
 
     /// Bus cycles at which the current peripheral clock started.
-    pub(crate) fn peripheral_clock_offset(&self) -> u64 { self.cycles - self.periph.clock_cycles() }
+    pub(crate) fn peripheral_clock_offset(&self) -> u64 {
+        self.cycles - self.periph.clock_cycles()
+    }
 
     // ESP-IDF v5.5.5 components/soc/esp32c3/include/soc/gdma_channel.h:13, I2S0 trigger 3.
     fn i2s_rx_step(&mut self, cycles: u64) {
-        let Some(ch) = self.periph.gdma.gdma.in_channel_for(3) else { return };
+        let Some(ch) = self.periph.gdma.gdma.in_channel_for(3) else {
+            return;
+        };
         let bytes = self.i2s_receive(cycles);
         let eof = self.periph.i2s0.read(0x64);
         let mut channel = self.periph.gdma.gdma.inp[ch];
         let mut irq_changed = false;
-        let _ = channel.receive(self, &bytes, Some(eof), false, Self::is_periph, &mut irq_changed);
+        let _ = channel.receive(
+            self,
+            &bytes,
+            Some(eof),
+            false,
+            Self::is_periph,
+            &mut irq_changed,
+        );
         self.periph.i2s0.recycle_rx_buffer(bytes);
         self.irq_dirty |= irq_changed;
         self.periph.gdma.gdma.inp[ch] = channel;
@@ -435,18 +680,34 @@ impl SocBus {
     /// Kept out of line so the RX DMA pump keeps the EX214 call shape.
     #[inline(never)]
     fn i2s_receive(&mut self, cycles: u64) -> Vec<u8> {
-        let signals = esp_periph::i2s::RxSignals { data: 15, clock: [16, 17], input_select_bit: 6, output_mask: 0x1ff };
+        let signals = esp_periph::i2s::RxSignals {
+            data: 15,
+            clock: [16, 17],
+            input_select_bit: 6,
+            output_mask: 0x1ff,
+        };
         let mut bank = self.periph.i2s0.take_pcm_bank();
-        let bytes = self.periph.i2s0.receive(cycles, self.cycles, false, &self.periph.gpio, signals, bank.as_deref_mut());
+        let bytes = self.periph.i2s0.receive(
+            cycles,
+            self.cycles,
+            false,
+            &self.periph.gpio,
+            signals,
+            bank.as_deref_mut(),
+        );
         self.periph.i2s0.restore_pcm_bank(bank);
         bytes
     }
 
     #[inline(always)]
     fn devices(&mut self, cycles: u32) {
-        if self.periph.work_pending { self.pending_work(cycles); }
+        if self.periph.work_pending {
+            self.pending_work(cycles);
+        }
         self.periph.tick(cycles as u64);
-        if self.uart_busy { self.pace_uart_input(cycles); }
+        if self.uart_busy {
+            self.pace_uart_input(cycles);
+        }
     }
 
     /// Each UART's configured baud rate, for pacing queued host input.
@@ -456,7 +717,11 @@ impl SocBus {
     fn uart_bauds(&self) -> [Option<u32>; 2] {
         std::array::from_fn(|port| {
             let u = &self.periph.uart[port];
-            if (u.clock_config() >> 20) & 3 == 0 { u.baud(1 << 20, 17_500_000) } else { self.periph.uart_route(port).baud }
+            if (u.clock_config() >> 20) & 3 == 0 {
+                u.baud(1 << 20, 17_500_000)
+            } else {
+                self.periph.uart_route(port).baud
+            }
         })
     }
     /// Release host bytes queued by `uart_input` at the configured baud rate.
@@ -464,31 +729,55 @@ impl SocBus {
     #[inline(never)]
     fn pace_uart_input(&mut self, cycles: u32) {
         let bauds = self.uart_bauds();
-        self.irq_dirty |= esp_periph::uart::pace_input(self.periph.uart.iter_mut().zip(bauds), cycles as u64, crate::periph::CPU_HZ);
-        self.uart_busy = self.ena_latency.pending() || self.periph.uart.iter().any(|u| u.has_queued());
+        self.irq_dirty |= esp_periph::uart::pace_input(
+            self.periph.uart.iter_mut().zip(bauds),
+            cycles as u64,
+            crate::periph::CPU_HZ,
+        );
+        self.uart_busy =
+            self.ena_latency.pending() || self.periph.uart.iter().any(|u| u.has_queued());
     }
     /// Cycles an idle core may skip before queued UART input or a pending INT_ENA level is due.
     #[cold]
     #[inline(never)]
     pub(crate) fn uart_deadline(&self) -> Option<u64> {
-        if !self.uart_busy { return None; }
+        if !self.uart_busy {
+            return None;
+        }
         let input = if self.periph.uart.iter().any(|u| u.has_queued()) {
-            esp_periph::uart::input_deadline(self.periph.uart.iter().zip(self.uart_bauds()), crate::periph::CPU_HZ)
-        } else { None };
+            esp_periph::uart::input_deadline(
+                self.periph.uart.iter().zip(self.uart_bauds()),
+                crate::periph::CPU_HZ,
+            )
+        } else {
+            None
+        };
         input.into_iter().chain(self.ena_latency.deadline()).min()
     }
 
     #[inline(never)]
     fn pending_work(&mut self, cycles: u32) {
-        if self.periph.i2s_rx { self.i2s_rx_step(u64::from(cycles)); }
+        if self.periph.i2s_rx {
+            self.i2s_rx_step(u64::from(cycles));
+        }
         if self.periph.ble_lc.enabled() {
             self.periph.ble_lc.service(&mut self.sram);
             esp_periph::Dispatch::refresh_optional(&mut self.periph, 0x31);
         }
-        if self.periph.spi_exec { self.run_spi(); }
-        if self.periph.aes.dma_pending { self.aes_dma_step(); }
-        if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }
-        if self.periph.wifi.link.ap().is_some() { self.wifi_air_step(); let now_us = self.now_us(); self.periph.wifi.link.net_step(now_us); }
+        if self.periph.spi_exec {
+            self.run_spi();
+        }
+        if self.periph.aes.dma_pending {
+            self.aes_dma_step();
+        }
+        if !self.periph.wifi.tx_pending.is_empty() {
+            self.wifi_tx_step();
+        }
+        if self.periph.wifi.link.ap().is_some() {
+            self.wifi_air_step();
+            let now_us = self.now_us();
+            self.periph.wifi.link.net_step(now_us);
+        }
         self.periph.refresh_work();
     }
 
@@ -497,7 +786,12 @@ impl SocBus {
     #[inline(never)]
     fn deliver_rmt_frames(&mut self) {
         for (ch, bits) in std::mem::take(&mut self.periph.rmt.rmt.done) {
-            for pin in esp_soc::pins::ChipPins::C3.routes(&self.periph.gpio, &self.periph.io_mux).output_pins(51 + ch as u32) { self.board.rmt_frame(pin, &bits); }
+            for pin in esp_soc::pins::ChipPins::C3
+                .routes(&self.periph.gpio, &self.periph.io_mux)
+                .output_pins(51 + ch as u32)
+            {
+                self.board.rmt_frame(pin, &bits);
+            }
             self.irq_dirty = true;
         }
     }
@@ -505,17 +799,34 @@ impl SocBus {
     #[inline(never)]
     fn tick_with_pins(&mut self, cycles: u32) -> u32 {
         let advance_board = self.periph.i2c.is_active()
-            || (self.board_edges && self.board.next_deadline().is_some_and(|cycle| cycle <= self.cycles));
-        if advance_board { self.board.advance_to(self.cycles); }
+            || (self.board_edges
+                && self
+                    .board
+                    .next_deadline()
+                    .is_some_and(|cycle| cycle <= self.cycles));
+        if advance_board {
+            self.board.advance_to(self.cycles);
+        }
         self.devices(cycles);
-        if self.periph.rmt.rmt.is_running() { self.periph.rmt.rmt.tick(cycles as u64); }
-        if !self.periph.rmt.rmt.done.is_empty() { self.deliver_rmt_frames(); }
+        if self.periph.rmt.rmt.is_running() {
+            self.periph.rmt.rmt.tick(cycles as u64);
+        }
+        if !self.periph.rmt.rmt.done.is_empty() {
+            self.deliver_rmt_frames();
+        }
         self.pins_active = self.pins_active();
         if self.board_edges && advance_board {
-            self.irq_dirty |= esp_soc::gpio::drain_board_inputs(&mut *self.board, &mut self.periph.gpio, &mut self.gpio_events, self.cycles);
+            self.irq_dirty |= esp_soc::gpio::drain_board_inputs(
+                &mut *self.board,
+                &mut self.periph.gpio,
+                &mut self.gpio_events,
+                self.cycles,
+            );
         }
         self.periph.gpio.input_changes.clear();
-        if self.uart_pins { self.receive_uart_input(); }
+        if self.uart_pins {
+            self.receive_uart_input();
+        }
         1
     }
 }
@@ -525,7 +836,10 @@ macro_rules! rd {
         let addr = $addr;
         match $self.resolve(addr) {
             Some((b, o, _)) if b.len().saturating_sub(o) >= $n => Ok($conv(&b[o..o + $n])),
-            _ => { $self.last_fault = Some((addr, false)); Err(Fault::Unmapped) }
+            _ => {
+                $self.last_fault = Some((addr, false));
+                Err(Fault::Unmapped)
+            }
         }
     }};
 }
@@ -533,60 +847,112 @@ macro_rules! rd {
 impl Bus for SocBus {
     fn note_code_page(&mut self, _vidx: u32) {} // All writes already update versions, or this bus has no decode cache.
     fn read8(&mut self, addr: u32) -> Result<u8, Fault> {
-        if Self::is_periph(addr) { return Ok(self.periph_read(addr, 1) as u8); }
+        if Self::is_periph(addr) {
+            return Ok(self.periph_read(addr, 1) as u8);
+        }
         rd!(self, addr, 1, |b: &[u8]| b[0])
     }
     fn read16(&mut self, addr: u32) -> Result<u16, Fault> {
-        if Self::is_periph(addr) { return Ok(self.periph_read(addr, 2) as u16); }
-        rd!(self, addr, 2, |b: &[u8]| u16::from_le_bytes(b.try_into().unwrap()))
+        if Self::is_periph(addr) {
+            return Ok(self.periph_read(addr, 2) as u16);
+        }
+        rd!(self, addr, 2, |b: &[u8]| u16::from_le_bytes(
+            b.try_into().unwrap()
+        ))
     }
     fn read32(&mut self, addr: u32) -> Result<u32, Fault> {
-        if Self::is_periph(addr) { return Ok(self.periph_read(addr, 4)); }
-        rd!(self, addr, 4, |b: &[u8]| u32::from_le_bytes(b.try_into().unwrap()))
+        if Self::is_periph(addr) {
+            return Ok(self.periph_read(addr, 4));
+        }
+        rd!(self, addr, 4, |b: &[u8]| u32::from_le_bytes(
+            b.try_into().unwrap()
+        ))
     }
     fn write8(&mut self, addr: u32, v: u8) -> Result<(), Fault> {
-        if Self::is_periph(addr) { self.periph_write(addr, v as u32, 1); return Ok(()); }
+        if Self::is_periph(addr) {
+            self.periph_write(addr, v as u32, 1);
+            return Ok(());
+        }
         match self.resolve(addr) {
-            Some((b, o, true)) if o < b.len() => { b[o] = v; Ok(()) }
-            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
+            Some((b, o, true)) if o < b.len() => {
+                b[o] = v;
+                Ok(())
+            }
+            _ => {
+                self.last_fault = Some((addr, true));
+                Err(Fault::Prohibited)
+            }
         }
     }
     fn write16(&mut self, addr: u32, v: u16) -> Result<(), Fault> {
-        if Self::is_periph(addr) { self.periph_write(addr, v as u32, 2); return Ok(()); }
+        if Self::is_periph(addr) {
+            self.periph_write(addr, v as u32, 2);
+            return Ok(());
+        }
         match self.resolve(addr) {
-            Some((b, o, true)) if o + 2 <= b.len() => { b[o..o + 2].copy_from_slice(&v.to_le_bytes()); Ok(()) }
-            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
+            Some((b, o, true)) if o + 2 <= b.len() => {
+                b[o..o + 2].copy_from_slice(&v.to_le_bytes());
+                Ok(())
+            }
+            _ => {
+                self.last_fault = Some((addr, true));
+                Err(Fault::Prohibited)
+            }
         }
     }
     fn write32(&mut self, addr: u32, v: u32) -> Result<(), Fault> {
-        if Self::is_periph(addr) { self.periph_write(addr, v, 4); return Ok(()); }
+        if Self::is_periph(addr) {
+            self.periph_write(addr, v, 4);
+            return Ok(());
+        }
         match self.resolve(addr) {
-            Some((b, o, true)) if o + 4 <= b.len() => { b[o..o + 4].copy_from_slice(&v.to_le_bytes()); Ok(()) }
-            _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
+            Some((b, o, true)) if o + 4 <= b.len() => {
+                b[o..o + 4].copy_from_slice(&v.to_le_bytes());
+                Ok(())
+            }
+            _ => {
+                self.last_fault = Some((addr, true));
+                Err(Fault::Prohibited)
+            }
         }
     }
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
         match self.resolve(pc) {
             Some((b, o, _)) if o < b.len() => {
                 let mut r = [0u8; 4];
-                for i in 0..4 { if o + i < b.len() { r[i] = b[o + i]; } }
+                for i in 0..4 {
+                    if o + i < b.len() {
+                        r[i] = b[o + i];
+                    }
+                }
                 Ok(r)
             }
-            _ => { self.last_fault = Some((pc, false)); Err(Fault::Unmapped) }
+            _ => {
+                self.last_fault = Some((pc, false));
+                Err(Fault::Unmapped)
+            }
         }
     }
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
-        if self.uart_busy && self.ena_latency.tick(cycles as u64) { self.irq_dirty = true; }
-        if self.pins_active { return self.tick_with_pins(cycles); }
+        if self.uart_busy && self.ena_latency.tick(cycles as u64) {
+            self.irq_dirty = true;
+        }
+        if self.pins_active {
+            return self.tick_with_pins(cycles);
+        }
         self.devices(cycles);
         1
     }
     #[inline(always)]
-    fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }
+    fn note_pc(&mut self, pc: u32) {
+        self.periph.misc.cur_pc = pc;
+    }
     /// a peripheral write may have moved a line: the core's run stops so the machine re-derives it
     #[inline(always)]
-    fn block_break(&self) -> bool { self.irq_dirty }
+    fn block_break(&self) -> bool {
+        self.irq_dirty
+    }
 }
 
 #[cfg(test)]
@@ -604,8 +970,15 @@ mod tests {
         bus.write32(0x6000_000c, 1).unwrap();
         assert!(!bus.irq_dirty, "not on the next instruction");
         bus.tick(4096);
-        assert!(!bus.irq_dirty, "not at the tick that ends the block holding the write");
-        assert_eq!(esp_soc::SocBus::next_deadline(&bus), Some(esp_periph::uart::EnaLatency::CYCLES), "an idle core stops for it");
+        assert!(
+            !bus.irq_dirty,
+            "not at the tick that ends the block holding the write"
+        );
+        assert_eq!(
+            esp_soc::SocBus::next_deadline(&bus),
+            Some(esp_periph::uart::EnaLatency::CYCLES),
+            "an idle core stops for it"
+        );
         bus.tick(1);
         assert!(!bus.irq_dirty);
         bus.tick(esp_periph::uart::EnaLatency::CYCLES as u32);
@@ -617,9 +990,14 @@ mod tests {
     #[test]
     fn uart_pacing_follows_clkdiv_when_clk_conf_was_never_written() {
         let mut bus = SocBus::new(4 << 20, [0; 6]);
-        assert_eq!(bus.uart_bauds()[0], None, "no divider yet: the 115200 fallback");
+        assert_eq!(
+            bus.uart_bauds()[0],
+            None,
+            "no divider yet: the 115200 fallback"
+        );
         let div = 80_000_000 * 16 / 921_600;
-        bus.write32(0x6000_0014, (div / 16) | (div % 16) << 20).unwrap();
+        bus.write32(0x6000_0014, (div / 16) | (div % 16) << 20)
+            .unwrap();
         let b = bus.uart_bauds()[0].unwrap();
         assert!((920_000..=923_000).contains(&b), "{b}");
     }
@@ -629,11 +1007,16 @@ mod tests {
     fn uart_int_ena_disable_is_presented_at_once() {
         let mut bus = SocBus::new(4 << 20, [0; 6]);
         bus.write32(0x6000_000c, 1).unwrap();
-        bus.tick(4096); bus.tick(esp_periph::uart::EnaLatency::CYCLES as u32 + 1);
+        bus.tick(4096);
+        bus.tick(esp_periph::uart::EnaLatency::CYCLES as u32 + 1);
         bus.irq_dirty = false;
         bus.write32(0x6000_000c, 0).unwrap();
         assert!(bus.irq_dirty, "a mask is presented on the next instruction");
-        assert_eq!(esp_soc::SocBus::next_deadline(&bus), None, "and arms no latency");
+        assert_eq!(
+            esp_soc::SocBus::next_deadline(&bus),
+            None,
+            "and arms no latency"
+        );
         bus.irq_dirty = false;
         bus.write32(0x6000_000c, 1).unwrap();
         assert!(!bus.irq_dirty, "a new enable still waits");
@@ -644,12 +1027,20 @@ mod tests {
     fn queued_uart_input_bounds_the_idle_deadline_and_byte_stores_do_not_pop_rx() {
         let mut bus = SocBus::new(4 << 20, [0; 6]);
         esp_soc::SocBus::uart_input(&mut bus, 0, &[7; 200]);
-        assert_eq!(esp_soc::SocBus::next_deadline(&bus), None, "full FIFO: nothing can move until a read");
+        assert_eq!(
+            esp_soc::SocBus::next_deadline(&bus),
+            None,
+            "full FIFO: nothing can move until a read"
+        );
         assert_eq!(bus.read8(0x6000_0000), Ok(7));
         let per_byte = crate::periph::CPU_HZ * 10 / 115_200;
         assert_eq!(esp_soc::SocBus::next_deadline(&bus), Some(per_byte));
         bus.write8(0x6000_0000, b'Z').unwrap();
-        assert_eq!(bus.periph.uart[0].rx_pending(), 127, "the byte store transmitted without reading the FIFO");
+        assert_eq!(
+            bus.periph.uart[0].rx_pending(),
+            127,
+            "the byte store transmitted without reading the FIFO"
+        );
         assert_eq!(bus.periph.uart[0].tx_out.last(), Some(&b'Z'));
     }
 
@@ -671,10 +1062,17 @@ mod tests {
     fn pin_clock_participation_tracks_i2c_transfers() {
         let mut bus = SocBus::new(4 << 20, [0; 6]);
         bus.write32(0x6001_3058, 2 << 11).unwrap();
-        assert!(!bus.pins_active, "an idle controller stays off the pin path");
+        assert!(
+            !bus.pins_active,
+            "an idle controller stays off the pin path"
+        );
         bus.write32(0x6001_3004, 1 << 5).unwrap();
         assert!(bus.pins_active, "TRANS_START enters pin service");
-        assert_eq!(esp_soc::SocBus::next_deadline(&bus), Some(6), "STOP deadline in CPU cycles");
+        assert_eq!(
+            esp_soc::SocBus::next_deadline(&bus),
+            Some(6),
+            "STOP deadline in CPU cycles"
+        );
         assert_eq!(bus.tick(64), 1);
         assert!(!bus.periph.i2c.is_active());
         assert!(!bus.pins_active, "completion leaves pin service");
@@ -689,23 +1087,43 @@ mod tests {
         const DESC: u32 = 0x3fc9_0100;
         const BUF: u32 = 0x3fc9_0200;
         let mut bus = SocBus::new(4 << 20, [0; 6]);
-        bus.periph.wifi.link.attach(Some(VirtualAp::new(ApConfig::parse("ssid=demo,chan=6").unwrap(), false)), None);
+        bus.periph.wifi.link.attach(
+            Some(VirtualAp::new(
+                ApConfig::parse("ssid=demo,chan=6").unwrap(),
+                false,
+            )),
+            None,
+        );
         let home = [0x02, 1, 2, 3, 4, 5];
-        let left_out = bus.periph.wifi.link.set_beacons(vec![BeaconAp { ssid: "Home".into(), bssid: home, channel: 1, rssi: -60, secure: true }]);
+        let left_out = bus.periph.wifi.link.set_beacons(vec![BeaconAp {
+            ssid: "Home".into(),
+            bssid: home,
+            channel: 1,
+            rssi: -60,
+            secure: true,
+        }]);
         assert_eq!(left_out, Some(vec![]));
         let ap = bus.periph.wifi.link.ap().unwrap().cfg.bssid;
         for (from, chan, rssi) in [(home, 1u32, -60i8), (ap, 6, -40)] {
-            bus.write32(DESC, (1 << 31) | 0xfff).unwrap();                     // owner DMA, size 4095
+            bus.write32(DESC, (1 << 31) | 0xfff).unwrap(); // owner DMA, size 4095
             bus.write32(DESC + 4, BUF).unwrap();
             bus.write32(DESC + 8, 0).unwrap();
             bus.periph.wifi.rx_next = DESC & 0xf_ffff;
             let mut frame = vec![0u8; 24];
-            frame[0] = 0x80;                                                     // beacon
+            frame[0] = 0x80; // beacon
             frame[4..10].fill(0xff);
             frame[10..16].copy_from_slice(&from);
             bus.wifi_rx_deliver(&frame, 1234);
-            assert_eq!(bus.read32(BUF).unwrap() & 0xff, u32::from(rssi as u8), "RSSI of {from:02x?}");
-            assert_eq!(bus.read32(BUF + 8).unwrap(), (chan << 16) | (chan << 20), "channel of {from:02x?}");
+            assert_eq!(
+                bus.read32(BUF).unwrap() & 0xff,
+                u32::from(rssi as u8),
+                "RSSI of {from:02x?}"
+            );
+            assert_eq!(
+                bus.read32(BUF + 8).unwrap(),
+                (chan << 16) | (chan << 20),
+                "channel of {from:02x?}"
+            );
         }
     }
 
@@ -714,11 +1132,24 @@ mod tests {
     fn wifi_bus_with_air_frames(frames: &[u8]) -> SocBus {
         use esp_soc::wifi::{AirFrame, ApConfig, VirtualAp};
         let mut bus = SocBus::new(4 << 20, [0; 6]);
-        bus.periph.wifi.link.attach(Some(VirtualAp::new(ApConfig {
-            ssid: "test".into(), bssid: [2, 0, 0, 0, 0, 1], channel: 1, psk: None, epoch_s: None,
-        }, false)), None);
+        bus.periph.wifi.link.attach(
+            Some(VirtualAp::new(
+                ApConfig {
+                    ssid: "test".into(),
+                    bssid: [2, 0, 0, 0, 0, 1],
+                    channel: 1,
+                    psk: None,
+                    epoch_s: None,
+                },
+                false,
+            )),
+            None,
+        );
         for &marker in frames {
-            bus.periph.wifi.link.ap_mut().unwrap().queue.push(AirFrame { at_us: 0, frame: vec![marker; 24] });
+            bus.periph.wifi.link.ap_mut().unwrap().queue.push(AirFrame {
+                at_us: 0,
+                frame: vec![marker; 24],
+            });
         }
         bus.periph.refresh_work();
         bus
@@ -732,7 +1163,9 @@ mod tests {
     }
 
     /// One scheduling round of one emulated millisecond: the air delivers at most one frame in a round.
-    fn wifi_air_round(bus: &mut SocBus) { assert_eq!(bus.tick((crate::periph::CPU_HZ / 1000) as u32), 1); }
+    fn wifi_air_round(bus: &mut SocBus) {
+        assert_eq!(bus.tick((crate::periph::CPU_HZ / 1000) as u32), 1);
+    }
 
     const RX_DESC: u32 = 0x3fc9_0100;
 
@@ -743,25 +1176,46 @@ mod tests {
         let mut bus = wifi_bus_with_air_frames(&[0x11, 0x22, 0x33]);
         let (first, dead, second) = (RX_DESC, RX_DESC + 0x40, RX_DESC + 0x80);
         let dead_base = dead & 0xf_ffff;
-        arm_rx_desc(&mut bus, first, first + 0x200, dead);          // the armed list: one descriptor, then a null word
+        arm_rx_desc(&mut bus, first, first + 0x200, dead); // the armed list: one descriptor, then a null word
         bus.write32(dead, 0).unwrap();
-        bus.write32(0x6003_3088, first & 0xf_ffff).unwrap();        // BASE_RX_DSCR
+        bus.write32(0x6003_3088, first & 0xf_ffff).unwrap(); // BASE_RX_DSCR
         wifi_air_round(&mut bus);
-        assert_eq!((bus.periph.wifi.link.tx_frames(), bus.periph.wifi.link.rx_frames()), (0, 1));
-        assert_eq!(bus.read8(first + 0x200 + 48).unwrap(), 0x11, "frame after the 48-byte rx_ctrl header");
+        assert_eq!(
+            (
+                bus.periph.wifi.link.tx_frames(),
+                bus.periph.wifi.link.rx_frames()
+            ),
+            (0, 1)
+        );
+        assert_eq!(
+            bus.read8(first + 0x200 + 48).unwrap(),
+            0x11,
+            "frame after the 48-byte rx_ctrl header"
+        );
         assert_eq!(bus.periph.wifi.rx_next, dead_base);
 
         // Software recycled the frame and left the next descriptor alone: the DMA stops there.
         arm_rx_desc(&mut bus, first, first + 0x200, dead);
         wifi_air_round(&mut bus);
-        assert_eq!(bus.periph.wifi.link.rx_dropped(), 1, "a frame that finds the DMA stopped is lost");
+        assert_eq!(
+            bus.periph.wifi.link.rx_dropped(),
+            1,
+            "a frame that finds the DMA stopped is lost"
+        );
 
         // The driver hands over the next list, base first and the base write on its own.
         arm_rx_desc(&mut bus, second, second + 0x200, 0);
         bus.write32(0x6003_3088, second & 0xf_ffff).unwrap();
         wifi_air_round(&mut bus);
-        assert_eq!(bus.periph.wifi.link.rx_frames(), 2, "the base write restarts the stopped DMA");
-        assert_eq!(bus.periph.wifi.rx_next, 0, "the new list ends after one descriptor");
+        assert_eq!(
+            bus.periph.wifi.link.rx_frames(),
+            2,
+            "the base write restarts the stopped DMA"
+        );
+        assert_eq!(
+            bus.periph.wifi.rx_next, 0,
+            "the new list ends after one descriptor"
+        );
         assert_eq!(bus.read8(second + 0x200 + 48).unwrap(), 0x33);
     }
 
@@ -775,13 +1229,24 @@ mod tests {
         arm_rx_desc(&mut bus, second, second + 0x200, 0);
         bus.write32(0x6003_3088, first & 0xf_ffff).unwrap();
         wifi_air_round(&mut bus);
-        assert_eq!((bus.periph.wifi.link.rx_frames(), bus.periph.wifi.rx_next), (1, (second & 0xf_ffff)));
+        assert_eq!(
+            (bus.periph.wifi.link.rx_frames(), bus.periph.wifi.rx_next),
+            (1, (second & 0xf_ffff))
+        );
 
-        arm_rx_desc(&mut bus, first, first + 0x200, second);        // recycle descriptor 0
-        bus.write32(0x6003_3088, first & 0xf_ffff).unwrap();        // and rewrite the base, as software does
+        arm_rx_desc(&mut bus, first, first + 0x200, second); // recycle descriptor 0
+        bus.write32(0x6003_3088, first & 0xf_ffff).unwrap(); // and rewrite the base, as software does
         wifi_air_round(&mut bus);
         assert_eq!(bus.periph.wifi.link.rx_frames(), 2);
-        assert_eq!(bus.read8(second + 0x200 + 48).unwrap(), 0x22, "landed in the next descriptor, not back at the base");
-        assert_eq!(bus.read32(first).unwrap() >> 30 & 1, 0, "descriptor 0 was not filled a second time");
+        assert_eq!(
+            bus.read8(second + 0x200 + 48).unwrap(),
+            0x22,
+            "landed in the next descriptor, not back at the base"
+        );
+        assert_eq!(
+            bus.read32(first).unwrap() >> 30 & 1,
+            0,
+            "descriptor 0 was not filled a second time"
+        );
     }
 }

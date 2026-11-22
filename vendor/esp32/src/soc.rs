@@ -23,15 +23,21 @@ impl Soc for Esp32 {
     const CORES: usize = 2;
     const IDLE_CHUNK: u64 = 512;
     const ROM_DATA_TABLE: &'static [&'static str] = &["_data_start"];
-    fn function_hooks(bus: &SocBus) -> &[u32] { &bus.ble.hooks }
-    fn function_hook(core: &mut Cpu, bus: &mut SocBus) -> bool { crate::ble::intercept(core, bus) }
+    fn function_hooks(bus: &SocBus) -> &[u32] {
+        &bus.ble.hooks
+    }
+    fn function_hook(core: &mut Cpu, bus: &mut SocBus) -> bool {
+        crate::ble::intercept(core, bus)
+    }
     fn new_core(i: usize) -> Cpu {
         let mut c = Cpu::new(if i == 0 { 0xcdcd } else { 0xabab });
         c.lx6 = true;
         c.configid = [0xC2BC_FFFE, 0x1CC5_FE96];
         c
     }
-    fn reset_core(c: &mut Cpu, _i: usize) { c.reset(); }
+    fn reset_core(c: &mut Cpu, _i: usize) {
+        c.reset();
+    }
     #[inline]
     fn reset_core_with_bus(c: &mut Cpu, bus: &mut SocBus, i: usize) {
         Self::reset_core(c, i);
@@ -71,22 +77,49 @@ impl Soc for Esp32 {
             CoreState::Running
         } else {
             let (clock, reset, stall) = bus.periph.dport.core1_control();
-            if reset { CoreState::Reset } else if clock && !stall { CoreState::Running } else { CoreState::Held }
+            if reset {
+                CoreState::Reset
+            } else if clock && !stall {
+                CoreState::Running
+            } else {
+                CoreState::Held
+            }
         }
     }
 }
 
 impl esp_soc::SocBus for SocBus {
-    fn set_psram_size(&mut self, bytes: usize) -> Result<(), String> { self.configure_psram(bytes) }
-    fn enable_ble(&mut self, elf: &esp_soc::elf::Elf) -> Result<(), String> {
-        self.ble.enable(&elf.by_name, elf.symbol_sizes.get("esp_bt_controller_init").copied().unwrap_or(0), &<Self as esp_soc::ble::vhci::VhciBus>::abi())
+    fn set_psram_size(&mut self, bytes: usize) -> Result<(), String> {
+        self.configure_psram(bytes)
     }
-    fn ble_enabled(&self) -> bool { !self.ble.hooks.is_empty() }
-    fn ble_pending_commands(&self) -> usize { self.ble.session.pending_commands() }
-    fn ble_command(&mut self, command: &str) -> Result<(), String> { self.ble.command(command, self.cycles, periph::CPU_HZ) }
-    fn ble_keep_log(&mut self) { self.ble.lines.keep(); }
-    fn ble_log_take(&mut self) -> Option<String> { self.ble.lines.take() }
-    fn ble_nearby(&mut self, list: Vec<esp_soc::ble::peer::Nearby>) -> Result<(), String> { self.ble.set_nearby(list, self.cycles, periph::CPU_HZ) }
+    fn enable_ble(&mut self, elf: &esp_soc::elf::Elf) -> Result<(), String> {
+        self.ble.enable(
+            &elf.by_name,
+            elf.symbol_sizes
+                .get("esp_bt_controller_init")
+                .copied()
+                .unwrap_or(0),
+            &<Self as esp_soc::ble::vhci::VhciBus>::abi(),
+        )
+    }
+    fn ble_enabled(&self) -> bool {
+        !self.ble.hooks.is_empty()
+    }
+    fn ble_pending_commands(&self) -> usize {
+        self.ble.session.pending_commands()
+    }
+    fn ble_command(&mut self, command: &str) -> Result<(), String> {
+        self.ble.command(command, self.cycles, periph::CPU_HZ)
+    }
+    fn ble_keep_log(&mut self) {
+        self.ble.lines.keep();
+    }
+    fn ble_log_take(&mut self) -> Option<String> {
+        self.ble.lines.take()
+    }
+    fn ble_nearby(&mut self, list: Vec<esp_soc::ble::peer::Nearby>) -> Result<(), String> {
+        self.ble.set_nearby(list, self.cycles, periph::CPU_HZ)
+    }
     fn set_net_tap(&mut self, tap: esp_soc::netcap::NetTap) -> Result<(), String> {
         self.periph.wifi.link.set_tap(tap);
         Ok(())
@@ -102,19 +135,43 @@ impl esp_soc::SocBus for SocBus {
     }
     fn attach_wifi_station(&mut self, cfg: esp_soc::wifi::sta::StaConfig) -> Result<(), String> {
         let log = self.debug.has("wifi-frames");
-        self.periph.wifi.link.attach_station(esp_soc::wifi::sta::VirtualSta::new(cfg, log))
+        self.periph
+            .wifi
+            .link
+            .attach_station(esp_soc::wifi::sta::VirtualSta::new(cfg, log))
     }
-    fn attach_wifi(&mut self, cfg: esp_soc::wifi::ApConfig, nat: Option<esp_soc::nat::Nat>) -> Result<(), String> {
+    fn attach_wifi(
+        &mut self,
+        cfg: esp_soc::wifi::ApConfig,
+        nat: Option<esp_soc::nat::Nat>,
+    ) -> Result<(), String> {
         self.periph.wifi.link.attach_new(cfg, nat, &self.debug);
         Ok(())
     }
-    fn wifi_nearby(&mut self, list: Vec<esp_soc::wifi::BeaconAp>) -> Result<Vec<(esp_soc::wifi::BeaconAp, &'static str)>, String> { self.periph.wifi.link.set_beacons(list).ok_or_else(|| "no virtual access point".to_string()) }
-    fn attach_nat(&mut self, nat: Option<esp_soc::nat::Nat>, local_ntp: bool) -> Result<(), String> { self.periph.wifi.link.set_nat(nat, local_ntp) }
+    fn wifi_nearby(
+        &mut self,
+        list: Vec<esp_soc::wifi::BeaconAp>,
+    ) -> Result<Vec<(esp_soc::wifi::BeaconAp, &'static str)>, String> {
+        self.periph
+            .wifi
+            .link
+            .set_beacons(list)
+            .ok_or_else(|| "no virtual access point".to_string())
+    }
+    fn attach_nat(
+        &mut self,
+        nat: Option<esp_soc::nat::Nat>,
+        local_ntp: bool,
+    ) -> Result<(), String> {
+        self.periph.wifi.link.set_nat(nat, local_ntp)
+    }
     fn set_ethernet_relay(&mut self, enabled: bool) -> Result<(), String> {
         self.periph.wifi.link.set_relay(enabled);
         Ok(())
     }
-    fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> { self.periph.wifi.link.take_relay_frames() }
+    fn take_ethernet_frames(&mut self) -> Vec<Vec<u8>> {
+        self.periph.wifi.link.take_relay_frames()
+    }
     fn receive_ethernet_frame(&mut self, frame: &[u8]) -> Result<(), String> {
         self.periph.wifi.link.receive_relay_frame(frame)
     }
@@ -122,17 +179,31 @@ impl esp_soc::SocBus for SocBus {
         self.cycles
     }
     fn cpu_cycles_for_bus(&self, cycles: u64) -> u64 {
-        cycles.saturating_mul(2).saturating_sub(self.clock_half).div_ceil(self.periph.cpu_scale_half())
+        cycles
+            .saturating_mul(2)
+            .saturating_sub(self.clock_half)
+            .div_ceil(self.periph.cpu_scale_half())
     }
     fn next_deadline(&self) -> Option<u64> {
         let timer = match self.periph.cycles_until_timer() {
             u32::MAX => None,
             n => Some(self.cpu_cycles_for_bus(u64::from(n)).max(1)),
         };
-        let uart = self.periph.uart_input_deadline().map(|n| self.cpu_cycles_for_bus(n).max(1));
+        let uart = self
+            .periph
+            .uart_input_deadline()
+            .map(|n| self.cpu_cycles_for_bus(n).max(1));
         let timer = timer.into_iter().chain(uart).min();
-        if !self.pins_active { return timer; }
-        timer.into_iter().chain(self.board.next_deadline().map(|n| self.cpu_cycles_for_bus(n.saturating_sub(self.cycles)).max(1))).min()
+        if !self.pins_active {
+            return timer;
+        }
+        timer
+            .into_iter()
+            .chain(self.board.next_deadline().map(|n| {
+                self.cpu_cycles_for_bus(n.saturating_sub(self.cycles))
+                    .max(1)
+            }))
+            .min()
     }
     fn irq_dirty(&mut self) -> &mut bool {
         &mut self.irq_dirty
@@ -159,7 +230,11 @@ impl esp_soc::SocBus for SocBus {
         self.ble.reset();
         let cause = self.periph.rtc.0.reset_cause;
         let mut old = std::mem::replace(&mut self.periph, Peripherals::new(mac));
-        for port in 0..2 { self.periph.i2s[port].inner.keep_rx_input(&mut old.i2s[port].inner); }
+        for port in 0..2 {
+            self.periph.i2s[port]
+                .inner
+                .keep_rx_input(&mut old.i2s[port].inner);
+        }
         self.periph.restore_rtc_analog(old.adc);
         self.periph.gpio.restore_inputs(&old.gpio);
         self.periph.spi0.0.jedec = old.spi0.0.jedec;
@@ -213,20 +288,31 @@ impl esp_soc::SocBus for SocBus {
             self.irq_dirty = true;
         }
     }
-    fn gpio_release_input(&mut self, pin: u8) { self.periph.gpio.release_input(pin); self.ext0_wake(); self.irq_dirty = true; }
+    fn gpio_release_input(&mut self, pin: u8) {
+        self.periph.gpio.release_input(pin);
+        self.ext0_wake();
+        self.irq_dirty = true;
+    }
     fn gpio_state(&self, pin: u8) -> Option<esp_soc::GpioState> {
         // IDF v5.5.4 soc_caps.h:182 excludes 24 and 28–31. GPIO20 is only
         // bonded on PICO-V3-02, not the D0WD model; GPIO23 (VSPI MOSI) is valid.
-        if pin >= 40 || pin == 20 || pin == 24 || (28..=31).contains(&pin) { return None; }
+        if pin >= 40 || pin == 20 || pin == 24 || (28..=31).contains(&pin) {
+            return None;
+        }
         let gpio = &self.periph.gpio;
         let mux = gpio.mux(pin as usize);
-        Some(esp_soc::GpioState::new( gpio.gpio.out & (1 << pin) != 0,
+        Some(esp_soc::GpioState::new(
+            gpio.gpio.out & (1 << pin) != 0,
             gpio.gpio.enable & (1 << pin) != 0,
-            pin < 34 && mux & (1 << 8) != 0, pin < 34 && mux & (1 << 7) != 0))
+            pin < 34 && mux & (1 << 8) != 0,
+            pin < 34 && mux & (1 << 7) != 0,
+        ))
     }
     fn touch_input(&mut self, x: u16, y: u16, down: bool) {
         self.board.touch(x, y, down);
-        if let Some((pin, level)) = self.board.touch_irq() { self.gpio_set_input(pin, level); }
+        if let Some((pin, level)) = self.board.touch_irq() {
+            self.gpio_set_input(pin, level);
+        }
     }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         self.periph.gpio.set_input(pin, level);
@@ -239,11 +325,21 @@ impl esp_soc::SocBus for SocBus {
     fn gpio_input(&self) -> u64 {
         self.periph.gpio.gpio.input
     }
-    fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool { crate::adc::valid_pin(pin) && self.periph.adc.analog.set_raw(pin, raw) }
-    fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> { crate::adc::valid_pin(pin).then(|| self.periph.adc.analog.observation(pin)) }
-    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) { self.periph.adc.analog.set(pin, src); }
-    fn set_touch_input(&mut self, pin: u8, touched: bool) { self.periph.adc.set_touch_input(pin, touched); }
-    fn has_touch_pad(&self, pin: u8) -> bool { crate::adc::touch_pin(pin) }
+    fn adc_set_raw(&mut self, pin: u8, raw: u16) -> bool {
+        crate::adc::valid_pin(pin) && self.periph.adc.analog.set_raw(pin, raw)
+    }
+    fn adc_observation(&self, pin: u8) -> Option<esp_periph::AdcObservation> {
+        crate::adc::valid_pin(pin).then(|| self.periph.adc.analog.observation(pin))
+    }
+    fn analog_set(&mut self, pin: u8, src: esp_periph::AnalogSource) {
+        self.periph.adc.analog.set(pin, src);
+    }
+    fn set_touch_input(&mut self, pin: u8, touched: bool) {
+        self.periph.adc.set_touch_input(pin, touched);
+    }
+    fn has_touch_pad(&self, pin: u8) -> bool {
+        crate::adc::touch_pin(pin)
+    }
     fn pwm_output(&self, pin: u8) -> Option<(f64, u32)> {
         self.periph.pwm_output(pin as u32)
     }
@@ -262,10 +358,16 @@ impl esp_soc::SocBus for SocBus {
     fn board_ref(&self) -> &dyn BoardModel {
         &*self.board
     }
-    fn pcm_sources(&self) -> Option<&esp_periph::i2s::PcmSources> { self.periph.i2s[0].inner.pcm_bank_ref() }
+    fn pcm_sources(&self) -> Option<&esp_periph::i2s::PcmSources> {
+        self.periph.i2s[0].inner.pcm_bank_ref()
+    }
     /// Classic ticks peripherals inline (no deferred ticks), so the bank syncs to the bus clock directly.
     fn attach_pcm_sources(&mut self) -> Option<&mut esp_periph::i2s::PcmSources> {
-        Some(esp_soc::soc::attach_pcm_sources(self.periph.i2s[0].inner.pcm_bank(), self.cycles, periph::CPU_HZ))
+        Some(esp_soc::soc::attach_pcm_sources(
+            self.periph.i2s[0].inner.pcm_bank(),
+            self.cycles,
+            periph::CPU_HZ,
+        ))
     }
     fn i2s_input(&mut self, port: usize) -> Option<&mut esp_periph::i2s::PcmInput> {
         self.periph.i2s.get_mut(port).map(|i| i.inner.rx_input())
@@ -300,19 +402,32 @@ impl esp_soc::SocBus for SocBus {
     }
     fn report(&self) -> String {
         let mut lines = Vec::new();
-        for (pin, millivolts) in self.periph.adc.dac_outputs() { lines.push(format!("[dac] GPIO{pin}: {millivolts} mV")); }
+        for (pin, millivolts) in self.periph.adc.dac_outputs() {
+            lines.push(format!("[dac] GPIO{pin}: {millivolts} mV"));
+        }
         for (index, spi) in self.periph.spi.iter().enumerate() {
             if spi.transfers != 0 {
-                lines.push(format!("[emu] spi{}: {} transfers", index + 2, spi.transfers));
+                lines.push(format!(
+                    "[emu] spi{}: {} transfers",
+                    index + 2,
+                    spi.transfers
+                ));
             }
         }
         if self.periph.rmt.tx_count != 0 {
-            lines.push(format!("[emu] rmt: {} transmissions", self.periph.rmt.tx_count));
+            lines.push(format!(
+                "[emu] rmt: {} transmissions",
+                self.periph.rmt.tx_count
+            ));
         }
         let wifi = self.periph.wifi.link.report();
-        if !wifi.is_empty() { lines.push(wifi); }
+        if !wifi.is_empty() {
+            lines.push(wifi);
+        }
         let board = self.board.report();
-        if !board.is_empty() { lines.push(board); }
+        if !board.is_empty() {
+            lines.push(board);
+        }
         lines.join("\n")
     }
 }
@@ -322,7 +437,9 @@ mod tests {
     #[test]
     fn direct_app_boot_requires_rom() {
         let mut bus = super::SocBus::new(4 << 20, [0; 6]);
-        assert_eq!(esp_soc::SocBus::boot_app(&mut bus, 0x10000),
-            Err("boot from ROM on the classic ESP32".into()));
+        assert_eq!(
+            esp_soc::SocBus::boot_app(&mut bus, 0x10000),
+            Err("boot from ROM on the classic ESP32".into())
+        );
     }
 }

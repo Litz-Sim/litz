@@ -2,47 +2,112 @@
 //! "hears". The AP beacons, answers probe requests, and completes open-system authentication and
 //! association; data frames are handed to the network backend (docs/networking-plan.md).
 
-#[cfg(test)]
-mod tests;
 mod mac;
 pub mod sta;
+#[cfg(test)]
+mod tests;
 pub use mac::{WifiMac, TXQ_COUNT};
 
-pub fn mac_str(m: &[u8]) -> String { m.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(":") }
+pub fn mac_str(m: &[u8]) -> String {
+    m.iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<Vec<_>>()
+        .join(":")
+}
 
 fn ies(f: &[u8], body: usize) -> Vec<(u8, &[u8])> {
-    let mut v = Vec::new(); let mut i = body;
-    while i + 2 <= f.len() { let (id, l) = (f[i], f[i + 1] as usize); if i + 2 + l > f.len() { break; } v.push((id, &f[i + 2..i + 2 + l])); i += 2 + l; }
+    let mut v = Vec::new();
+    let mut i = body;
+    while i + 2 <= f.len() {
+        let (id, l) = (f[i], f[i + 1] as usize);
+        if i + 2 + l > f.len() {
+            break;
+        }
+        v.push((id, &f[i + 2..i + 2 + l]));
+        i += 2 + l;
+    }
     v
 }
-fn mgmt_body_offset(subtype: u16) -> usize { match subtype { 8 | 5 => 24 + 12, 0 => 24 + 4, 1 => 24 + 6, 11 => 24 + 6, _ => 24 } }
+fn mgmt_body_offset(subtype: u16) -> usize {
+    match subtype {
+        8 | 5 => 24 + 12,
+        0 => 24 + 4,
+        1 => 24 + 6,
+        11 => 24 + 6,
+        _ => 24,
+    }
+}
 
 /// One-line description of an 802.11 frame (frame control, addresses, SSID for management frames).
 pub fn describe(f: &[u8]) -> String {
-    if f.len() < 24 { return format!("{} bytes (short): {:02x?}", f.len(), f); }
+    if f.len() < 24 {
+        return format!("{} bytes (short): {:02x?}", f.len(), f);
+    }
     let fc = u16::from_le_bytes([f[0], f[1]]);
     let (ty, st) = ((fc >> 2) & 3, (fc >> 4) & 0xf);
     let kind = match (ty, st) {
-        (0, 0) => "assoc-req", (0, 1) => "assoc-resp", (0, 4) => "probe-req", (0, 5) => "probe-resp", (0, 8) => "beacon",
-        (0, 10) => "disassoc", (0, 11) => "auth", (0, 12) => "deauth", (0, 13) => "action",
-        (1, 11) => "rts", (1, 12) => "cts", (1, 13) => "ack", (1, 10) => "ps-poll",
-        (2, 0) => "data", (2, 4) => "null", (2, 8) => "qos-data", (2, 12) => "qos-null", _ => "?",
+        (0, 0) => "assoc-req",
+        (0, 1) => "assoc-resp",
+        (0, 4) => "probe-req",
+        (0, 5) => "probe-resp",
+        (0, 8) => "beacon",
+        (0, 10) => "disassoc",
+        (0, 11) => "auth",
+        (0, 12) => "deauth",
+        (0, 13) => "action",
+        (1, 11) => "rts",
+        (1, 12) => "cts",
+        (1, 13) => "ack",
+        (1, 10) => "ps-poll",
+        (2, 0) => "data",
+        (2, 4) => "null",
+        (2, 8) => "qos-data",
+        (2, 12) => "qos-null",
+        _ => "?",
     };
-    let mut s = format!("{} bytes {} ({}/{}) a1={} a2={} a3={}", f.len(), kind, ty, st, mac_str(&f[4..10]), mac_str(&f[10..16]), mac_str(&f[16..22]));
-    if ty == 0 { for (id, d) in ies(f, mgmt_body_offset(st)) { if id == 0 { s += &format!(" ssid='{}'", String::from_utf8_lossy(d)); } } }
-    if ty == 2 && f.len() >= 32 { let off = if st & 8 != 0 { 26 } else { 24 }; if f.len() >= off + 8 && f[off] == 0xaa { let et = u16::from_be_bytes([f[off + 6], f[off + 7]]); s += &format!(" ethertype={:#06x}", et); } }
+    let mut s = format!(
+        "{} bytes {} ({}/{}) a1={} a2={} a3={}",
+        f.len(),
+        kind,
+        ty,
+        st,
+        mac_str(&f[4..10]),
+        mac_str(&f[10..16]),
+        mac_str(&f[16..22])
+    );
+    if ty == 0 {
+        for (id, d) in ies(f, mgmt_body_offset(st)) {
+            if id == 0 {
+                s += &format!(" ssid='{}'", String::from_utf8_lossy(d));
+            }
+        }
+    }
+    if ty == 2 && f.len() >= 32 {
+        let off = if st & 8 != 0 { 26 } else { 24 };
+        if f.len() >= off + 8 && f[off] == 0xaa {
+            let et = u16::from_be_bytes([f[off + 6], f[off + 7]]);
+            s += &format!(" ethertype={:#06x}", et);
+        }
+    }
     s
 }
 
 /// True for a beacon frame (management subtype 8).
-pub fn is_beacon(f: &[u8]) -> bool { f.len() >= 2 && f[0] & 0x0c == 0 && (f[0] >> 4) & 0xf == 8 }
+pub fn is_beacon(f: &[u8]) -> bool {
+    f.len() >= 2 && f[0] & 0x0c == 0 && (f[0] >> 4) & 0xf == 8
+}
 
 /// RSN information element advertised in beacons and echoed in handshake message 3: WPA2-PSK, CCMP.
-pub const RSN_IE: &[u8] = &[48, 20, 1, 0, 0x00, 0x0f, 0xac, 4, 1, 0, 0x00, 0x0f, 0xac, 4, 1, 0, 0x00, 0x0f, 0xac, 2, 0, 0];
+pub const RSN_IE: &[u8] = &[
+    48, 20, 1, 0, 0x00, 0x0f, 0xac, 4, 1, 0, 0x00, 0x0f, 0xac, 4, 1, 0, 0x00, 0x0f, 0xac, 2, 0, 0,
+];
 
 #[derive(Clone, Debug)]
 pub struct ApConfig {
-    pub ssid: String, pub bssid: [u8; 6], pub channel: u8, pub psk: Option<String>,
+    pub ssid: String,
+    pub bssid: [u8; 6],
+    pub channel: u8,
+    pub psk: Option<String>,
     /// the network's clock at power-on, seconds since 1970 (`epoch=`); without it the host's clock
     /// at the first SNTP answer
     pub epoch_s: Option<u64>,
@@ -51,27 +116,44 @@ pub struct ApConfig {
 impl ApConfig {
     /// Parse the shared CLI/browser AP configuration. Unknown keys are errors so a
     /// misspelled passphrase option cannot silently configure an open network.
-    pub fn parse(spec: &str) -> Result<Self, String> { Self::parse_spec(spec).map(|(cfg, _)| cfg) }
+    pub fn parse(spec: &str) -> Result<Self, String> {
+        Self::parse_spec(spec).map(|(cfg, _)| cfg)
+    }
 
     /// `parse`, and whether the spec named a `bssid`.
     fn parse_spec(spec: &str) -> Result<(Self, bool), String> {
         let mut given = false;
         let mut cfg = Self {
-            ssid: "esp32sim".into(), bssid: [0x02, 0x53, 0x49, 0x4d, 0x00, 0x01], channel: 6, psk: None, epoch_s: None,
+            ssid: "esp32sim".into(),
+            bssid: [0x02, 0x53, 0x49, 0x4d, 0x00, 0x01],
+            channel: 6,
+            psk: None,
+            epoch_s: None,
         };
-        if spec.is_empty() { return Ok((cfg, false)); }
+        if spec.is_empty() {
+            return Ok((cfg, false));
+        }
         for entry in spec.split(',') {
-            let (key, value) = entry.split_once('=')
+            let (key, value) = entry
+                .split_once('=')
                 .ok_or_else(|| format!("invalid WiFi option '{entry}': expected key=value"))?;
             match key {
                 "ssid" => cfg.ssid = value.to_string(),
                 "chan" | "channel" | "ch" => {
-                    cfg.channel = value.parse::<u8>().ok().filter(|n| (1..=14).contains(n))
-                        .ok_or_else(|| format!("invalid WiFi channel '{value}': expected 1 through 14"))?;
+                    cfg.channel = value
+                        .parse::<u8>()
+                        .ok()
+                        .filter(|n| (1..=14).contains(n))
+                        .ok_or_else(|| {
+                            format!("invalid WiFi channel '{value}': expected 1 through 14")
+                        })?;
                 }
                 "psk" | "password" | "pass" => cfg.psk = Some(value.to_string()),
                 "epoch" => cfg.epoch_s = Some(crate::net::parse_epoch(value)?),
-                "bssid" => { cfg.bssid = parse_bssid(value)?; given = true; }
+                "bssid" => {
+                    cfg.bssid = parse_bssid(value)?;
+                    given = true;
+                }
                 _ => return Err(format!("unknown WiFi option '{key}'")),
             }
         }
@@ -83,11 +165,15 @@ impl ApConfig {
     /// a locally administered address derived from its SSID, as a nearby network does. Two access
     /// points may share neither an SSID nor a BSSID.
     pub fn parse_all(specs: &[String]) -> Result<Vec<ApConfig>, String> {
-        if specs.len() > APS_MAX { return Err(format!("more than {APS_MAX} access points")); }
+        if specs.len() > APS_MAX {
+            return Err(format!("more than {APS_MAX} access points"));
+        }
         let mut list: Vec<ApConfig> = Vec::with_capacity(specs.len());
         for (i, spec) in specs.iter().enumerate() {
             let (mut cfg, given) = Self::parse_spec(spec)?;
-            if i > 0 && !given { cfg.bssid = derived_bssid(&cfg.ssid); }
+            if i > 0 && !given {
+                cfg.bssid = derived_bssid(&cfg.ssid);
+            }
             if i > 0 && cfg.epoch_s.is_some() {
                 return Err(format!("access point '{}': epoch= belongs in the first --wifi spec (or --net), which sets the network's clock", cfg.ssid));
             }
@@ -103,9 +189,16 @@ pub const APS_MAX: usize = 8;
 
 /// An access point `cfg` may join `list` when it shares neither SSID nor BSSID with one there.
 fn check_new_ap(list: &[ApConfig], cfg: &ApConfig) -> Result<(), String> {
-    if let Some(o) = list.iter().find(|o| o.ssid == cfg.ssid) { return Err(format!("two access points with the SSID '{}'", o.ssid)); }
+    if let Some(o) = list.iter().find(|o| o.ssid == cfg.ssid) {
+        return Err(format!("two access points with the SSID '{}'", o.ssid));
+    }
     if let Some(o) = list.iter().find(|o| o.bssid == cfg.bssid) {
-        return Err(format!("access points '{}' and '{}' share the BSSID {}", o.ssid, cfg.ssid, mac_str(&cfg.bssid)));
+        return Err(format!(
+            "access points '{}' and '{}' share the BSSID {}",
+            o.ssid,
+            cfg.ssid,
+            mac_str(&cfg.bssid)
+        ));
     }
     Ok(())
 }
@@ -113,16 +206,25 @@ fn check_new_ap(list: &[ApConfig], cfg: &ApConfig) -> Result<(), String> {
 /// FNV-1a over the SSID, in a locally administered unicast address (bit 1 of the first octet):
 /// the same every run.
 fn derived_bssid(ssid: &str) -> [u8; 6] {
-    let h = ssid.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, c| (h ^ u64::from(c)).wrapping_mul(0x100_0000_01b3));
+    let h = ssid.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, c| {
+        (h ^ u64::from(c)).wrapping_mul(0x100_0000_01b3)
+    });
     let x = h.to_le_bytes();
     [0x02, x[0], x[1], x[2], x[3], x[4]]
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum StaState { Idle, Authenticated, Associated }
+pub enum StaState {
+    Idle,
+    Authenticated,
+    Associated,
+}
 
 /// A frame the AP puts on the air, with the emulated time (µs) it should reach the station.
-pub struct AirFrame { pub at_us: u64, pub frame: Vec<u8> }
+pub struct AirFrame {
+    pub at_us: u64,
+    pub frame: Vec<u8>,
+}
 
 /// WPA2 four-way handshake state (AP side).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -149,11 +251,15 @@ fn parse_bssid(value: &str) -> Result<[u8; 6], String> {
     let mut bssid = [0u8; 6];
     let mut octets = value.split(':');
     for byte in &mut bssid {
-        let octet = octets.next().filter(|s| s.len() == 2 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+        let octet = octets
+            .next()
+            .filter(|s| s.len() == 2 && s.bytes().all(|b| b.is_ascii_hexdigit()))
             .ok_or_else(invalid)?;
         *byte = u8::from_str_radix(octet, 16).map_err(|_| invalid())?;
     }
-    if octets.next().is_some() { return Err(invalid()); }
+    if octets.next().is_some() {
+        return Err(invalid());
+    }
     Ok(bssid)
 }
 
@@ -164,7 +270,13 @@ fn parse_bssid(value: &str) -> Result<[u8; 6], String> {
 /// components/esp_wifi/include/esp_wifi_types.h:191-210), and nothing else, so connecting to it
 /// fails as to a network out of reach.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BeaconAp { pub ssid: String, pub bssid: [u8; 6], pub channel: u8, pub rssi: i8, pub secure: bool }
+pub struct BeaconAp {
+    pub ssid: String,
+    pub bssid: [u8; 6],
+    pub channel: u8,
+    pub rssi: i8,
+    pub secure: bool,
+}
 
 /// The most beacon-only networks an access point carries.
 pub const BEACONS_MAX: usize = 32;
@@ -174,22 +286,56 @@ impl BeaconAp {
     /// (default 1), `rssi` in dBm (default -60), `secure` 0 or 1 (default 1, WPA2-PSK in the scan),
     /// `bssid` (default: a locally administered address derived from the SSID, the same every run).
     pub fn parse(spec: &str) -> Result<BeaconAp, String> {
-        let mut b = BeaconAp { ssid: String::new(), bssid: [0; 6], channel: 1, rssi: -60, secure: true };
+        let mut b = BeaconAp {
+            ssid: String::new(),
+            bssid: [0; 6],
+            channel: 1,
+            rssi: -60,
+            secure: true,
+        };
         let mut bssid = None;
         for entry in spec.split(',') {
-            let (key, value) = entry.split_once('=').ok_or_else(|| format!("invalid nearby-network option '{entry}': expected key=value"))?;
+            let (key, value) = entry.split_once('=').ok_or_else(|| {
+                format!("invalid nearby-network option '{entry}': expected key=value")
+            })?;
             match key {
                 "ssid" => b.ssid = value.to_string(),
-                "chan" | "channel" | "ch" => b.channel = value.parse::<u8>().ok().filter(|n| (1..=14).contains(n))
-                    .ok_or_else(|| format!("invalid nearby-network channel '{value}': expected 1 through 14"))?,
-                "rssi" => b.rssi = value.parse::<i8>().map_err(|_| format!("invalid nearby-network rssi '{value}': expected -128 through 127 dBm"))?,
-                "secure" => b.secure = match value { "1" | "true" | "yes" => true, "0" | "false" | "no" => false,
-                    _ => return Err(format!("invalid nearby-network secure '{value}': expected 0 or 1")) },
+                "chan" | "channel" | "ch" => {
+                    b.channel = value
+                        .parse::<u8>()
+                        .ok()
+                        .filter(|n| (1..=14).contains(n))
+                        .ok_or_else(|| {
+                            format!(
+                                "invalid nearby-network channel '{value}': expected 1 through 14"
+                            )
+                        })?
+                }
+                "rssi" => {
+                    b.rssi = value.parse::<i8>().map_err(|_| {
+                        format!(
+                            "invalid nearby-network rssi '{value}': expected -128 through 127 dBm"
+                        )
+                    })?
+                }
+                "secure" => {
+                    b.secure = match value {
+                        "1" | "true" | "yes" => true,
+                        "0" | "false" | "no" => false,
+                        _ => {
+                            return Err(format!(
+                                "invalid nearby-network secure '{value}': expected 0 or 1"
+                            ))
+                        }
+                    }
+                }
                 "bssid" => bssid = Some(parse_bssid(value)?),
                 _ => return Err(format!("unknown nearby-network option '{key}'")),
             }
         }
-        if !(1..=32).contains(&b.ssid.len()) { return Err("a nearby network needs an ssid of 1 to 32 bytes".into()); }
+        if !(1..=32).contains(&b.ssid.len()) {
+            return Err("a nearby network needs an ssid of 1 to 32 bytes".into());
+        }
         b.bssid = bssid.unwrap_or_else(|| derived_bssid(&b.ssid));
         Ok(b)
     }
@@ -197,11 +343,21 @@ impl BeaconAp {
     /// Every `--wifi-nearby` spec, at most `BEACONS_MAX` of them, each on a BSSID of its own (two
     /// specs with one SSID and no `bssid` derive the same one).
     pub fn parse_all(specs: &[String]) -> Result<Vec<BeaconAp>, String> {
-        if specs.len() > BEACONS_MAX { return Err(format!("more than {BEACONS_MAX} nearby networks")); }
-        let list = specs.iter().map(|s| Self::parse(s)).collect::<Result<Vec<_>, _>>()?;
+        if specs.len() > BEACONS_MAX {
+            return Err(format!("more than {BEACONS_MAX} nearby networks"));
+        }
+        let list = specs
+            .iter()
+            .map(|s| Self::parse(s))
+            .collect::<Result<Vec<_>, _>>()?;
         for (i, b) in list.iter().enumerate() {
             if let Some(o) = list[..i].iter().find(|o| o.bssid == b.bssid) {
-                return Err(format!("nearby networks '{}' and '{}' share the BSSID {}", o.ssid, b.ssid, mac_str(&b.bssid)));
+                return Err(format!(
+                    "nearby networks '{}' and '{}' share the BSSID {}",
+                    o.ssid,
+                    b.ssid,
+                    mac_str(&b.bssid)
+                ));
             }
         }
         Ok(list)
@@ -219,8 +375,8 @@ pub struct VirtualAp {
     pub seq: u16,
     pub queue: Vec<AirFrame>,
     pub log: bool,
-    pub stats: (u64, u64, u64),   // beacons, probe responses, data frames from the station
-    pub pn: u64,                  // CCMP packet number for frames we send
+    pub stats: (u64, u64, u64), // beacons, probe responses, data frames from the station
+    pub pn: u64,                // CCMP packet number for frames we send
     /// The networks around, beacon-only and not joinable (`set_beacons`).
     pub beacons: Vec<BeaconAp>,
     /// The 802.11 air capture (`StationLink::set_air_tap`): every frame this access point puts on
@@ -233,41 +389,78 @@ impl VirtualAp {
     pub fn new(cfg: ApConfig, log: bool) -> Self {
         let mut wpa = Wpa::default();
         if let Some(psk) = &cfg.psk {
-            wpa.pmk.copy_from_slice(&esp_periph::crypto::pbkdf2_sha1(psk.as_bytes(), cfg.ssid.as_bytes(), 4096, 32));
+            wpa.pmk.copy_from_slice(&esp_periph::crypto::pbkdf2_sha1(
+                psk.as_bytes(),
+                cfg.ssid.as_bytes(),
+                4096,
+                32,
+            ));
             // deterministic nonces/GTK: the emulator must replay identically run to run
             let seed = esp_periph::crypto::sha1(&[&wpa.pmk[..], &cfg.bssid[..]].concat());
-            for i in 0..32 { wpa.anonce[i] = seed[i % 20] ^ (i as u8); }
-            for i in 0..16 { wpa.gtk[i] = seed[(i + 3) % 20] ^ 0x5a; }
+            for i in 0..32 {
+                wpa.anonce[i] = seed[i % 20] ^ (i as u8);
+            }
+            for i in 0..16 {
+                wpa.gtk[i] = seed[(i + 3) % 20] ^ 0x5a;
+            }
         }
-        VirtualAp { cfg, wpa, state: StaState::Idle, sta: [0; 6], aid: 1, next_beacon_us: 100_000, beacon_interval_us: 102_400, seq: 0,
-                    queue: Vec::new(), pn: 0, log, stats: (0, 0, 0), beacons: Vec::new(), air_tap: None }
+        VirtualAp {
+            cfg,
+            wpa,
+            state: StaState::Idle,
+            sta: [0; 6],
+            aid: 1,
+            next_beacon_us: 100_000,
+            beacon_interval_us: 102_400,
+            seq: 0,
+            queue: Vec::new(),
+            pn: 0,
+            log,
+            stats: (0, 0, 0),
+            beacons: Vec::new(),
+            air_tap: None,
+        }
     }
     /// Record one frame this access point puts on the air, if an air capture is attached.
     fn air_record(&self, ts_us: u64, frame: &[u8]) {
-        if let Some(t) = &self.air_tap { t.lock().unwrap().record(crate::netcap::Dir::ToStation, ts_us, frame); }
+        if let Some(t) = &self.air_tap {
+            t.lock()
+                .unwrap()
+                .record(crate::netcap::Dir::ToStation, ts_us, frame);
+        }
     }
     fn hdr(&mut self, fc: u16, a1: &[u8; 6], a3: &[u8; 6]) -> Vec<u8> {
         let mut f = Vec::with_capacity(128);
-        f.extend_from_slice(&fc.to_le_bytes()); f.extend_from_slice(&[0, 0]);   // fc, duration
-        f.extend_from_slice(a1); f.extend_from_slice(&self.cfg.bssid); f.extend_from_slice(a3);
-        f.extend_from_slice(&(self.seq << 4).to_le_bytes()); self.seq = self.seq.wrapping_add(1);
+        f.extend_from_slice(&fc.to_le_bytes());
+        f.extend_from_slice(&[0, 0]); // fc, duration
+        f.extend_from_slice(a1);
+        f.extend_from_slice(&self.cfg.bssid);
+        f.extend_from_slice(a3);
+        f.extend_from_slice(&(self.seq << 4).to_le_bytes());
+        self.seq = self.seq.wrapping_add(1);
         f
     }
-    fn capability(&self) -> u16 { 0x0001 | if self.cfg.psk.is_some() { 0x0010 } else { 0 } | 0x0400 }   // ESS, privacy, short slot
+    fn capability(&self) -> u16 {
+        0x0001 | if self.cfg.psk.is_some() { 0x0010 } else { 0 } | 0x0400
+    } // ESS, privacy, short slot
     fn common_ies(&self, f: &mut Vec<u8>) {
-        f.push(0); f.push(self.cfg.ssid.len() as u8); f.extend_from_slice(self.cfg.ssid.as_bytes());
-        f.extend_from_slice(&[1, 8, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24]);      // supported rates 1 2 5.5 11 (basic) 6 9 12 18
-        f.extend_from_slice(&[3, 1, self.cfg.channel]);                                     // DS parameter set
-        f.extend_from_slice(&[5, 4, 0, 1, 0, 0]);                                           // TIM
-        f.extend_from_slice(&[7, 6, b'S', b'E', b' ', 1, 13, 20]);                          // country
-        f.extend_from_slice(&[50, 4, 0x30, 0x48, 0x60, 0x6c]);                              // extended rates 24 36 48 54
-        if self.cfg.psk.is_some() { f.extend_from_slice(RSN_IE); }                          // RSN: WPA2-PSK, CCMP
+        f.push(0);
+        f.push(self.cfg.ssid.len() as u8);
+        f.extend_from_slice(self.cfg.ssid.as_bytes());
+        f.extend_from_slice(&[1, 8, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24]); // supported rates 1 2 5.5 11 (basic) 6 9 12 18
+        f.extend_from_slice(&[3, 1, self.cfg.channel]); // DS parameter set
+        f.extend_from_slice(&[5, 4, 0, 1, 0, 0]); // TIM
+        f.extend_from_slice(&[7, 6, b'S', b'E', b' ', 1, 13, 20]); // country
+        f.extend_from_slice(&[50, 4, 0x30, 0x48, 0x60, 0x6c]); // extended rates 24 36 48 54
+        if self.cfg.psk.is_some() {
+            f.extend_from_slice(RSN_IE);
+        } // RSN: WPA2-PSK, CCMP
     }
     fn beacon_like(&mut self, subtype: u16, dst: &[u8; 6], now_us: u64) -> Vec<u8> {
         let bssid = self.cfg.bssid;
         let mut f = self.hdr(subtype << 4, dst, &bssid);
-        f.extend_from_slice(&now_us.to_le_bytes());                                         // timestamp
-        f.extend_from_slice(&100u16.to_le_bytes());                                          // beacon interval (TU)
+        f.extend_from_slice(&now_us.to_le_bytes()); // timestamp
+        f.extend_from_slice(&100u16.to_le_bytes()); // beacon interval (TU)
         f.extend_from_slice(&self.capability().to_le_bytes());
         self.common_ies(&mut f);
         f
@@ -279,18 +472,26 @@ impl VirtualAp {
     /// IEEE 802.11-2020 Table 9-92); the rates are this access point's.
     fn beacon_ap_response(&mut self, b: &BeaconAp, dst: &[u8; 6], now_us: u64) -> Vec<u8> {
         let mut f = Vec::with_capacity(96);
-        f.extend_from_slice(&(5u16 << 4).to_le_bytes()); f.extend_from_slice(&[0, 0]);
-        f.extend_from_slice(dst); f.extend_from_slice(&b.bssid); f.extend_from_slice(&b.bssid);
-        f.extend_from_slice(&(self.seq << 4).to_le_bytes()); self.seq = self.seq.wrapping_add(1);
+        f.extend_from_slice(&(5u16 << 4).to_le_bytes());
+        f.extend_from_slice(&[0, 0]);
+        f.extend_from_slice(dst);
+        f.extend_from_slice(&b.bssid);
+        f.extend_from_slice(&b.bssid);
+        f.extend_from_slice(&(self.seq << 4).to_le_bytes());
+        self.seq = self.seq.wrapping_add(1);
         f.extend_from_slice(&now_us.to_le_bytes());
         f.extend_from_slice(&100u16.to_le_bytes());
         let cap: u16 = 0x0001 | if b.secure { 0x0010 } else { 0 } | 0x0400;
         f.extend_from_slice(&cap.to_le_bytes());
-        f.push(0); f.push(b.ssid.len() as u8); f.extend_from_slice(b.ssid.as_bytes());
+        f.push(0);
+        f.push(b.ssid.len() as u8);
+        f.extend_from_slice(b.ssid.as_bytes());
         f.extend_from_slice(&[1, 8, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24]);
         f.extend_from_slice(&[3, 1, b.channel]);
         f.extend_from_slice(&[50, 4, 0x30, 0x48, 0x60, 0x6c]);
-        if b.secure { f.extend_from_slice(RSN_IE); }
+        if b.secure {
+            f.extend_from_slice(RSN_IE);
+        }
         f
     }
     /// The channel and signal (dBm) a frame from the air arrives with, for the chip's RX
@@ -300,82 +501,151 @@ impl VirtualAp {
     /// a frame from its BSSID, this access point's channel and -40 dBm otherwise.
     pub fn rx_meta(&self, frame: &[u8]) -> (u8, i8) {
         if frame.len() >= 16 {
-            if let Some(b) = self.beacons.iter().find(|b| frame[10..16] == b.bssid) { return (b.channel, b.rssi); }
+            if let Some(b) = self.beacons.iter().find(|b| frame[10..16] == b.bssid) {
+                return (b.channel, b.rssi);
+            }
         }
         (self.cfg.channel, -40)
     }
     fn send(&mut self, at_us: u64, frame: Vec<u8>) {
-        if self.log { let d = describe(&frame); if d.contains("auth") || d.contains("assoc") || d.contains("888e") { eprintln!("[wifi] AP -> {}  hex={:02x?}", d, frame); } else { eprintln!("[wifi] AP -> {} (t+{} us)", d, at_us); } }
+        if self.log {
+            let d = describe(&frame);
+            if d.contains("auth") || d.contains("assoc") || d.contains("888e") {
+                eprintln!("[wifi] AP -> {}  hex={:02x?}", d, frame);
+            } else {
+                eprintln!("[wifi] AP -> {} (t+{} us)", d, at_us);
+            }
+        }
         self.air_record(at_us, &frame);
         self.queue.push(AirFrame { at_us, frame });
     }
     /// True when `step(now_us)` would return nothing and change nothing: no frame queued and the
     /// next beacon not yet due. Keep this next to `step`; it must follow every timer `step` has.
     #[inline]
-    pub fn idle_at(&self, now_us: u64) -> bool { self.queue.is_empty() && now_us < self.next_beacon_us }
+    pub fn idle_at(&self, now_us: u64) -> bool {
+        self.queue.is_empty() && now_us < self.next_beacon_us
+    }
     /// Time-driven behaviour (beacons). Returns frames due at or before `now_us`.
     pub fn step(&mut self, now_us: u64) -> Vec<AirFrame> {
         let mgmt_pending = self.queue.iter().any(|a| !is_beacon(&a.frame));
         if now_us >= self.next_beacon_us && !mgmt_pending {
             self.next_beacon_us += self.beacon_interval_us;
-            if self.next_beacon_us <= now_us { self.next_beacon_us = now_us + self.beacon_interval_us; }
-            let b = self.beacon_like(8, &[0xff; 6], now_us); self.stats.0 += 1;
+            if self.next_beacon_us <= now_us {
+                self.next_beacon_us = now_us + self.beacon_interval_us;
+            }
+            let b = self.beacon_like(8, &[0xff; 6], now_us);
+            self.stats.0 += 1;
             self.air_record(now_us, &b);
-            self.queue.push(AirFrame { at_us: now_us, frame: b });
+            self.queue.push(AirFrame {
+                at_us: now_us,
+                frame: b,
+            });
         }
-        let (due, later): (Vec<_>, Vec<_>) = std::mem::take(&mut self.queue).into_iter().partition(|a| a.at_us <= now_us);
+        let (due, later): (Vec<_>, Vec<_>) = std::mem::take(&mut self.queue)
+            .into_iter()
+            .partition(|a| a.at_us <= now_us);
         self.queue = later;
         due
     }
     /// The station transmitted `f` at `now_us`. Returns data frames (as 802.11) for the network backend.
     pub fn on_station_tx(&mut self, f: &[u8], now_us: u64) -> Option<Vec<u8>> {
-        if f.len() < 24 { return None; }
+        if f.len() < 24 {
+            return None;
+        }
         let fc = u16::from_le_bytes([f[0], f[1]]);
         let (ty, st) = ((fc >> 2) & 3, (fc >> 4) & 0xf);
-        let mut a2 = [0u8; 6]; a2.copy_from_slice(&f[10..16]);
+        let mut a2 = [0u8; 6];
+        a2.copy_from_slice(&f[10..16]);
         let to_us = |a1: &[u8]| a1 == [0xff; 6] || a1 == self.cfg.bssid;
         match (ty, st) {
-            (0, 4) => {                                                                      // probe request: for us or wildcard?
-                let ssid_ok = ies(f, 24).iter().any(|(id, d)| *id == 0 && (d.is_empty() || *d == self.cfg.ssid.as_bytes()));
-                if ssid_ok && to_us(&f[4..10]) { let r = self.beacon_like(5, &a2, now_us); self.stats.1 += 1; self.send(now_us + 1500, r); }
+            (0, 4) => {
+                // probe request: for us or wildcard?
+                let ssid_ok = ies(f, 24)
+                    .iter()
+                    .any(|(id, d)| *id == 0 && (d.is_empty() || *d == self.cfg.ssid.as_bytes()));
+                if ssid_ok && to_us(&f[4..10]) {
+                    let r = self.beacon_like(5, &a2, now_us);
+                    self.stats.1 += 1;
+                    self.send(now_us + 1500, r);
+                }
                 // the networks around answer a wildcard probe, or one for their SSID, sent to the
                 // broadcast address or their own with a wildcard BSSID or their own (IEEE
                 // 802.11-2020 11.1.4.3.4)
-                let asked: Vec<Vec<u8>> = ies(f, 24).into_iter().filter(|(id, _)| *id == 0).map(|(_, d)| d.to_vec()).collect();
-                let addressed = |b: &BeaconAp| [&f[4..10], &f[16..22]].iter().all(|a| *a == [0xff; 6] || *a == b.bssid);
-                let around: Vec<BeaconAp> = self.beacons.iter()
-                    .filter(|b| addressed(b) && asked.iter().any(|s| s.is_empty() || *s == b.ssid.as_bytes())).cloned().collect();
+                let asked: Vec<Vec<u8>> = ies(f, 24)
+                    .into_iter()
+                    .filter(|(id, _)| *id == 0)
+                    .map(|(_, d)| d.to_vec())
+                    .collect();
+                let addressed = |b: &BeaconAp| {
+                    [&f[4..10], &f[16..22]]
+                        .iter()
+                        .all(|a| *a == [0xff; 6] || *a == b.bssid)
+                };
+                let around: Vec<BeaconAp> = self
+                    .beacons
+                    .iter()
+                    .filter(|b| {
+                        addressed(b)
+                            && asked
+                                .iter()
+                                .any(|s| s.is_empty() || *s == b.ssid.as_bytes())
+                    })
+                    .cloned()
+                    .collect();
                 for (i, b) in around.iter().enumerate() {
                     let r = self.beacon_ap_response(b, &a2, now_us);
                     self.send(now_us + 1900 + 400 * i as u64, r);
                 }
             }
-            (0, 11) if f.len() >= 30 && to_us(&f[4..10]) => {                                // authentication (open system)
-                let (alg, seq) = (u16::from_le_bytes([f[24], f[25]]), u16::from_le_bytes([f[26], f[27]]));
-                if self.log { eprintln!("[wifi] station AUTH req alg={} seq={} status={} hex={:02x?}", alg, seq, u16::from_le_bytes([f[28],f[29]]), f); }
+            (0, 11) if f.len() >= 30 && to_us(&f[4..10]) => {
+                // authentication (open system)
+                let (alg, seq) = (
+                    u16::from_le_bytes([f[24], f[25]]),
+                    u16::from_le_bytes([f[26], f[27]]),
+                );
+                if self.log {
+                    eprintln!(
+                        "[wifi] station AUTH req alg={} seq={} status={} hex={:02x?}",
+                        alg,
+                        seq,
+                        u16::from_le_bytes([f[28], f[29]]),
+                        f
+                    );
+                }
                 if alg == 0 && seq == 1 {
-                    self.sta = a2; self.state = StaState::Authenticated;
+                    self.sta = a2;
+                    self.state = StaState::Authenticated;
                     let mut r = self.hdr(11 << 4, &a2, &self.cfg.bssid.clone());
-                    r.extend_from_slice(&[0, 0, 2, 0, 0, 0]);                                // open, seq 2, status success
+                    r.extend_from_slice(&[0, 0, 2, 0, 0, 0]); // open, seq 2, status success
                     self.send(now_us + 300, r);
                 }
             }
-            (0, 0) | (0, 2) if to_us(&f[4..10]) && self.state != StaState::Idle => {         // (re)association request
+            (0, 0) | (0, 2) if to_us(&f[4..10]) && self.state != StaState::Idle => {
+                // (re)association request
                 self.state = StaState::Associated;
                 let mut r = self.hdr(1 << 4, &a2, &self.cfg.bssid.clone());
-                r.extend_from_slice(&self.capability().to_le_bytes()); r.extend_from_slice(&[0, 0]); r.extend_from_slice(&(0xc000 | self.aid).to_le_bytes());
-                r.extend_from_slice(&[1, 8, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24]); r.extend_from_slice(&[50, 4, 0x30, 0x48, 0x60, 0x6c]);
+                r.extend_from_slice(&self.capability().to_le_bytes());
+                r.extend_from_slice(&[0, 0]);
+                r.extend_from_slice(&(0xc000 | self.aid).to_le_bytes());
+                r.extend_from_slice(&[1, 8, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24]);
+                r.extend_from_slice(&[50, 4, 0x30, 0x48, 0x60, 0x6c]);
                 self.send(now_us + 300, r);
-                if self.cfg.psk.is_some() {                       // WPA2: start the four-way handshake
+                if self.cfg.psk.is_some() {
+                    // WPA2: start the four-way handshake
                     self.wpa.replay += 1;
                     let m1 = self.eapol(0x008a, self.wpa.anonce, &[], None);
                     self.send(now_us + 30_000, m1);
                     self.wpa.state = WpaState::AwaitingMessage2;
                 }
             }
-            (0, 12) | (0, 10) if to_us(&f[4..10]) => { self.state = StaState::Idle; }
-            (2, _) if self.state == StaState::Associated && f[4..10] == self.cfg.bssid => {  // data to the DS
-                if st == 4 || st == 12 { return None; }                                       // null frames (power save)
+            (0, 12) | (0, 10) if to_us(&f[4..10]) => {
+                self.state = StaState::Idle;
+            }
+            (2, _) if self.state == StaState::Associated && f[4..10] == self.cfg.bssid => {
+                // data to the DS
+                if st == 4 || st == 12 {
+                    return None;
+                } // null frames (power save)
                 let hdr = if st & 8 != 0 { 26 } else { 24 };
                 // Protected frame: the MAC would have encrypted in place, so the descriptor holds
                 // plaintext framed by an 8-byte CCMP header and 8 bytes of MIC space. Take those off.
@@ -384,33 +654,43 @@ impl VirtualAp {
                     let mut v = Vec::with_capacity(f.len() - 16);
                     v.extend_from_slice(&f[..hdr]);
                     v.extend_from_slice(&f[hdr + 8..f.len() - 8]);
-                    v[1] &= !0x40;                                                             // clear the protected bit
-                    plain = v; &plain
-                } else { f };
+                    v[1] &= !0x40; // clear the protected bit
+                    plain = v;
+                    &plain
+                } else {
+                    f
+                };
                 if f.len() > hdr + 8 && f[hdr] == 0xaa && f[hdr + 6] == 0x88 && f[hdr + 7] == 0x8e {
                     self.on_eapol(&f[hdr + 8..], now_us);
                     return None;
                 }
-                self.stats.2 += 1; return Some(f.to_vec());
+                self.stats.2 += 1;
+                return Some(f.to_vec());
             }
             _ => {}
         }
         None
     }
     /// Build an EAPOL-Key frame (802.1X over LLC/SNAP in an 802.11 data frame from the DS).
-    fn eapol(&mut self, key_info: u16, nonce: [u8; 32], key_data: &[u8], mic_key: Option<&[u8]>) -> Vec<u8> {
+    fn eapol(
+        &mut self,
+        key_info: u16,
+        nonce: [u8; 32],
+        key_data: &[u8],
+        mic_key: Option<&[u8]>,
+    ) -> Vec<u8> {
         let mut body = Vec::with_capacity(99 + key_data.len());
-        body.push(2);                                                    // 802.1X-2004
-        body.push(3);                                                    // EAPOL-Key
+        body.push(2); // 802.1X-2004
+        body.push(3); // EAPOL-Key
         body.extend_from_slice(&((95 + key_data.len()) as u16).to_be_bytes());
-        body.push(2);                                                    // RSN key descriptor
+        body.push(2); // RSN key descriptor
         body.extend_from_slice(&key_info.to_be_bytes());
-        body.extend_from_slice(&16u16.to_be_bytes());                    // key length (CCMP)
+        body.extend_from_slice(&16u16.to_be_bytes()); // key length (CCMP)
         body.extend_from_slice(&self.wpa.replay.to_be_bytes());
         body.extend_from_slice(&nonce);
-        body.extend_from_slice(&[0u8; 16]);                              // key IV
-        body.extend_from_slice(&[0u8; 8]);                               // key RSC
-        body.extend_from_slice(&[0u8; 8]);                               // key ID
+        body.extend_from_slice(&[0u8; 16]); // key IV
+        body.extend_from_slice(&[0u8; 8]); // key RSC
+        body.extend_from_slice(&[0u8; 8]); // key ID
         let mic_at = body.len();
         body.extend_from_slice(&[0u8; 16]);
         body.extend_from_slice(&(key_data.len() as u16).to_be_bytes());
@@ -419,8 +699,9 @@ impl VirtualAp {
             let m = esp_periph::crypto::hmac_sha1(kck, &body);
             body[mic_at..mic_at + 16].copy_from_slice(&m[..16]);
         }
-        let sta = self.sta; let bssid = self.cfg.bssid;
-        let mut f = self.hdr(0x0208, &sta, &bssid);                      // data, from-DS
+        let sta = self.sta;
+        let bssid = self.cfg.bssid;
+        let mut f = self.hdr(0x0208, &sta, &bssid); // data, from-DS
         f[16..22].copy_from_slice(&bssid);
         f.extend_from_slice(&[0xaa, 0xaa, 0x03, 0, 0, 0, 0x88, 0x8e]);
         f.extend_from_slice(&body);
@@ -429,48 +710,76 @@ impl VirtualAp {
 
     /// Handle an EAPOL-Key frame from the station (messages 2 and 4 of the handshake).
     fn on_eapol(&mut self, body: &[u8], now_us: u64) {
-        if body.len() < 99 || body[1] != 3 { return; }
+        if body.len() < 99 || body[1] != 3 {
+            return;
+        }
         // the MIC covers exactly the 802.1X frame; the 802.11 payload can carry trailing bytes
         let n = 4 + u16::from_be_bytes([body[2], body[3]]) as usize;
-        let Some(body) = body.get(..n).filter(|b| b.len() >= 99) else { return; };
+        let Some(body) = body.get(..n).filter(|b| b.len() >= 99) else {
+            return;
+        };
         let key_data_len = u16::from_be_bytes([body[97], body[98]]) as usize;
-        if 99 + key_data_len != body.len() { return; }
+        if 99 + key_data_len != body.len() {
+            return;
+        }
         let key_info = u16::from_be_bytes([body[5], body[6]]);
         let has_mic = key_info & 0x0100 != 0;
         let secure = key_info & 0x0200 != 0;
-        if !has_mic { return; }
+        if !has_mic {
+            return;
+        }
         if !secure && self.wpa.state == WpaState::AwaitingMessage2 {
             // message 2: take the SNonce and derive the pairwise key
-            let mut snonce = [0u8; 32]; snonce.copy_from_slice(&body[17..49]);
+            let mut snonce = [0u8; 32];
+            snonce.copy_from_slice(&body[17..49]);
             let (aa, spa) = (self.cfg.bssid, self.sta);
             let (lo_mac, hi_mac) = if aa <= spa { (aa, spa) } else { (spa, aa) };
             let (an, sn) = (self.wpa.anonce, snonce);
             let (lo_n, hi_n) = if an <= sn { (an, sn) } else { (sn, an) };
             let mut data = Vec::with_capacity(76);
-            data.extend_from_slice(&lo_mac); data.extend_from_slice(&hi_mac);
-            data.extend_from_slice(&lo_n); data.extend_from_slice(&hi_n);
+            data.extend_from_slice(&lo_mac);
+            data.extend_from_slice(&hi_mac);
+            data.extend_from_slice(&lo_n);
+            data.extend_from_slice(&hi_n);
             let ptk = esp_periph::crypto::prf(&self.wpa.pmk, "Pairwise key expansion", &data, 384);
             // self-check: recompute the station's own MIC over message 2. If this matches, the PMK,
             // the PTK derivation and the MIC scope are all right and any later failure is elsewhere.
             {
                 let mut probe = body.to_vec();
                 let mic_at = 81;
-                let mut recv = [0u8; 16]; recv.copy_from_slice(&probe[mic_at..mic_at + 16]);
-                for b in probe[mic_at..mic_at + 16].iter_mut() { *b = 0; }
+                let mut recv = [0u8; 16];
+                recv.copy_from_slice(&probe[mic_at..mic_at + 16]);
+                for b in probe[mic_at..mic_at + 16].iter_mut() {
+                    *b = 0;
+                }
                 let calc = esp_periph::crypto::hmac_sha1(&ptk[0..16], &probe);
                 if self.log {
-                    eprintln!("[wifi] WPA2 msg2: PTK derived, station MIC {} (recv {:02x?} calc {:02x?})",
-                              if calc[..16] == recv { "VERIFIED" } else { "MISMATCH" }, &recv[..4], &calc[..4]);
+                    eprintln!(
+                        "[wifi] WPA2 msg2: PTK derived, station MIC {} (recv {:02x?} calc {:02x?})",
+                        if calc[..16] == recv {
+                            "VERIFIED"
+                        } else {
+                            "MISMATCH"
+                        },
+                        &recv[..4],
+                        &calc[..4]
+                    );
                 }
             }
 
             // message 3: RSN IE + the group key, wrapped with the KEK
             let mut kd = Vec::new();
             kd.extend_from_slice(RSN_IE);
-            kd.extend_from_slice(&[0xdd, 22, 0x00, 0x0f, 0xac, 0x01, 0x01, 0x00]);   // GTK KDE, key id 1
+            kd.extend_from_slice(&[0xdd, 22, 0x00, 0x0f, 0xac, 0x01, 0x01, 0x00]); // GTK KDE, key id 1
             kd.extend_from_slice(&self.wpa.gtk);
-            if kd.len() % 8 != 0 { kd.push(0xdd); while kd.len() % 8 != 0 { kd.push(0); } }   // pad: one 0xDD then zeros
-            let mut kek = [0u8; 16]; kek.copy_from_slice(&ptk[16..32]);
+            if kd.len() % 8 != 0 {
+                kd.push(0xdd);
+                while kd.len() % 8 != 0 {
+                    kd.push(0);
+                }
+            } // pad: one 0xDD then zeros
+            let mut kek = [0u8; 16];
+            kek.copy_from_slice(&ptk[16..32]);
             let wrapped = esp_periph::crypto::aes_key_wrap(&kek, &kd);
             self.wpa.replay += 1;
             let anonce = self.wpa.anonce;
@@ -479,46 +788,74 @@ impl VirtualAp {
             self.wpa.state = WpaState::AwaitingMessage4;
         } else if secure && self.wpa.state == WpaState::AwaitingMessage4 {
             self.wpa.state = WpaState::Installed;
-            if self.log { eprintln!("[wifi] WPA2 four-way handshake complete"); }
+            if self.log {
+                eprintln!("[wifi] WPA2 four-way handshake complete");
+            }
         }
     }
 
     /// Wrap an Ethernet frame from the network backend into an 802.11 data frame from the DS.
     pub fn data_from_ds(&mut self, eth: &[u8]) -> Option<Vec<u8>> {
-        if self.state != StaState::Associated || eth.len() < 14 { return None; }
-        let mut dst = [0u8; 6]; dst.copy_from_slice(&eth[0..6]); let mut src = [0u8; 6]; src.copy_from_slice(&eth[6..12]);
+        if self.state != StaState::Associated || eth.len() < 14 {
+            return None;
+        }
+        let mut dst = [0u8; 6];
+        dst.copy_from_slice(&eth[0..6]);
+        let mut src = [0u8; 6];
+        src.copy_from_slice(&eth[6..12]);
         let bssid = self.cfg.bssid;
         // Once the keys are installed the frame must look encrypted: protected bit, CCMP header and
         // room for the MIC. The payload stays in the clear — as far as firmware is concerned the MAC
         // decrypted it in place.
-        let protected = if self.wpa.state == WpaState::Installed { 0x4000 } else { 0 };
+        let protected = if self.wpa.state == WpaState::Installed {
+            0x4000
+        } else {
+            0
+        };
         let ccmp_hdr = protected != 0;
-        let mut f = self.hdr((2 << 2) | 0x0200 | protected, &dst, &src);                        // data, from-DS
-        f[16..22].copy_from_slice(&src); f[10..16].copy_from_slice(&bssid);
+        let mut f = self.hdr((2 << 2) | 0x0200 | protected, &dst, &src); // data, from-DS
+        f[16..22].copy_from_slice(&src);
+        f[10..16].copy_from_slice(&bssid);
         if ccmp_hdr {
             // CCMP header, as the hardware would leave it after decrypting in place
             self.pn += 1;
             let pn = self.pn;
-            let keyid = if dst[0] & 1 != 0 { 1 } else { 0 };                                    // group frames use the GTK
-            f.extend_from_slice(&[pn as u8, (pn >> 8) as u8, 0, 0x20 | (keyid << 6),
-                                  (pn >> 16) as u8, (pn >> 24) as u8, (pn >> 32) as u8, (pn >> 40) as u8]);
+            let keyid = if dst[0] & 1 != 0 { 1 } else { 0 }; // group frames use the GTK
+            f.extend_from_slice(&[
+                pn as u8,
+                (pn >> 8) as u8,
+                0,
+                0x20 | (keyid << 6),
+                (pn >> 16) as u8,
+                (pn >> 24) as u8,
+                (pn >> 32) as u8,
+                (pn >> 40) as u8,
+            ]);
         }
-        f.extend_from_slice(&[0xaa, 0xaa, 0x03, 0, 0, 0]); f.extend_from_slice(&eth[12..14]);  // LLC/SNAP
+        f.extend_from_slice(&[0xaa, 0xaa, 0x03, 0, 0, 0]);
+        f.extend_from_slice(&eth[12..14]); // LLC/SNAP
         f.extend_from_slice(&eth[14..]);
-        if ccmp_hdr { f.extend_from_slice(&[0u8; 8]); }                                         // MIC space
+        if ccmp_hdr {
+            f.extend_from_slice(&[0u8; 8]);
+        } // MIC space
         Some(f)
     }
 }
 
 /// 802.11 data frame (to the DS) -> Ethernet frame.
 pub fn data_to_eth(f: &[u8]) -> Option<Vec<u8>> {
-    if f.len() < 2 { return None; }
-    let fc = u16::from_le_bytes([f[0], f[1]]); let st = (fc >> 4) & 0xf;
+    if f.len() < 2 {
+        return None;
+    }
+    let fc = u16::from_le_bytes([f[0], f[1]]);
+    let st = (fc >> 4) & 0xf;
     let hdr = if st & 8 != 0 { 26 } else { 24 };
-    if f.len() < hdr + 8 || f[hdr] != 0xaa { return None; }
+    if f.len() < hdr + 8 || f[hdr] != 0xaa {
+        return None;
+    }
     let mut e = Vec::with_capacity(f.len());
-    e.extend_from_slice(&f[16..22]);   // dst = addr3
-    e.extend_from_slice(&f[10..16]);   // src = addr2
+    e.extend_from_slice(&f[16..22]); // dst = addr3
+    e.extend_from_slice(&f[10..16]); // src = addr2
     e.extend_from_slice(&f[hdr + 6..hdr + 8]);
     e.extend_from_slice(&f[hdr + 8..]);
     Some(e)
@@ -527,7 +864,16 @@ pub fn data_to_eth(f: &[u8]) -> Option<Vec<u8>> {
 /// FCS (CRC-32) as the MAC appends it.
 pub fn fcs(data: &[u8]) -> u32 {
     let mut crc = 0xffff_ffffu32;
-    for &b in data { crc ^= b as u32; for _ in 0..8 { crc = if crc & 1 != 0 { (crc >> 1) ^ 0xedb8_8320 } else { crc >> 1 }; } }
+    for &b in data {
+        crc ^= b as u32;
+        for _ in 0..8 {
+            crc = if crc & 1 != 0 {
+                (crc >> 1) ^ 0xedb8_8320
+            } else {
+                crc >> 1
+            };
+        }
+    }
     !crc
 }
 
@@ -599,18 +945,35 @@ impl StationLink {
     /// any station. The queues, pacing and counts start again; the relay mode and both captures
     /// (Ethernet and air) stay.
     pub fn attach(&mut self, mut ap: Option<VirtualAp>, net: Option<crate::net::VirtualNet>) {
-        if let Some(a) = ap.as_mut() { a.air_tap = self.air_tap.clone(); }
-        *self = StationLink { aps: ap.into_iter().collect(), net, relay: self.relay, tap: self.tap.take(),
-                              air_tap: self.air_tap.take(), ..Default::default() };
+        if let Some(a) = ap.as_mut() {
+            a.air_tap = self.air_tap.clone();
+        }
+        *self = StationLink {
+            aps: ap.into_iter().collect(),
+            net,
+            relay: self.relay,
+            tap: self.tap.take(),
+            air_tap: self.air_tap.take(),
+            ..Default::default()
+        };
     }
     /// One more joinable access point for `cfg`, beside the ones attached, behind the same network.
     /// It needs an access point attached first and shares no SSID or BSSID with one there. Its
     /// beacons go out a little after the others', not at the same instant.
     pub fn add_ap(&mut self, cfg: ApConfig, debug: &crate::DebugFlags) -> Result<(), String> {
-        if self.sta.is_some() { return Err("an access point beside a virtual station: not modelled yet".into()); }
-        if self.aps.is_empty() { return Err("a further access point needs the first one attached".into()); }
-        if self.aps.len() >= APS_MAX { return Err(format!("more than {APS_MAX} access points")); }
-        check_new_ap(&self.aps.iter().map(|a| a.cfg.clone()).collect::<Vec<_>>(), &cfg)?;
+        if self.sta.is_some() {
+            return Err("an access point beside a virtual station: not modelled yet".into());
+        }
+        if self.aps.is_empty() {
+            return Err("a further access point needs the first one attached".into());
+        }
+        if self.aps.len() >= APS_MAX {
+            return Err(format!("more than {APS_MAX} access points"));
+        }
+        check_new_ap(
+            &self.aps.iter().map(|a| a.cfg.clone()).collect::<Vec<_>>(),
+            &cfg,
+        )?;
         let mut ap = VirtualAp::new(cfg, debug.has("wifi-frames"));
         ap.next_beacon_us += 7_000 * self.aps.len() as u64;
         ap.air_tap = self.air_tap.clone();
@@ -618,19 +981,32 @@ impl StationLink {
         Ok(())
     }
     /// `attach` with a fresh access point for `cfg` and network, logging as `debug` says.
-    pub fn attach_new(&mut self, cfg: ApConfig, nat: Option<crate::nat::Nat>, debug: &crate::DebugFlags) {
+    pub fn attach_new(
+        &mut self,
+        cfg: ApConfig,
+        nat: Option<crate::nat::Nat>,
+        debug: &crate::DebugFlags,
+    ) {
         let mut net = crate::net::VirtualNet::new(debug.has("net"));
         net.nat = nat;
         net.epoch_us = cfg.epoch_s.map(|s| s.saturating_mul(1_000_000));
-        self.attach(Some(VirtualAp::new(cfg, debug.has("wifi-frames"))), Some(net));
+        self.attach(
+            Some(VirtualAp::new(cfg, debug.has("wifi-frames"))),
+            Some(net),
+        );
     }
     /// Give the network behind the access point `nat` (None: none, connections past the gateway
     /// refused), with SNTP answered here even with a NAT when `local_ntp`. The old NAT's flows are
     /// aborted first, so its transport hears of each (`Nat::abort_all`); the access point and the
     /// guest's lease stay. An error without a network.
     pub fn set_nat(&mut self, nat: Option<crate::nat::Nat>, local_ntp: bool) -> Result<(), String> {
-        let net = self.net.as_mut().ok_or("no virtual network: attach the access point first")?;
-        if let Some(old) = net.nat.as_mut() { old.abort_all(); }
+        let net = self
+            .net
+            .as_mut()
+            .ok_or("no virtual network: attach the access point first")?;
+        if let Some(old) = net.nat.as_mut() {
+            old.abort_all();
+        }
         net.nat = nat;
         net.local_ntp = local_ntp;
         Ok(())
@@ -640,37 +1016,69 @@ impl StationLink {
     /// guest's sockets, so they are aborted.
     pub fn surviving_reboot(mut self) -> Self {
         let mut net = self.net;
-        if let Some(nat) = net.as_mut().and_then(|net| net.nat.as_mut()) { nat.abort_all(); }
+        if let Some(nat) = net.as_mut().and_then(|net| net.nat.as_mut()) {
+            nat.abort_all();
+        }
         let air_tap = self.air_tap.take();
-        for ap in &mut self.aps { ap.air_tap = air_tap.clone(); }
-        let sta = self.sta.map(|mut s| { s.restart(); s.air_tap = air_tap.clone(); s });
-        StationLink { aps: self.aps, net, relay: self.relay, tap: self.tap, air_tap, sta, ..Default::default() }
+        for ap in &mut self.aps {
+            ap.air_tap = air_tap.clone();
+        }
+        let sta = self.sta.map(|mut s| {
+            s.restart();
+            s.air_tap = air_tap.clone();
+            s
+        });
+        StationLink {
+            aps: self.aps,
+            net,
+            relay: self.relay,
+            tap: self.tap,
+            air_tap,
+            sta,
+            ..Default::default()
+        }
     }
 
     /// Record every Ethernet frame the station sends and receives into `tap`.
-    pub fn set_tap(&mut self, tap: crate::netcap::NetTap) { self.tap = Some(tap); }
+    pub fn set_tap(&mut self, tap: crate::netcap::NetTap) {
+        self.tap = Some(tap);
+    }
     /// Record every 802.11 frame the air carries, both ways, into `tap` (link type 105), or stop
     /// with `None`. The tap is pushed down to every access point and the virtual station, which
     /// record the frames they generate at their scheduled air time; the link records what the
     /// station transmits and what the network hands over (`next_rx`). It survives `attach`.
     pub fn set_air_tap(&mut self, tap: Option<crate::netcap::AirTap>) {
         self.air_tap = tap.clone();
-        for ap in &mut self.aps { ap.air_tap = tap.clone(); }
-        if let Some(s) = &mut self.sta { s.air_tap = tap; }
+        for ap in &mut self.aps {
+            ap.air_tap = tap.clone();
+        }
+        if let Some(s) = &mut self.sta {
+            s.air_tap = tap;
+        }
     }
     /// Record one 802.11 frame the link itself put on the air or took from it.
     fn air_capture(&self, dir: crate::netcap::Dir, now_us: u64, frame: &[u8]) {
-        if let Some(t) = &self.air_tap { t.lock().unwrap().record(dir, now_us, frame); }
+        if let Some(t) = &self.air_tap {
+            t.lock().unwrap().record(dir, now_us, frame);
+        }
     }
     /// The frame without its 4-byte FCS slot, as the guest's MAC hands it over; the capture keeps
     /// the same plain 802.11 form the virtual access point and station generate.
     fn without_fcs(frame: &[u8]) -> &[u8] {
-        if frame.len() >= 4 { &frame[..frame.len() - 4] } else { frame }
+        if frame.len() >= 4 {
+            &frame[..frame.len() - 4]
+        } else {
+            frame
+        }
     }
     /// A frame the station sends still ends in the 4 bytes of the 802.11 FCS slot; the capture
     /// leaves them out, so it holds the Ethernet frame as it went on the wire.
     fn capture(&self, dir: crate::netcap::Dir, now_us: u64, eth: &[u8]) {
-        let eth = if dir == crate::netcap::Dir::FromStation && eth.len() >= 18 { &eth[..eth.len() - 4] } else { eth };
+        let eth = if dir == crate::netcap::Dir::FromStation && eth.len() >= 18 {
+            &eth[..eth.len() - 4]
+        } else {
+            eth
+        };
         self.capture_whole(dir, now_us, eth);
     }
     /// `capture` for an Ethernet frame without the FCS slot: what the virtual station takes from
@@ -685,58 +1093,126 @@ impl StationLink {
     /// its own (AP+STA) is not modelled yet. The queues, pacing and counts start again; the relay
     /// mode stays, and with it on the station's frames go to the host instead of its own DHCP.
     pub fn attach_station(&mut self, mut station: sta::VirtualSta) -> Result<(), String> {
-        if !self.aps.is_empty() { return Err("a virtual station needs no access point attached: AP+STA is not modelled yet".into()); }
+        if !self.aps.is_empty() {
+            return Err(
+                "a virtual station needs no access point attached: AP+STA is not modelled yet"
+                    .into(),
+            );
+        }
         station.host = !self.relay;
         station.air_tap = self.air_tap.clone();
-        *self = StationLink { relay: self.relay, tap: self.tap.take(), air_tap: self.air_tap.take(),
-                              sta: Some(station), ..Default::default() };
+        *self = StationLink {
+            relay: self.relay,
+            tap: self.tap.take(),
+            air_tap: self.air_tap.take(),
+            sta: Some(station),
+            ..Default::default()
+        };
         Ok(())
     }
     /// The virtual station of `attach_station`, if there is one.
-    pub fn station(&self) -> Option<&sta::VirtualSta> { self.sta.as_ref() }
+    pub fn station(&self) -> Option<&sta::VirtualSta> {
+        self.sta.as_ref()
+    }
 
     /// The first access point, the one `--wifi` named first.
-    pub fn ap(&self) -> Option<&VirtualAp> { self.aps.first() }
-    pub fn ap_mut(&mut self) -> Option<&mut VirtualAp> { self.aps.first_mut() }
+    pub fn ap(&self) -> Option<&VirtualAp> {
+        self.aps.first()
+    }
+    pub fn ap_mut(&mut self) -> Option<&mut VirtualAp> {
+        self.aps.first_mut()
+    }
     /// Every joinable access point, the first one first.
-    pub fn aps(&self) -> &[VirtualAp] { &self.aps }
+    pub fn aps(&self) -> &[VirtualAp] {
+        &self.aps
+    }
     /// The access point the station is associated with, if any.
-    fn current(&self) -> Option<usize> { self.aps.iter().position(|a| a.state == StaState::Associated) }
+    fn current(&self) -> Option<usize> {
+        self.aps
+            .iter()
+            .position(|a| a.state == StaState::Associated)
+    }
     /// The channel and signal a frame from the air arrives with (`VirtualAp::rx_meta`): a further
     /// access point's channel for a frame from its BSSID, otherwise as the first one says.
     pub fn rx_meta(&self, frame: &[u8]) -> (u8, i8) {
-        if let Some(s) = &self.sta { return (s.channel(), -40); }
+        if let Some(s) = &self.sta {
+            return (s.channel(), -40);
+        }
         if frame.len() >= 16 {
-            if let Some(a) = self.aps.iter().skip(1).find(|a| frame[10..16] == a.cfg.bssid) { return (a.cfg.channel, -40); }
+            if let Some(a) = self
+                .aps
+                .iter()
+                .skip(1)
+                .find(|a| frame[10..16] == a.cfg.bssid)
+            {
+                return (a.cfg.channel, -40);
+            }
         }
         self.aps.first().map_or((0, -40), |a| a.rx_meta(frame))
     }
-    pub fn net(&self) -> Option<&crate::net::VirtualNet> { self.net.as_ref() }
-    pub fn net_mut(&mut self) -> Option<&mut crate::net::VirtualNet> { self.net.as_mut() }
-    pub fn relay(&self) -> bool { self.relay }
+    pub fn net(&self) -> Option<&crate::net::VirtualNet> {
+        self.net.as_ref()
+    }
+    pub fn net_mut(&mut self) -> Option<&mut crate::net::VirtualNet> {
+        self.net.as_mut()
+    }
+    pub fn relay(&self) -> bool {
+        self.relay
+    }
     /// The descriptor the last received frame went into, 0 before the first one.
-    pub fn last_rx_desc(&self) -> u32 { self.last_rx_desc }
+    pub fn last_rx_desc(&self) -> u32 {
+        self.last_rx_desc
+    }
     /// Ethernet frames the station sent that the network or the relay has not taken yet.
-    pub fn eth_tx_pending(&self) -> usize { self.eth_tx.len() }
-    pub fn tx_frames(&self) -> u64 { self.tx_frames }
-    pub fn rx_frames(&self) -> u64 { self.rx_frames }
-    pub fn rx_dropped(&self) -> u64 { self.rx_dropped }
-    pub fn rx_unarmed(&self) -> u64 { self.rx_unarmed }
-    pub fn tx_dropped(&self) -> u64 { self.tx_dropped }
+    pub fn eth_tx_pending(&self) -> usize {
+        self.eth_tx.len()
+    }
+    pub fn tx_frames(&self) -> u64 {
+        self.tx_frames
+    }
+    pub fn rx_frames(&self) -> u64 {
+        self.rx_frames
+    }
+    pub fn rx_dropped(&self) -> u64 {
+        self.rx_dropped
+    }
+    pub fn rx_unarmed(&self) -> u64 {
+        self.rx_unarmed
+    }
+    pub fn tx_dropped(&self) -> u64 {
+        self.tx_dropped
+    }
     /// Frames from the relay the virtual station could not carry, as it had left the access point.
-    pub fn relay_lost(&self) -> u64 { self.relay_lost }
+    pub fn relay_lost(&self) -> u64 {
+        self.relay_lost
+    }
     /// The networks around (beacon-only, not joinable), replacing the ones there were; `None`
     /// without an access point. A network with the access point's own SSID or BSSID would be that
     /// access point, so it is left out: the ones left out come back with the reason.
     pub fn set_beacons(&mut self, beacons: Vec<BeaconAp>) -> Option<Vec<(BeaconAp, &'static str)>> {
-        if self.aps.is_empty() { return None; }
-        let (ssids, bssids): (Vec<String>, Vec<[u8; 6]>) = self.aps.iter().map(|a| (a.cfg.ssid.clone(), a.cfg.bssid)).unzip();
+        if self.aps.is_empty() {
+            return None;
+        }
+        let (ssids, bssids): (Vec<String>, Vec<[u8; 6]>) = self
+            .aps
+            .iter()
+            .map(|a| (a.cfg.ssid.clone(), a.cfg.bssid))
+            .unzip();
         let mut left_out = Vec::new();
-        self.aps[0].beacons = beacons.into_iter().filter_map(|b| {
-            let why = if ssids.contains(&b.ssid) { "the access point's SSID" } else if bssids.contains(&b.bssid) { "the access point's BSSID" } else { return Some(b) };
-            left_out.push((b, why));
-            None
-        }).collect();
+        self.aps[0].beacons = beacons
+            .into_iter()
+            .filter_map(|b| {
+                let why = if ssids.contains(&b.ssid) {
+                    "the access point's SSID"
+                } else if bssids.contains(&b.bssid) {
+                    "the access point's BSSID"
+                } else {
+                    return Some(b);
+                };
+                left_out.push((b, why));
+                None
+            })
+            .collect();
         Some(left_out)
     }
 
@@ -747,25 +1223,45 @@ impl StationLink {
         // The air capture sees the raw 802.11 frame first. With the guest as the station it goes
         // out (TX); with a virtual station the guest is the access point, so this entry is a frame
         // the station receives (RX).
-        let dir = if self.sta.is_some() { crate::netcap::Dir::ToStation } else { crate::netcap::Dir::FromStation };
+        let dir = if self.sta.is_some() {
+            crate::netcap::Dir::ToStation
+        } else {
+            crate::netcap::Dir::FromStation
+        };
         self.air_capture(dir, now_us, Self::without_fcs(frame));
         if self.sta.is_some() {
-            let Some(eth) = self.sta.as_mut().and_then(|s| s.on_ap_tx(frame, now_us)) else { return };
+            let Some(eth) = self.sta.as_mut().and_then(|s| s.on_ap_tx(frame, now_us)) else {
+                return;
+            };
             if !self.relay {
                 self.capture_whole(crate::netcap::Dir::FromStation, now_us, &eth);
-                let sent = self.sta.as_mut().map_or(Vec::new(), |s| { s.host_rx(&eth, now_us); s.take_sent() });
-                for (at, e) in sent { self.capture(crate::netcap::Dir::ToStation, at, &e); }
+                let sent = self.sta.as_mut().map_or(Vec::new(), |s| {
+                    s.host_rx(&eth, now_us);
+                    s.take_sent()
+                });
+                for (at, e) in sent {
+                    self.capture(crate::netcap::Dir::ToStation, at, &e);
+                }
             } else if eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE {
                 self.capture_whole(crate::netcap::Dir::FromStation, now_us, &eth);
                 self.eth_tx.push(eth);
-            } else { self.tx_dropped += 1; }
+            } else {
+                self.tx_dropped += 1;
+            }
             return;
         }
-        let Some(eth) = self.route_station_tx(frame, now_us).and_then(|data| data_to_eth(&data)) else { return };
+        let Some(eth) = self
+            .route_station_tx(frame, now_us)
+            .and_then(|data| data_to_eth(&data))
+        else {
+            return;
+        };
         if !self.relay || (eth.len() <= RELAY_FRAME_MAX && self.eth_tx.len() < RELAY_QUEUE) {
             self.capture(crate::netcap::Dir::FromStation, now_us, &eth);
             self.eth_tx.push(eth);
-        } else { self.tx_dropped += 1; }
+        } else {
+            self.tx_dropped += 1;
+        }
     }
 
     /// Hand a frame from the station to the access points it is for: a probe request to every one
@@ -773,11 +1269,15 @@ impl StationLink {
     /// the first for the broadcast address. An association with one access point ends the
     /// station's state at every other, as a real station leaves its old network.
     fn route_station_tx(&mut self, frame: &[u8], now_us: u64) -> Option<Vec<u8>> {
-        if frame.len() < 24 || self.aps.is_empty() { return None; }
+        if frame.len() < 24 || self.aps.is_empty() {
+            return None;
+        }
         let fc = u16::from_le_bytes([frame[0], frame[1]]);
         let (ty, st) = ((fc >> 2) & 3, (fc >> 4) & 0xf);
         if (ty, st) == (0, 4) {
-            for ap in &mut self.aps { ap.on_station_tx(frame, now_us); }
+            for ap in &mut self.aps {
+                ap.on_station_tx(frame, now_us);
+            }
             return None;
         }
         let i = match self.aps.iter().position(|a| frame[4..10] == a.cfg.bssid) {
@@ -790,7 +1290,9 @@ impl StationLink {
             let (sta, joined) = (self.aps[i].sta, self.aps[i].cfg.ssid.clone());
             for (j, other) in self.aps.iter_mut().enumerate() {
                 if j != i && other.sta == sta && other.state != StaState::Idle {
-                    if other.log { eprintln!("[wifi] station left '{}' for '{}'", other.cfg.ssid, joined); }
+                    if other.log {
+                        eprintln!("[wifi] station left '{}' for '{}'", other.cfg.ssid, joined);
+                    }
                     other.state = StaState::Idle;
                     other.wpa.state = WpaState::Idle;
                     // what it still had queued for the station (EAPOL message 1, say) goes too
@@ -802,7 +1304,9 @@ impl StationLink {
     }
 
     /// True while the last received frame's airtime lasts: no frame is due, whatever the ring holds.
-    pub fn in_rx_gap(&self, now_us: u64) -> bool { now_us.wrapping_sub(self.last_rx_us) < RX_GAP_US }
+    pub fn in_rx_gap(&self, now_us: u64) -> bool {
+        now_us.wrapping_sub(self.last_rx_us) < RX_GAP_US
+    }
 
     /// True when `next_rx` has nothing to deliver at `now_us`, whatever the ring holds: within the
     /// airtime gap, or with the access point idle (`VirtualAp::idle_at`) and nothing from the
@@ -810,8 +1314,12 @@ impl StationLink {
     /// every scheduling round while WiFi is on, before it reads the ring.
     #[inline]
     pub fn nothing_due(&self, now_us: u64) -> bool {
-        if let Some(s) = &self.sta { return self.in_rx_gap(now_us) || (s.idle_at(now_us) && self.eth_rx.is_empty()); }
-        self.in_rx_gap(now_us) || self.aps.is_empty() || (self.aps.iter().all(|ap| ap.idle_at(now_us)) && self.eth_rx.is_empty())
+        if let Some(s) = &self.sta {
+            return self.in_rx_gap(now_us) || (s.idle_at(now_us) && self.eth_rx.is_empty());
+        }
+        self.in_rx_gap(now_us)
+            || self.aps.is_empty()
+            || (self.aps.iter().all(|ap| ap.idle_at(now_us)) && self.eth_rx.is_empty())
     }
 
     /// The next frame for the station's receive ring, if one is due: the access point's beacons
@@ -826,12 +1334,18 @@ impl StationLink {
     /// exchange is not crowded out by beacon traffic; the rest waits in the access point's queue.
     /// The caller delivers the frame and then reports `rx_delivered` or `drop_rx`.
     pub fn next_rx(&mut self, now_us: u64, ring_busy: bool) -> Option<Vec<u8>> {
-        if self.in_rx_gap(now_us) { return None; }
-        if ring_busy && now_us.wrapping_sub(self.last_rx_us) < RX_STALL_US { return None; }
+        if self.in_rx_gap(now_us) {
+            return None;
+        }
+        if ring_busy && now_us.wrapping_sub(self.last_rx_us) < RX_STALL_US {
+            return None;
+        }
         if self.sta.is_some() {
             let mut due = self.sta.as_mut().map_or(Vec::new(), |s| s.step(now_us));
             let sent = self.sta.as_mut().map_or(Vec::new(), |s| s.take_sent());
-            for (at, e) in sent { self.capture(crate::netcap::Dir::ToStation, at, &e); }
+            for (at, e) in sent {
+                self.capture(crate::netcap::Dir::ToStation, at, &e);
+            }
             if due.is_empty() && !self.eth_rx.is_empty() {
                 let e = self.eth_rx.remove(0);
                 if self.sta.as_mut().is_some_and(|s| s.data_to_ds(&e, now_us)) {
@@ -843,79 +1357,150 @@ impl StationLink {
                 }
             }
             let s = self.sta.as_mut()?;
-            if due.is_empty() { return None; }
+            if due.is_empty() {
+                return None;
+            }
             due.sort_by_key(|a| a.at_us);
             let first = due.remove(0);
             s.queue.extend(due);
             self.last_rx_us = now_us;
             return Some(first.frame);
         }
-        if self.aps.is_empty() { return None; }
+        if self.aps.is_empty() {
+            return None;
+        }
         // each frame with the access point it came from, so what is not delivered goes back there
         let mut due: Vec<(usize, AirFrame)> = Vec::new();
-        for (i, ap) in self.aps.iter_mut().enumerate() { due.extend(ap.step(now_us).into_iter().map(|a| (i, a))); }
+        for (i, ap) in self.aps.iter_mut().enumerate() {
+            due.extend(ap.step(now_us).into_iter().map(|a| (i, a)));
+        }
         let eth_in = if self.relay {
-            if due.is_empty() && !self.eth_rx.is_empty() { vec![self.eth_rx.remove(0)] } else { Vec::new() }
-        } else { std::mem::take(&mut self.eth_rx) };
+            if due.is_empty() && !self.eth_rx.is_empty() {
+                vec![self.eth_rx.remove(0)]
+            } else {
+                Vec::new()
+            }
+        } else {
+            std::mem::take(&mut self.eth_rx)
+        };
         // the network is behind whichever access point the station is associated with
         let cur = self.current().unwrap_or(0);
-        for e in eth_in { if let Some(f) = self.aps[cur].data_from_ds(&e) {
-            self.capture(crate::netcap::Dir::ToStation, now_us, &e);
-            // the network's frame is put on the air here; the access point's own frames were
-            // already recorded by `send` / the beacon timer, so next_rx records only these
-            self.air_capture(crate::netcap::Dir::ToStation, now_us, &f);
-            due.push((cur, AirFrame { at_us: now_us, frame: f }));
-        } }
-        if due.is_empty() { return None; }
+        for e in eth_in {
+            if let Some(f) = self.aps[cur].data_from_ds(&e) {
+                self.capture(crate::netcap::Dir::ToStation, now_us, &e);
+                // the network's frame is put on the air here; the access point's own frames were
+                // already recorded by `send` / the beacon timer, so next_rx records only these
+                self.air_capture(crate::netcap::Dir::ToStation, now_us, &f);
+                due.push((
+                    cur,
+                    AirFrame {
+                        at_us: now_us,
+                        frame: f,
+                    },
+                ));
+            }
+        }
+        if due.is_empty() {
+            return None;
+        }
         due.sort_by_key(|(_, a)| (is_beacon(&a.frame), a.at_us));
         let (_, first) = due.remove(0);
-        for (i, a) in due { self.aps[i].queue.push(a); }
+        for (i, a) in due {
+            self.aps[i].queue.push(a);
+        }
         self.last_rx_us = now_us;
         Some(first.frame)
     }
 
     /// A frame went into the descriptor at `desc`.
-    pub fn rx_delivered(&mut self, desc: u32) { self.last_rx_desc = desc; self.rx_frames += 1; }
+    pub fn rx_delivered(&mut self, desc: u32) {
+        self.last_rx_desc = desc;
+        self.rx_frames += 1;
+    }
     /// A frame found no usable descriptor.
-    pub fn drop_rx(&mut self) { self.rx_dropped += 1; }
+    pub fn drop_rx(&mut self) {
+        self.rx_dropped += 1;
+    }
     /// A frame went by before the driver gave the MAC its receive ring.
-    pub fn drop_rx_unarmed(&mut self) { self.rx_unarmed += 1; }
+    pub fn drop_rx_unarmed(&mut self) {
+        self.rx_unarmed += 1;
+    }
     /// The MAC was reset: the receive ring it filled is gone.
-    pub fn rx_reset(&mut self) { self.last_rx_desc = 0; }
+    pub fn rx_reset(&mut self) {
+        self.last_rx_desc = 0;
+    }
 
     /// The network behind the access point answers what the station sent at once and reads the
     /// host's sockets every `NET_POLL_US`. Nothing to do in relay mode: the host has the frames.
     pub fn net_step(&mut self, now_us: u64) {
-        if self.relay { return; }
-        let sta = self.current().map(|i| self.aps[i].sta)
+        if self.relay {
+            return;
+        }
+        let sta = self
+            .current()
+            .map(|i| self.aps[i].sta)
             .or_else(|| self.aps.iter().map(|ap| ap.sta).find(|m| *m != [0; 6]));
         let Some(net) = self.net.as_mut() else { return };
-        if let Some(mac) = sta { if mac != [0; 6] { net.sta_mac = mac; } }
+        if let Some(mac) = sta {
+            if mac != [0; 6] {
+                net.sta_mac = mac;
+            }
+        }
         let out = std::mem::take(&mut self.eth_tx);
         let due = now_us.wrapping_sub(self.net_polled_us) >= NET_POLL_US;
-        if out.is_empty() && !due { return; }
-        if due { self.net_polled_us = now_us; }
-        for e in out { self.eth_rx.extend(net.handle(&e, now_us)); }
+        if out.is_empty() && !due {
+            return;
+        }
+        if due {
+            self.net_polled_us = now_us;
+        }
+        for e in out {
+            self.eth_rx.extend(net.handle(&e, now_us));
+        }
         self.eth_rx.extend(net.poll(now_us));
     }
 
     /// Switch the host's Ethernet relay on or off; a change empties both queues.
     pub fn set_relay(&mut self, enabled: bool) {
-        if self.relay != enabled { self.eth_tx.clear(); self.eth_rx.clear(); self.relay = enabled; }
-        if let Some(s) = &mut self.sta { s.host = !enabled; }
+        if self.relay != enabled {
+            self.eth_tx.clear();
+            self.eth_rx.clear();
+            self.relay = enabled;
+        }
+        if let Some(s) = &mut self.sta {
+            s.host = !enabled;
+        }
     }
 
     /// The frames the station sent since the last call, in relay mode.
     pub fn take_relay_frames(&mut self) -> Vec<Vec<u8>> {
-        if self.relay { std::mem::take(&mut self.eth_tx) } else { Vec::new() }
+        if self.relay {
+            std::mem::take(&mut self.eth_tx)
+        } else {
+            Vec::new()
+        }
     }
 
     /// A frame from the host for the station, in relay mode.
     pub fn receive_relay_frame(&mut self, frame: &[u8]) -> Result<(), String> {
-        if !self.relay || (self.aps.is_empty() && self.sta.is_none()) { return Err("Ethernet relay requires relay mode and a virtual AP or station".into()); }
-        if self.sta.as_ref().is_some_and(|s| s.state != sta::StaLink::Joined) { return Err("the virtual station has not joined the guest's access point yet".into()); }
-        if !(14..=RELAY_FRAME_MAX).contains(&frame.len()) { return Err(format!("Ethernet frame must be 14..={RELAY_FRAME_MAX} bytes without FCS")); }
-        if self.eth_rx.len() >= RELAY_QUEUE { return Err("Ethernet receive queue full".into()); }
+        if !self.relay || (self.aps.is_empty() && self.sta.is_none()) {
+            return Err("Ethernet relay requires relay mode and a virtual AP or station".into());
+        }
+        if self
+            .sta
+            .as_ref()
+            .is_some_and(|s| s.state != sta::StaLink::Joined)
+        {
+            return Err("the virtual station has not joined the guest's access point yet".into());
+        }
+        if !(14..=RELAY_FRAME_MAX).contains(&frame.len()) {
+            return Err(format!(
+                "Ethernet frame must be 14..={RELAY_FRAME_MAX} bytes without FCS"
+            ));
+        }
+        if self.eth_rx.len() >= RELAY_QUEUE {
+            return Err("Ethernet receive queue full".into());
+        }
         self.eth_rx.push(frame.to_vec());
         Ok(())
     }
@@ -926,8 +1511,16 @@ impl StationLink {
     pub fn report(&self) -> String {
         let mut lines = Vec::new();
         if self.tx_frames + self.rx_frames + self.rx_dropped + self.rx_unarmed > 0 {
-            let unarmed = if self.rx_unarmed > 0 { format!(", {} before the receive ring was set up", self.rx_unarmed) } else { String::new() };
-            let guest = if self.sta.is_some() { "the guest's access point" } else { "the station" };
+            let unarmed = if self.rx_unarmed > 0 {
+                format!(", {} before the receive ring was set up", self.rx_unarmed)
+            } else {
+                String::new()
+            };
+            let guest = if self.sta.is_some() {
+                "the guest's access point"
+            } else {
+                "the station"
+            };
             lines.push(format!("[emu] wifi: {} frames sent by {guest}, {} received ({} dropped: no descriptor{unarmed}){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.aps.iter().map(|ap| {
                 let name = if self.aps.len() > 1 { format!(" '{}'", ap.cfg.ssid) } else { String::new() };
                 format!("; AP{name}: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state)
@@ -935,15 +1528,31 @@ impl StationLink {
         }
         if let Some(s) = &self.sta {
             let mut relay = String::new();
-            if self.tx_dropped > 0 { relay += &format!(", {} frames from the access point the relay could not take", self.tx_dropped); }
-            if self.relay_lost > 0 { relay += &format!(", {} relayed frames lost as the station had left", self.relay_lost); }
+            if self.tx_dropped > 0 {
+                relay += &format!(
+                    ", {} frames from the access point the relay could not take",
+                    self.tx_dropped
+                );
+            }
+            if self.relay_lost > 0 {
+                relay += &format!(
+                    ", {} relayed frames lost as the station had left",
+                    self.relay_lost
+                );
+            }
             lines.push(format!("{}{relay}", s.report()));
         }
-        if let Some(n) = &self.net { lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
+        if let Some(n) = &self.net {
+            lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
             if let Some(t) = &n.nat {
-                let inbound = if t.hostfwd == 0 { String::new() } else { format!(", {} inbound, {} hostfwd", t.tcp_accepted, t.hostfwd) };
+                let inbound = if t.hostfwd == 0 {
+                    String::new()
+                } else {
+                    format!(", {} inbound, {} hostfwd", t.tcp_accepted, t.hostfwd)
+                };
                 lines.push(format!("[emu] nat: {} TCP connections ({} failed{}), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, inbound, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest));
-            } }
+            }
+        }
         lines.join("\n")
     }
 }

@@ -14,8 +14,8 @@ pub mod waveshare_lcd147;
 pub mod xiao;
 
 pub use waveshare_lcd147::{
-    lcd_visible, WaveshareC6Lcd147, LCD_COL_OFFSET, LCD_VISIBLE_COLS, PIN_BOOT, PIN_LCD_BL, PIN_LCD_CS, PIN_LCD_DC,
-    PIN_LCD_RST, PIN_LED,
+    lcd_visible, WaveshareC6Lcd147, LCD_COL_OFFSET, LCD_VISIBLE_COLS, PIN_BOOT, PIN_LCD_BL,
+    PIN_LCD_CS, PIN_LCD_DC, PIN_LCD_RST, PIN_LED,
 };
 pub use xiao::XiaoEsp32C6;
 
@@ -33,10 +33,24 @@ pub fn make_board(name: &str) -> Option<Board> {
 mod tests {
     #[test]
     fn the_c6_boards_are_named_and_the_others_are_not() {
-        for name in ["none", "bare", "waveshare-c6-lcd147", "c6-lcd147", "lcd147", "xiao-esp32c6", "xiao-c6", "xiao"] {
+        for name in [
+            "none",
+            "bare",
+            "waveshare-c6-lcd147",
+            "c6-lcd147",
+            "lcd147",
+            "xiao-esp32c6",
+            "xiao-c6",
+            "xiao",
+        ] {
             assert!(super::make_board(name).is_some(), "{name}");
         }
-        for name in ["atech14", "waveshare-lcd4b", "ttgo-tdisplay", "waveshare-cam"] {
+        for name in [
+            "atech14",
+            "waveshare-lcd4b",
+            "ttgo-tdisplay",
+            "waveshare-cam",
+        ] {
             assert!(super::make_board(name).is_none(), "{name}");
         }
     }

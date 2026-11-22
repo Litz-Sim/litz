@@ -228,7 +228,8 @@ fn external_s3_arduino_pin_transport() {
     m.bus.attach_board_devices();
     m.console.capture = true;
     m.console.mask = 2;
-    m.load_rom(&std::fs::read(rom).expect("readable esp32s3_rev0_rom.elf")).unwrap();
+    m.load_rom(&std::fs::read(rom).expect("readable esp32s3_rev0_rom.elf"))
+        .unwrap();
     m.write_flash(
         0,
         &std::fs::read(build.join("firmware.factory.bin"))

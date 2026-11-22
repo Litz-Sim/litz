@@ -40,7 +40,9 @@ impl SocBus {
     /// Called only on entry and from the tick while asleep. RTC_TIMER_TRIG_EN is bit 3 of the cause:
     /// ESP-IDF v5.5.4 esp_hw_support/port/esp32/include/soc/rtc.h:587.
     pub(crate) fn timer_wake(&mut self) {
-        if self.deep_sleep && self.periph.rtc.sleep_ticks_left() == Some(0) { self.wake(1 << 3); }
+        if self.deep_sleep && self.periph.rtc.sleep_ticks_left() == Some(0) {
+            self.wake(1 << 3);
+        }
     }
 
     fn wake(&mut self, cause: u32) {
@@ -106,8 +108,16 @@ mod tests {
         b.tick(1);
         assert!(b.periph.rtc.0.sw_reset);
         assert_eq!(b.periph.rtc.0.reset_cause, 5);
-        assert_eq!(b.read32(0x3ff4_8038).unwrap() & 0x7ff, 1 << 3, "WAKEUP_CAUSE");
-        assert_eq!(b.read32(0x3ff4_8018).unwrap() & (1 << 31), 0, "SLEEP_EN clears");
+        assert_eq!(
+            b.read32(0x3ff4_8038).unwrap() & 0x7ff,
+            1 << 3,
+            "WAKEUP_CAUSE"
+        );
+        assert_eq!(
+            b.read32(0x3ff4_8018).unwrap() & (1 << 31),
+            0,
+            "SLEEP_EN clears"
+        );
     }
 
     #[test]
@@ -154,7 +164,10 @@ mod tests {
         asleep_with_alarm_at(&mut b, 1 << 32 | 5);
         b.periph.rtc.0.slow_ticks = 5;
         b.tick(1);
-        assert!(!b.periph.rtc.0.sw_reset, "the low word alone is not the alarm");
+        assert!(
+            !b.periph.rtc.0.sw_reset,
+            "the low word alone is not the alarm"
+        );
         b.periph.rtc.0.slow_ticks = 1 << 32 | 5;
         b.tick(1);
         assert!(b.periph.rtc.0.sw_reset);
@@ -166,7 +179,11 @@ mod tests {
         asleep_with_alarm_at(&mut b, 100);
         b.periph.rtc.0.slow_ticks = 100;
         b.tick(1);
-        assert_eq!(b.read32(0x3ff4_8038).unwrap(), 1 << (11 + 3) | 1 << 3, "WAKEUP_ENA kept, WAKEUP_CAUSE timer");
+        assert_eq!(
+            b.read32(0x3ff4_8038).unwrap(),
+            1 << (11 + 3) | 1 << 3,
+            "WAKEUP_ENA kept, WAKEUP_CAUSE timer"
+        );
     }
 
     #[test]

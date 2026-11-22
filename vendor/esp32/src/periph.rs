@@ -4,13 +4,13 @@
 //! io_mux,spi,rtc_cntl,uart,efuse}_reg.h and include/soc/hwcrypto_reg.h:43-46.
 //! Adapter completion behavior is inferred;
 //! no hardware timing validation is claimed.
-pub use crate::crypto::{ClassicAes, ClassicRsa, ClassicSha};
-use crate::{timers::ClassicTimer, rmt::ClassicRmt, spi::ClassicGpSpi, ledc::ClassicLedc};
 use crate::adc::ClassicAdc;
+pub use crate::crypto::{ClassicAes, ClassicRsa, ClassicSha};
+use crate::{ledc::ClassicLedc, rmt::ClassicRmt, spi::ClassicGpSpi, timers::ClassicTimer};
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{
-    device_set, mmio, Device, DeviceSet, Dispatch, Gpio, Misc, RegRam, RtcCntl, SpiMem,
-    Uart, UartLayout, WriteEffect,
+    device_set, mmio, Device, DeviceSet, Dispatch, Gpio, Misc, RegRam, RtcCntl, SpiMem, Uart,
+    UartLayout, WriteEffect,
 };
 
 // Stable bus-time reference. The selected CPU clock is converted to this domain;
@@ -68,7 +68,11 @@ impl Dport {
         }
     }
     pub fn core1_control(&self) -> (bool, bool, bool) {
-        (self.ram.read(0x30) & 1 != 0, self.ram.read(0x2c) & 1 != 0, self.ram.read(0x34) & 1 != 0)
+        (
+            self.ram.read(0x30) & 1 != 0,
+            self.ram.read(0x2c) & 1 != 0,
+            self.ram.read(0x34) & 1 != 0,
+        )
     }
     pub fn cpu_lines(&self, core: usize, status: &[u32; 3]) -> u32 {
         let mut lines = 0;
@@ -96,7 +100,8 @@ impl Device for Dport {
         match off {
             0x104..=0x214 => self.map[0][((off - 0x104) / 4) as usize] = v & 31,
             0x218..=0x328 => self.map[1][((off - 0x218) / 4) as usize] = v & 31,
-            0x40 | 0x58 => { // PRO/APP CACHE_CTRL: invalidate completes synchronously
+            0x40 | 0x58 => {
+                // PRO/APP CACHE_CTRL: invalidate completes synchronously
                 if v & (1 << 4) != 0 {
                     v = (v & !(1 << 4)) | (1 << 5);
                 }
@@ -146,7 +151,9 @@ impl ClassicSpi {
 }
 impl Device for ClassicSpi {
     fn read(&mut self, off: u32) -> u32 {
-        if (0x54..=0x7c).contains(&off) { return self.0.regs.read(off); }
+        if (0x54..=0x7c).contains(&off) {
+            return self.0.regs.read(off);
+        }
         self.0.read(Self::off(off))
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
@@ -176,7 +183,8 @@ impl ClassicSpi {
         let command = self.0.regs.read(if write { 0x60 } else { 0x5c });
         let required = (1 << 2) | (1 << 4) | (1 << if write { 28 } else { 5 });
         self.0.regs.read(0x34) & 2 == 0
-            && s & required == required && s & (1 << 1) == 0
+            && s & required == required
+            && s & (1 << 1) == 0
             && (s >> 22) & 63 == 23
             && command >> 28 == 7
             && command & 0xffff == if write { 0x38 } else { 0xeb }
@@ -187,11 +195,46 @@ impl ClassicSpi {
 // Pad offsets and function selectors: io_mux_reg.h:90-359.
 const IOMUX: u32 = 0x1000;
 const IOMUX_OFFSETS: [u32; 40] = [
-    0x44, 0x88, 0x40, 0x84, 0x48, 0x6c, 0x60, 0x64,
-    0x68, 0x54, 0x58, 0x5c, 0x34, 0x38, 0x30, 0x3c,
-    0x4c, 0x50, 0x70, 0x74, 0x78, 0x7c, 0x80, 0x8c,
-    0x90, 0x24, 0x28, 0x2c, u32::MAX, u32::MAX, u32::MAX, u32::MAX,
-    0x1c, 0x20, 0x14, 0x18, 0x04, 0x08, 0x0c, 0x10,
+    0x44,
+    0x88,
+    0x40,
+    0x84,
+    0x48,
+    0x6c,
+    0x60,
+    0x64,
+    0x68,
+    0x54,
+    0x58,
+    0x5c,
+    0x34,
+    0x38,
+    0x30,
+    0x3c,
+    0x4c,
+    0x50,
+    0x70,
+    0x74,
+    0x78,
+    0x7c,
+    0x80,
+    0x8c,
+    0x90,
+    0x24,
+    0x28,
+    0x2c,
+    u32::MAX,
+    u32::MAX,
+    u32::MAX,
+    u32::MAX,
+    0x1c,
+    0x20,
+    0x14,
+    0x18,
+    0x04,
+    0x08,
+    0x0c,
+    0x10,
 ];
 
 /// Pads whose IO_MUX function 0 is GPIO as function 2 is: IDF v5.5.4
@@ -229,7 +272,9 @@ impl ClassicGpio {
     }
     fn new() -> Self {
         let mut route_mux = RegRam::new();
-        for pin in (0..40).filter(|pin| GPIO_AT_FUNCTION_0 & (1 << pin) != 0) { route_mux.write(4 + 4 * pin as u32, Self::route_value(pin, 0)); }
+        for pin in (0..40).filter(|pin| GPIO_AT_FUNCTION_0 & (1 << pin) != 0) {
+            route_mux.write(4 + 4 * pin as u32, Self::route_value(pin, 0));
+        }
         Self {
             gpio: Gpio::new(),
             io_mux: RegRam::new(),
@@ -262,10 +307,17 @@ impl ClassicGpio {
     }
     /// The IO_MUX function, with function 0 on a `GPIO_AT_FUNCTION_0` pad read as the GPIO it is.
     fn function(pin: usize, v: u32) -> u32 {
-        match (v >> 12) & 7 { 0 if GPIO_AT_FUNCTION_0 & (1 << pin) != 0 => 2, f => f }
+        match (v >> 12) & 7 {
+            0 if GPIO_AT_FUNCTION_0 & (1 << pin) != 0 => 2,
+            f => f,
+        }
     }
     fn route_value(pin: usize, v: u32) -> u32 {
-        let function = match Self::function(pin, v) { 1 => 2, 2 => 1, f => f };
+        let function = match Self::function(pin, v) {
+            1 => 2,
+            2 => 1,
+            f => f,
+        };
         (v & !(7 << 12)) | (function << 12)
     }
     fn matrix_pad(&self, pin: usize) -> bool {
@@ -352,7 +404,9 @@ impl ClassicGpio {
     }
     fn refresh_level_status(&mut self) {
         #[cfg(test)]
-        { self.level_refreshes += 1; }
+        {
+            self.level_refreshes += 1;
+        }
         let mut status = 0;
         let mut pins = self.level_pins;
         while pins != 0 {
@@ -390,19 +444,30 @@ impl ClassicGpio {
         self.external |= 1 << pin;
         let status = self.gpio.status;
         let irq = self.gpio.set_input(pin, level);
-        let irq = if self.rtc_pads & (1 << pin) != 0 { self.gpio.status = status; false } else { irq };
+        let irq = if self.rtc_pads & (1 << pin) != 0 {
+            self.gpio.status = status;
+            false
+        } else {
+            irq
+        };
         self.refresh_level_status();
         irq
     }
     pub fn release_input(&mut self, pin: u8) {
-        if pin >= 40 { return; }
+        if pin >= 40 {
+            return;
+        }
         self.external &= !(1 << pin);
         self.gpio.set_input(pin, true);
         self.sync_pull(pin as usize);
         self.refresh_level_status();
     }
     pub fn restore_inputs(&mut self, old: &Self) {
-        for pin in 0..40 { if old.external & (1 << pin) != 0 { self.set_input(pin, old.gpio.input & (1 << pin) != 0); } }
+        for pin in 0..40 {
+            if old.external & (1 << pin) != 0 {
+                self.set_input(pin, old.gpio.input & (1 << pin) != 0);
+            }
+        }
     }
     fn sync_pull(&mut self, pin: usize) {
         if pin >= 34 || (self.external | self.rtc_pads) & (1 << pin) != 0 {
@@ -425,18 +490,28 @@ impl ClassicGpio {
             .then_some((pin as u8, cfg & (1 << 6) != 0))
     }
     pub fn input_pin(&self, signal: usize) -> Option<u8> {
-        esp_soc::pins::ChipPins::ESP32.routes(&self.gpio, &self.route_mux).input_pin(signal)
-            .or_else(|| Self::direct_pin(signal).filter(|&pin| (self.mux(pin) >> 12) & 7 == 1 && self.input_enabled(pin)).map(|p| p as u8))
+        esp_soc::pins::ChipPins::ESP32
+            .routes(&self.gpio, &self.route_mux)
+            .input_pin(signal)
+            .or_else(|| {
+                Self::direct_pin(signal)
+                    .filter(|&pin| (self.mux(pin) >> 12) & 7 == 1 && self.input_enabled(pin))
+                    .map(|p| p as u8)
+            })
     }
     pub(crate) fn low_outputs(&self) -> u64 {
-        (0..34).filter(|&pin| self.driven(pin) == Some(false)).fold(0, |mask, pin| mask | (1 << pin))
+        (0..34)
+            .filter(|&pin| self.driven(pin) == Some(false))
+            .fold(0, |mask, pin| mask | (1 << pin))
     }
     pub fn output_pins(&self, signal: usize) -> u64 {
-        (0..34).filter(|&pin| {
-            let cfg = self.gpio.func_out_sel[pin];
-            (self.matrix_pad(pin) && cfg & 0x3ff == signal as u32 && self.driven(pin).is_some())
-                || ((self.mux(pin) >> 12) & 7 == 1 && Self::direct_signal(pin) == Some(signal))
-        }).fold(0, |mask, pin| mask | (1 << pin))
+        (0..34)
+            .filter(|&pin| {
+                let cfg = self.gpio.func_out_sel[pin];
+                (self.matrix_pad(pin) && cfg & 0x3ff == signal as u32 && self.driven(pin).is_some())
+                    || ((self.mux(pin) >> 12) & 7 == 1 && Self::direct_signal(pin) == Some(signal))
+            })
+            .fold(0, |mask, pin| mask | (1 << pin))
     }
     /// Resolve a peripheral input routed through GPIO_FUNCm_IN_SEL_CFG.
     pub fn signal_input(&self, signal: usize) -> Option<bool> {
@@ -470,7 +545,9 @@ impl ClassicGpio {
     }
     pub fn output_pin(&self, signal: usize) -> Option<(u8, bool)> {
         let pins = self.output_pins(signal) | self.output_pins(signal | (1 << 9));
-        if pins == 0 { return None; }
+        if pins == 0 {
+            return None;
+        }
         let pin = pins.trailing_zeros() as u8;
         Some((pin, self.gpio.func_out_sel[pin as usize] & (1 << 9) != 0))
     }
@@ -502,7 +579,8 @@ impl Device for ClassicGpio {
             let off = off - IOMUX;
             self.io_mux.write(off, v);
             if let Some(pin) = IOMUX_OFFSETS.iter().position(|&candidate| candidate == off) {
-                self.route_mux.write(4 + 4 * pin as u32, Self::route_value(pin, v));
+                self.route_mux
+                    .write(4 + 4 * pin as u32, Self::route_value(pin, v));
                 self.sync_pull(pin);
                 self.refresh_level_status();
             }
@@ -518,7 +596,10 @@ impl Device for ClassicGpio {
             self.gpio.status &= (1 << 40) - 1;
             // Shared GPIO output/enable writes also resolve the fallback input
             // word, even when IO_MUX does not select a driven digital output.
-            if matches!(translated, 0x4 | 0x8 | 0xc | 0x10 | 0x14 | 0x18 | 0x20 | 0x24 | 0x28 | 0x2c | 0x30 | 0x34) {
+            if matches!(
+                translated,
+                0x4 | 0x8 | 0xc | 0x10 | 0x14 | 0x18 | 0x20 | 0x24 | 0x28 | 0x2c | 0x30 | 0x34
+            ) {
                 self.refresh_level_status();
             }
             if (0x74..=0x110).contains(&translated) {
@@ -526,7 +607,11 @@ impl Device for ClassicGpio {
                 let bit = 1u64 << pin;
                 let cfg = self.gpio.pin[pin];
                 self.level_pins = (self.level_pins & !bit)
-                    | if matches!((cfg >> 7) & 7, 4 | 5) { bit } else { 0 };
+                    | if matches!((cfg >> 7) & 7, 4 | 5) {
+                        bit
+                    } else {
+                        0
+                    };
                 // IDF v5.5.4 components/soc/esp32/register/soc/gpio_reg.h:303,322:
                 // INT_ENA bits 13..17, INT_TYPE bits 7..9; identical in v4.4.7
                 // components/soc/esp32/include/soc/gpio_reg.h:311,330.
@@ -535,7 +620,12 @@ impl Device for ClassicGpio {
                 // INT_ENA stays independent of INT_TYPE: software-set pending
                 // bits remain visible with type 0, as before.
                 for (route, mask) in self.irq_routes.iter_mut().enumerate() {
-                    *mask = (*mask & !bit) | if cfg & (1 << (13 + route)) != 0 { bit } else { 0 };
+                    *mask = (*mask & !bit)
+                        | if cfg & (1 << (13 + route)) != 0 {
+                            bit
+                        } else {
+                            0
+                        };
                 }
                 self.refresh_level_status();
             }
@@ -576,7 +666,13 @@ impl ClassicUart {
     // uart_tx_wait_idle clears TX_DONE and then spins `while (INT_RAW & TX_DONE)`, right before the download protocol
     // jumps into a loaded stub. Here a clear holds TX_DONE down until the next byte is written to the FIFO.
     const TX_DONE: u32 = 1 << 14;
-    fn tx_done_mask(&self) -> u32 { if self.2 { !Self::TX_DONE } else { !0 } }
+    fn tx_done_mask(&self) -> u32 {
+        if self.2 {
+            !Self::TX_DONE
+        } else {
+            !0
+        }
+    }
     fn autobaud_sampling(&mut self) -> bool {
         self.0.read(Self::AUTOBAUD) & 1 != 0 && self.1 > 0
     }
@@ -591,7 +687,9 @@ impl ClassicUart {
     }
     /// While the autobaud detector is enabled, received bytes are also what it "measures".
     fn count_edges(&mut self, n: usize) {
-        if self.0.read(Self::AUTOBAUD) & 1 != 0 { self.1 = self.1.saturating_add(9 * n as u32).min(1023); }
+        if self.0.read(Self::AUTOBAUD) & 1 != 0 {
+            self.1 = self.1.saturating_add(9 * n as u32).min(1023);
+        }
     }
     /// Host-injected bytes: what fits is available at once, the rest is released at the baud rate by `advance`
     /// (esptool sends several KB per packet; see `Uart::host_input_queued`).
@@ -610,7 +708,9 @@ impl ClassicUart {
         self.0.advance(cycles, cpu_hz, baud)
     }
     /// CPU cycles until the next queued byte is due, for the idle deadline.
-    pub fn input_deadline(&self, cpu_hz: u64) -> Option<u64> { self.0.input_deadline(cpu_hz, self.0.classic_baud()) }
+    pub fn input_deadline(&self, cpu_hz: u64) -> Option<u64> {
+        self.0.input_deadline(cpu_hz, self.0.classic_baud())
+    }
 }
 impl std::ops::Deref for ClassicUart {
     type Target = Uart;
@@ -634,9 +734,15 @@ impl Device for ClassicUart {
         }
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
-        if off == Self::AUTOBAUD && v & 1 == 0 { self.1 = 0; } // detector off: measurements are discarded
-        if off == Self::INT_CLR && v & Self::TX_DONE != 0 { self.2 = true; }
-        if off == Self::FIFO { self.2 = false; } // a transmitted byte completes at once, raising TX_DONE again
+        if off == Self::AUTOBAUD && v & 1 == 0 {
+            self.1 = 0;
+        } // detector off: measurements are discarded
+        if off == Self::INT_CLR && v & Self::TX_DONE != 0 {
+            self.2 = true;
+        }
+        if off == Self::FIFO {
+            self.2 = false;
+        } // a transmitted byte completes at once, raising TX_DONE again
         self.0.write(off, v);
         WriteEffect::NONE
     }
@@ -683,8 +789,11 @@ impl ClassicRtc {
     /// WAKEUP_ENA resets with that bit set (0b1100), so a target of 0 means none was written: a
     /// model choice, since what silicon does with an unwritten target is not measured.
     pub(crate) fn sleep_ticks_left(&self) -> Option<u64> {
-        if self.0.ram.read(0x34) & (1 << (11 + 3)) == 0 || self.0.ram.read(0x18) & (1 << 31) == 0 { return None; }
-        let target = u64::from(self.0.ram.read(0x08) & 0xffff) << 32 | u64::from(self.0.ram.read(0x04));
+        if self.0.ram.read(0x34) & (1 << (11 + 3)) == 0 || self.0.ram.read(0x18) & (1 << 31) == 0 {
+            return None;
+        }
+        let target =
+            u64::from(self.0.ram.read(0x08) & 0xffff) << 32 | u64::from(self.0.ram.read(0x04));
         (target != 0).then(|| target.saturating_sub(self.0.slow_ticks))
     }
     fn off(off: u32) -> u32 {
@@ -709,7 +818,9 @@ impl Device for ClassicRtc {
             self.0.ram.write(0x44, self.0.ram.read(0x44) & !v);
         } else if off == 0x38 {
             // WAKEUP_CAUSE[10:0] is read-only; EXT0 wake sets it in the bus.
-            self.0.ram.write(0x34, (v & (0xfff << 11)) | (self.0.ram.read(0x34) & 0x7ff));
+            self.0
+                .ram
+                .write(0x34, (v & (0xfff << 11)) | (self.0.ram.read(0x34) & 0x7ff));
         } else if off == 0x100 {
             // IDF v5.5.4 register/soc/rtc_cntl_reg.h:2017-2039: START bit 8,
             // FINISH bit 31, result +0x104. Completion is produced by the bus on START;
@@ -751,12 +862,17 @@ impl ClassicEfuse {
         let mut crc = 0u8;
         for byte in mac {
             crc ^= byte;
-            for _ in 0..8 { crc = (crc >> 1) ^ if crc & 1 != 0 { 0x8c } else { 0 }; }
+            for _ in 0..8 {
+                crc = (crc >> 1) ^ if crc & 1 != 0 { 0x8c } else { 0 };
+            }
         }
-        r.write(0x08, (crc as u32) << 16 | (mac[0] as u32) << 8 | mac[1] as u32);
+        r.write(
+            0x08,
+            (crc as u32) << 16 | (mac[0] as u32) << 8 | mac[1] as u32,
+        );
         r.write(0x0c, 1 << 15); // ECO1+
-        // IDF v5.5.4 register/soc/efuse_reg.h:221,251: CHIP_VER_REV2 in EFUSE_BLK0_RDATA5_REG. With
-        // CHIP_VER_REV1 above (efuse_reg.h:88,156) and SYSCON_DATE bit 31: v3.0, the ECO3 the ROM is for.
+                                // IDF v5.5.4 register/soc/efuse_reg.h:221,251: CHIP_VER_REV2 in EFUSE_BLK0_RDATA5_REG. With
+                                // CHIP_VER_REV1 above (efuse_reg.h:88,156) and SYSCON_DATE bit 31: v3.0, the ECO3 the ROM is for.
         r.write(0x14, 1 << 20);
         // IDF v5.5.4 register/soc/efuse_reg.h:169,177-183: EFUSE_BLK0_RDATA4_REG EFUSE_RD_ADC_VREF
         // [12:8]. 0x10 is nominal 1100 mV Vref, sign-magnitude negative zero.
@@ -794,16 +910,29 @@ impl ClassicSlc {
     const LINKS: [u32; 4] = [0x3c, 0x40, 0x44, 0x48];
     const STROBES: u32 = 0b111 << 28;
     const PARK: u32 = 1 << 31;
-    fn new() -> Self { Self(RegRam::new()) }
+    fn new() -> Self {
+        Self(RegRam::new())
+    }
 }
 impl Device for ClassicSlc {
     fn read(&mut self, off: u32) -> u32 {
         let v = self.0.read(off);
-        if Self::LINKS.contains(&off) { (v & !Self::STROBES) | Self::PARK } else { v }
+        if Self::LINKS.contains(&off) {
+            (v & !Self::STROBES) | Self::PARK
+        } else {
+            v
+        }
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
         // The strobes act once and read back as 0; PARK is read-only. Only the address field is kept.
-        self.0.write(off, if Self::LINKS.contains(&off) { v & 0x000f_ffff } else { v });
+        self.0.write(
+            off,
+            if Self::LINKS.contains(&off) {
+                v & 0x000f_ffff
+            } else {
+                v
+            },
+        );
         WriteEffect::NONE
     }
 }
@@ -914,11 +1043,18 @@ impl Peripherals {
             rmt: ClassicRmt::new(),
             rtc: ClassicRtc::new(),
             efuse: ClassicEfuse::new(mac),
-            syscon: { let mut r = RegRam::new(); r.write(0x7c, SYSCON_DATE_ECO3); r },
+            syscon: {
+                let mut r = RegRam::new();
+                r.write(0x7c, SYSCON_DATE_ECO3);
+                r
+            },
             slc: ClassicSlc::new(),
             sha: ClassicSha::new(),
             timg: [ClassicTimer::new(0), ClassicTimer::new(1)],
-            i2c: [esp_periph::i2c::I2c::new_classic(), esp_periph::i2c::I2c::new_classic()],
+            i2c: [
+                esp_periph::i2c::I2c::new_classic(),
+                esp_periph::i2c::I2c::new_classic(),
+            ],
             misc: Misc::new(),
             spi_exec: false,
             clock: Self::new_clock(),
@@ -930,24 +1066,41 @@ impl Peripherals {
             analog: crate::wifi::Analog::default(),
             fe: crate::wifi::FrontEnd::default(),
             adc: ClassicAdc::new(),
-            i2s: [crate::i2s::ClassicI2s::for_port(0), crate::i2s::ClassicI2s::for_port(1)],
+            i2s: [
+                crate::i2s::ClassicI2s::for_port(0),
+                crate::i2s::ClassicI2s::for_port(1),
+            ],
         };
-        for uart in &mut p.uart { uart.write(0x20, 1 << 27); }
+        for uart in &mut p.uart {
+            uart.write(0x20, 1 << 27);
+        }
         p.sync_crypto();
         p
     }
     pub fn uart_route(&self, port: usize) -> esp_soc::uart::UartRoute {
-        esp_soc::uart::UartPins::ESP32.route(port, &self.gpio.gpio, &self.gpio.route_mux, self.uart[port].classic_baud())
+        esp_soc::uart::UartPins::ESP32.route(
+            port,
+            &self.gpio.gpio,
+            &self.gpio.route_mux,
+            self.uart[port].classic_baud(),
+        )
     }
     pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
         let routes = std::array::from_fn::<_, 3, _>(|port| self.uart_route(port));
         // Same routing as esp_soc::uart::uart_pin_input, through ClassicUart::wire_input so pin-driven bytes are also
         // counted by the autobaud detector (they are at line rate already: no pacing, and overflow as on silicon).
-        if input.data.is_empty() { return; }
+        if input.data.is_empty() {
+            return;
+        }
         for (uart, route) in self.uart.iter_mut().zip(&routes) {
-            if route.rx_pin != Some(input.pin) { continue; }
-            if route.matches_baud(input.baud) { uart.wire_input(&input.data); }
-            else { uart.0.int_raw |= esp_periph::uart::INT_FRM_ERR; }
+            if route.rx_pin != Some(input.pin) {
+                continue;
+            }
+            if route.matches_baud(input.baud) {
+                uart.wire_input(&input.data);
+            } else {
+                uart.0.int_raw |= esp_periph::uart::INT_FRM_ERR;
+            }
         }
     }
     pub fn block_name(block: u32) -> &'static str {
@@ -1000,7 +1153,9 @@ impl Peripherals {
             0x3ff0_2808 | 0x3ff0_2810 => Some(2),
             _ => None,
         };
-        if crypto.is_some_and(|engine| !self.crypto_enabled[engine]) { return; }
+        if crypto.is_some_and(|engine| !self.crypto_enabled[engine]) {
+            return;
+        }
         match addr {
             0x3ff4_8400..=0x3ff4_84ff => {
                 let old = self.gpio.driven_levels();
@@ -1025,16 +1180,21 @@ impl Peripherals {
             // Reuse the shared physical route decoder before the synchronous classic
             // command list. IDF v5.5.4 esp32/include/soc/gpio_sig_map.h:73-76,200-203
             // gives I2CEXT0/1 SCL/SDA input/output signals; no new addressing path.
-            let routes = esp_soc::pins::ChipPins::ESP32.routes(&self.gpio.gpio, &self.gpio.route_mux);
+            let routes =
+                esp_soc::pins::ChipPins::ESP32.routes(&self.gpio.gpio, &self.gpio.route_mux);
             let pins = routes.i2c_pin(sda).zip(routes.i2c_pin(scl));
             self.i2c[bus].set_pins(pins);
-            if self.gpio.signal_input(scl) != Some(true) || self.gpio.signal_input(sda) != Some(true) {
+            if self.gpio.signal_input(scl) != Some(true)
+                || self.gpio.signal_input(sda) != Some(true)
+            {
                 self.i2c[bus].int_raw |= esp_periph::i2c::INT_TIMEOUT;
                 v &= !(1 << 5);
             }
         }
         // IDF v5.5.4 dport_reg.h:1064,1069: DPORT_CORE_RST_EN_REG bit 2 is DPORT_WIFIMAC_RST.
-        if addr == 0x3ff0_00d0 && v & (1 << 2) != 0 { self.wifi.reset(); }
+        if addr == 0x3ff0_00d0 && v & (1 << 2) != 0 {
+            self.wifi.reset();
+        }
         if addr == 0x3ff0_00c4 && v & (1 << 11) != 0 {
             self.ledc = ClassicLedc::new();
         }
@@ -1044,7 +1204,9 @@ impl Peripherals {
         if mmio::write32(self, addr, v).contains(WriteEffect::SPI_EXEC) {
             self.spi_exec = true;
         }
-        if matches!(addr, 0x3ff0_001c | 0x3ff0_0020 | 0x3ff0_0490) { self.sync_crypto(); }
+        if matches!(addr, 0x3ff0_001c | 0x3ff0_0020 | 0x3ff0_0490) {
+            self.sync_crypto();
+        }
         if let Some(bus) = i2c {
             let (scl, sda) = I2C_SIGNALS[bus];
             self.gpio.set_output_signal(scl, true, false);
@@ -1056,7 +1218,9 @@ impl Peripherals {
             for (port, bit) in [4, 21].into_iter().enumerate() {
                 // Camera DMA must not survive a peripheral reset. Keep the
                 // established PCM reset behavior unchanged in this slice.
-                if self.dport.ram.read(0xc4) & (1 << bit) != 0 && self.i2s[port].camera_rx().is_some() {
+                if self.dport.ram.read(0xc4) & (1 << bit) != 0
+                    && self.i2s[port].camera_rx().is_some()
+                {
                     self.i2s[port] = crate::i2s::ClassicI2s::for_port(port);
                 }
                 self.i2s[port].clock_enabled = self.dport.ram.read(0xc0) & (1 << bit) != 0
@@ -1067,13 +1231,17 @@ impl Peripherals {
             self.rmt.clock_enabled = self.dport.ram.read(0xc0) & (1 << 9) != 0
                 && self.dport.ram.read(0xc4) & (1 << 9) == 0;
         }
-        if matches!(addr >> 12, 0x3ff00 | 0x3ff59) { self.sync_ledc_outputs(); }
+        if matches!(addr >> 12, 0x3ff00 | 0x3ff59) {
+            self.sync_ledc_outputs();
+        }
         if matches!(addr, 0x3ff0_00cc | 0x3ff0_00d0) {
             // IDF v5.5.4 dport_reg.h:1040-1043,1064,1069.
             self.wifi.clock_enabled = self.dport.ram.read(0xcc) & 0x406 == 0x406
                 && self.dport.ram.read(0xd0) & (1 << 2) == 0;
         }
-        if matches!(addr >> 12, 0x3ff00 | 0x3ff56) { self.sync_rmt_outputs(); }
+        if matches!(addr >> 12, 0x3ff00 | 0x3ff56) {
+            self.sync_rmt_outputs();
+        }
     }
     pub fn tick(&mut self, cycles: u64) -> bool {
         let gpio_before = self.gpio.raw_status();
@@ -1092,12 +1260,18 @@ impl Peripherals {
         // ticks per CPU clock (12/6/3/2 = 40/80/160/240 MHz), so this is the current CPU clock.
         if self.uart.iter().any(|u| u.has_queued()) {
             let cpu_hz = self.uart_pace_hz();
-            for uart in self.uart.iter_mut() { irq_changed |= uart.advance(cycles, cpu_hz); }
+            for uart in self.uart.iter_mut() {
+                irq_changed |= uart.advance(cycles, cpu_hz);
+            }
         }
         let ledc_before = self.ledc.irq_sources();
         let rmt_before = self.rmt.irq_sources();
-        if self.ledc.clock() == Some(ClockDomain::Apb) { self.ledc.tick(ticks); }
-        if self.rmt.clock() == Some(ClockDomain::Apb) { self.rmt.tick(ticks); }
+        if self.ledc.clock() == Some(ClockDomain::Apb) {
+            self.ledc.tick(ticks);
+        }
+        if self.rmt.clock() == Some(ClockDomain::Apb) {
+            self.rmt.tick(ticks);
+        }
         irq_changed |= ledc_before != self.ledc.irq_sources();
         irq_changed |= rmt_before != self.rmt.irq_sources();
         self.sync_ledc_outputs();
@@ -1112,7 +1286,11 @@ impl Peripherals {
     /// rtc_clk.c:391-404 also sets APB=CPU for RC_FAST. RC_FAST/APLL
     /// frequency remains approximated as XTAL (40 MHz); only PLL uses 80 MHz APB.
     fn apb_divider(&self) -> u64 {
-        if (self.rtc.0.ram.read(0x70) >> 27) & 3 != 1 { 6 } else { 3 }
+        if (self.rtc.0.ram.read(0x70) >> 27) & 3 != 1 {
+            6
+        } else {
+            3
+        }
     }
     /// Half reference ticks per CPU clock. IDF v5.5.4 clk_tree_ll.h:543-626,
     /// dport_reg.h:154-174 and rtc_cntl_reg.h:863-881: XTAL=40 MHz;
@@ -1120,8 +1298,15 @@ impl Peripherals {
     /// sources/reserved PLL selections use XTAL; APLL/RC/dividers are not modeled.
     pub(crate) fn cpu_scale_half(&self) -> u64 {
         if (self.rtc.0.ram.read(0x70) >> 27) & 3 == 1 {
-            match self.dport.ram.read(0x3c) & 3 { 0 => 6, 1 => 3, 2 => 2, _ => 12 }
-        } else { 12 }
+            match self.dport.ram.read(0x3c) & 3 {
+                0 => 6,
+                1 => 3,
+                2 => 2,
+                _ => 12,
+            }
+        } else {
+            12
+        }
     }
     pub fn source_status(&self, core: usize) -> [u32; 3] {
         let all = Dispatch::source_status(self);
@@ -1145,19 +1330,28 @@ impl Peripherals {
         // once per presentation, rather than once per CPU.
         let all = Dispatch::source_status(self);
         for (core, lines) in out.iter_mut().enumerate() {
-            *lines = self.dport.cpu_lines(core, &self.with_gpio_sources(core, &all));
+            *lines = self
+                .dport
+                .cpu_lines(core, &self.with_gpio_sources(core, &all));
         }
     }
     /// The clock `tick`'s cycles run at for UART pacing (the current CPU clock).
-    fn uart_pace_hz(&self) -> u64 { 480_000_000 / self.cpu_scale_half().max(1) }
+    fn uart_pace_hz(&self) -> u64 {
+        480_000_000 / self.cpu_scale_half().max(1)
+    }
     /// Cycles (of `tick`) until queued host UART input is due, so an idle core is not fast-forwarded past it.
     pub fn uart_input_deadline(&self) -> Option<u64> {
-        if !self.uart.iter().any(|u| u.has_queued()) { return None; }
+        if !self.uart.iter().any(|u| u.has_queued()) {
+            return None;
+        }
         let hz = self.uart_pace_hz();
         self.uart.iter().filter_map(|u| u.input_deadline(hz)).min()
     }
     pub fn cycles_until_timer(&self) -> u32 {
-        let mut best = self.rtc.next_deadline().map_or(u64::MAX, |t| t.saturating_sub(1) * 1600);
+        let mut best = self
+            .rtc
+            .next_deadline()
+            .map_or(u64::MAX, |t| t.saturating_sub(1) * 1600);
         for timer in &self.timg {
             if let Some(t) = timer.next_deadline() {
                 best = best.min(t.saturating_sub(1).saturating_mul(self.apb_divider()));
@@ -1183,7 +1377,8 @@ impl Peripherals {
     #[inline]
     fn sync_rmt_outputs(&mut self) {
         for (channel, level) in std::mem::take(&mut self.rmt.outputs) {
-            self.gpio.set_output_signal(crate::rmt::SIGNAL0 + channel, level, true);
+            self.gpio
+                .set_output_signal(crate::rmt::SIGNAL0 + channel, level, true);
         }
     }
     pub fn pwm_output(&self, pin: u32) -> Option<(f64, u32)> {
@@ -1208,12 +1403,22 @@ mod tests {
     fn classic_reports_eco3_silicon_revision_v3_0() {
         // ESP-IDF v5.5.4 hal/esp32/efuse_hal.c:16-46: rev1, rev2 and SYSCON_DATE bit 31; 0b111 is v3.
         let mut p = Peripherals::new([0; 6]);
-        let eco = (p.read32(0x3ff6_607c) >> 31) << 2 | (p.read32(0x3ff5_a014) >> 20 & 1) << 1 | p.read32(0x3ff5_a00c) >> 15 & 1;
+        let eco = (p.read32(0x3ff6_607c) >> 31) << 2
+            | (p.read32(0x3ff5_a014) >> 20 & 1) << 1
+            | p.read32(0x3ff5_a00c) >> 15 & 1;
         assert_eq!(eco, 0b111);
-        assert_eq!(p.read32(0x3ff5_a014) >> 24 & 3, 0, "wafer minor version: v3.0, not v3.1");
+        assert_eq!(
+            p.read32(0x3ff5_a014) >> 24 & 3,
+            0,
+            "wafer minor version: v3.0, not v3.1"
+        );
         assert_eq!(p.read32(0x3ff6_607c), 0x9604_2000);
         p.write32(0x3ff6_6000, 0x1234);
-        assert_eq!(p.read32(0x3ff6_6000), 0x1234, "the rest of SYSCON stays register RAM");
+        assert_eq!(
+            p.read32(0x3ff6_6000),
+            0x1234,
+            "the rest of SYSCON stays register RAM"
+        );
     }
 
     #[test]
@@ -1222,15 +1427,31 @@ mod tests {
         // IDF v5.5.4 soc/esp32/include/soc/slc_reg.h: +0x3c 0RX_LINK, +0x40 0TX_LINK, +0x44 1RX_LINK, +0x48 1TX_LINK.
         let mut p = Peripherals::new([0; 6]);
         for reg in [0x3ff5_803c_u32, 0x3ff5_8040, 0x3ff5_8044, 0x3ff5_8048] {
-            assert_ne!(p.read32(reg) & (1 << 31), 0, "{reg:#x} parked before anything is written");
+            assert_ne!(
+                p.read32(reg) & (1 << 31),
+                0,
+                "{reg:#x} parked before anything is written"
+            );
             p.write32(reg, 1 << 28 | 0x1234);
             let v = p.read32(reg);
             assert_ne!(v & (1 << 31), 0, "{reg:#x} still parked after STOP");
-            assert_eq!(v & (0b111 << 28), 0, "{reg:#x}: STOP/START/RESTART are strobes and read back 0");
-            assert_eq!(v & 0xf_ffff, 0x1234, "{reg:#x}: the descriptor address is stored");
+            assert_eq!(
+                v & (0b111 << 28),
+                0,
+                "{reg:#x}: STOP/START/RESTART are strobes and read back 0"
+            );
+            assert_eq!(
+                v & 0xf_ffff,
+                0x1234,
+                "{reg:#x}: the descriptor address is stored"
+            );
         }
         p.write32(0x3ff5_8000, 0xdead_beef);
-        assert_eq!(p.read32(0x3ff5_8000), 0xdead_beef, "the rest of the SLC stays register RAM");
+        assert_eq!(
+            p.read32(0x3ff5_8000),
+            0xdead_beef,
+            "the rest of the SLC stays register RAM"
+        );
     }
 
     #[test]
@@ -1238,13 +1459,28 @@ mod tests {
         // ROM uart_baudrate_detect: waits for UART_RXD_CNT (+0x30) > 127, then divisor*16 = ((high + low) << 3) + 144.
         let mut p = Peripherals::new([0; 6]);
         let uart0 = 0x3ff4_0000_u32;
-        assert_eq!(p.read32(uart0 + 0x30), 0, "no edges counted before anything arrives");
+        assert_eq!(
+            p.read32(uart0 + 0x30),
+            0,
+            "no edges counted before anything arrives"
+        );
         p.write32(uart0 + 0x18, 0x401); // UART_AUTOBAUD_EN | glitch filter, as the ROM writes it
-        assert_eq!(p.read32(uart0 + 0x30), 0, "enabled but nothing received yet");
+        assert_eq!(
+            p.read32(uart0 + 0x30),
+            0,
+            "enabled but nothing received yet"
+        );
         p.uart[0].host_input(&[0x55; 20]); // esptool's sync pattern
-        assert!(p.read32(uart0 + 0x30) > 127, "enough edges for the ROM to stop waiting");
+        assert!(
+            p.read32(uart0 + 0x30) > 127,
+            "enough edges for the ROM to stop waiting"
+        );
         let (low, high) = (p.read32(uart0 + 0x28), p.read32(uart0 + 0x2c));
-        assert_eq!(((low + high) << 3) + 144, 16 * (80_000_000 / 115_200), "the ROM recovers the 115200 divisor");
+        assert_eq!(
+            ((low + high) << 3) + 144,
+            16 * (80_000_000 / 115_200),
+            "the ROM recovers the 115200 divisor"
+        );
         p.write32(uart0 + 0x18, 0); // the ROM disables the detector when it is done
         assert_eq!(p.read32(uart0 + 0x30), 0);
     }
@@ -1258,14 +1494,30 @@ mod tests {
         p.write32(uart0 + 0x24, 1); // RXFIFO_FULL_THRHD = 1
         p.write32(uart0 + 0x0c, 1); // enable RXFIFO_FULL
         p.uart[0].host_input(&[1, 2, 3]);
-        assert_ne!(p.read32(uart0 + 0x08) & 1, 0, "asserted while bytes are waiting");
+        assert_ne!(
+            p.read32(uart0 + 0x08) & 1,
+            0,
+            "asserted while bytes are waiting"
+        );
         assert_eq!(p.read32(uart0), 1);
-        assert_ne!(p.read32(uart0 + 0x08) & 1, 0, "still asserted: two bytes remain");
+        assert_ne!(
+            p.read32(uart0 + 0x08) & 1,
+            0,
+            "still asserted: two bytes remain"
+        );
         assert_eq!(p.read32(uart0), 2);
         assert_eq!(p.read32(uart0), 3);
-        assert_eq!(p.read32(uart0 + 0x08) & 1, 0, "FIFO drained below the threshold: the interrupt falls on its own");
+        assert_eq!(
+            p.read32(uart0 + 0x08) & 1,
+            0,
+            "FIFO drained below the threshold: the interrupt falls on its own"
+        );
         p.uart[0].host_input(&[9]);
-        assert_ne!(p.read32(uart0 + 0x08) & 1, 0, "and re-raises on the next arrival");
+        assert_ne!(
+            p.read32(uart0 + 0x08) & 1,
+            0,
+            "and re-raises on the next arrival"
+        );
     }
 
     #[test]
@@ -1280,13 +1532,25 @@ mod tests {
         let per_byte = 480_000_000 / p.cpu_scale_half() * 10 / 115_200; // at the clock tick() paces with
         p.tick(per_byte * 10); // ten byte times pass with the FIFO still full: nothing more can enter
         assert_eq!(p.uart[0].rx_pending(), 128);
-        for _ in 0..128 { got.push(p.read32(uart0) as u8); }
-        assert_eq!(p.uart[0].rx_pending(), 0, "the host's bytes are not burst in behind the reads");
+        for _ in 0..128 {
+            got.push(p.read32(uart0) as u8);
+        }
+        assert_eq!(
+            p.uart[0].rx_pending(),
+            0,
+            "the host's bytes are not burst in behind the reads"
+        );
         p.tick(per_byte * 3);
-        assert_eq!(p.uart[0].rx_pending(), 3, "three byte times release three bytes");
+        assert_eq!(
+            p.uart[0].rx_pending(),
+            3,
+            "three byte times release three bytes"
+        );
         for _ in 0..40 {
             p.tick(per_byte * 10);
-            while p.uart[0].rx_pending() > 0 { got.push(p.read32(uart0) as u8); }
+            while p.uart[0].rx_pending() > 0 {
+                got.push(p.read32(uart0) as u8);
+            }
         }
         assert_eq!(got, data, "every byte arrives, in order");
     }
@@ -1296,15 +1560,31 @@ mod tests {
         // ROM uart_tx_wait_idle: INT_CLR |= TX_DONE (0x4000), flush, then spin while INT_RAW & TX_DONE.
         let mut p = Peripherals::new([0; 6]);
         let uart0 = 0x3ff4_0000_u32;
-        assert_ne!(p.read32(uart0 + 0x04) & 0x4000, 0, "idle transmitter: TX_DONE raised");
+        assert_ne!(
+            p.read32(uart0 + 0x04) & 0x4000,
+            0,
+            "idle transmitter: TX_DONE raised"
+        );
         p.write32(uart0 + 0x10, 0x4000);
-        assert_eq!(p.read32(uart0 + 0x04) & 0x4000, 0, "cleared, and nothing sent since: the ROM's wait ends");
+        assert_eq!(
+            p.read32(uart0 + 0x04) & 0x4000,
+            0,
+            "cleared, and nothing sent since: the ROM's wait ends"
+        );
         p.write32(uart0, b'A' as u32);
-        assert_ne!(p.read32(uart0 + 0x04) & 0x4000, 0, "the next byte raises it again");
+        assert_ne!(
+            p.read32(uart0 + 0x04) & 0x4000,
+            0,
+            "the next byte raises it again"
+        );
         p.write32(uart0 + 0x0c, 0x4000);
         assert_ne!(p.uart[0].irq_sources(), 0, "and it interrupts when enabled");
         p.write32(uart0 + 0x10, 0x4000);
-        assert_eq!(p.uart[0].irq_sources(), 0, "a clear also takes the interrupt down");
+        assert_eq!(
+            p.uart[0].irq_sources(),
+            0,
+            "a clear also takes the interrupt down"
+        );
     }
 
     #[test]
@@ -1314,15 +1594,18 @@ mod tests {
         let uart0 = 0x3ff4_0000u32;
         b.write32(uart0 + 0x24, 1).unwrap();
         b.write32(uart0 + 0x0c, 1 | 0x4000).unwrap(); // RXFIFO_FULL and TX_DONE enabled
-        b.write32(uart0 + 0x10, 0x4000).unwrap();     // TX_DONE cleared: only RX can hold the line
+        b.write32(uart0 + 0x10, 0x4000).unwrap(); // TX_DONE cleared: only RX can hold the line
         esp_soc::SocBus::uart_input(&mut b, 0, b"ab");
-        b.write8(uart0, b'Z').unwrap();               // a byte store to the TX FIFO must not pop 'a'
-        b.write32(uart0 + 0x10, 0x4000).unwrap();     // and clear the TX_DONE that store raised
+        b.write8(uart0, b'Z').unwrap(); // a byte store to the TX FIFO must not pop 'a'
+        b.write32(uart0 + 0x10, 0x4000).unwrap(); // and clear the TX_DONE that store raised
         assert_eq!(b.read8(uart0), Ok(b'a'));
         b.irq_dirty = false;
         assert_eq!(b.read8(uart0), Ok(b'b'));
         assert_eq!(b.periph.uart[0].irq_sources(), 0);
-        assert!(b.irq_dirty, "the falling line reaches the CPU even with TX_DONE enabled");
+        assert!(
+            b.irq_dirty,
+            "the falling line reaches the CPU even with TX_DONE enabled"
+        );
     }
 
     #[test]
@@ -1364,10 +1647,15 @@ mod tests {
         p.write32(0x3ff4_8484, 1 << 10);
         let rtc_io = p.read32(0x3ff4_8484);
         assert_eq!((sens, rtc_io), (3 << 12, 1 << 10));
-        assert_eq!(p.misc.mmio_log.take().unwrap(), [
-            (0, 0x3ff4_8834, 3 << 12, true), (0, 0x3ff4_8834, 3 << 12, false),
-            (0, 0x3ff4_8484, 1 << 10, true), (0, 0x3ff4_8484, 1 << 10, false),
-        ]);
+        assert_eq!(
+            p.misc.mmio_log.take().unwrap(),
+            [
+                (0, 0x3ff4_8834, 3 << 12, true),
+                (0, 0x3ff4_8834, 3 << 12, false),
+                (0, 0x3ff4_8484, 1 << 10, true),
+                (0, 0x3ff4_8484, 1 << 10, false),
+            ]
+        );
         // The block-0x48 entries go to the analog model, not RTC_CNTL's register RAM.
         assert_eq!(p.rtc.0.ram.read(0x834), 0);
         assert!(p.adc.dac_outputs().is_empty());
@@ -1381,18 +1669,25 @@ mod tests {
         }
     }
 
-    fn command(op: u32, bytes: u32) -> u32 { (op << 11) | (1 << 8) | bytes }
+    fn command(op: u32, bytes: u32) -> u32 {
+        (op << 11) | (1 << 8) | bytes
+    }
 
     #[test]
     fn classic_i2c_commands_devices_matrix_timeout_and_interrupts() {
-        use esp_periph::i2c::{Reg8Device, INT_END_DETECT, INT_NACK, INT_TIMEOUT, INT_TRANS_COMPLETE};
+        use esp_periph::i2c::{
+            Reg8Device, INT_END_DETECT, INT_NACK, INT_TIMEOUT, INT_TRANS_COMPLETE,
+        };
 
         const BASE: u32 = 0x3ff5_3000;
         let mut p = Peripherals::new([0; 6]);
         p.i2c[0].attach(0x6b, Box::new(Reg8Device::new("qmi8658", &[(0, 5)])));
         configure_i2c0_pins(&mut p);
         p.write32(0x3ff0_0104 + 4 * SRC_I2C0 as u32, 7);
-        p.write32(BASE + 0x28, INT_END_DETECT | INT_NACK | INT_TIMEOUT | INT_TRANS_COMPLETE);
+        p.write32(
+            BASE + 0x28,
+            INT_END_DETECT | INT_NACK | INT_TIMEOUT | INT_TRANS_COMPLETE,
+        );
 
         p.write32(BASE + 0x1c, 0x6b << 1);
         p.write32(BASE + 0x1c, 0);
@@ -1448,7 +1743,10 @@ mod tests {
         p.write32(BASE + 0x5c, command(1, 1));
         p.write32(BASE + 0x60, command(3, 0));
         p.write32(BASE + 0x04, 1 << 5);
-        assert_ne!(p.source_status(0)[SRC_I2C1 / 32] & (1 << (SRC_I2C1 % 32)), 0);
+        assert_ne!(
+            p.source_status(0)[SRC_I2C1 / 32] & (1 << (SRC_I2C1 % 32)),
+            0
+        );
         assert_ne!(p.cpu_lines(0) & (1 << 9), 0);
     }
 
@@ -1458,7 +1756,10 @@ mod tests {
         p.write32(0x3ff4_8070, 2 << 27);
         assert_eq!(p.cpu_scale_half(), 12);
         assert_eq!(p.apb_divider(), 6);
-        p.write32(0x3ff5_f000, (1 << 31) | (1 << 30) | (1 << 11) | (1 << 10) | (2 << 13));
+        p.write32(
+            0x3ff5_f000,
+            (1 << 31) | (1 << 30) | (1 << 11) | (1 << 10) | (2 << 13),
+        );
         p.tick(60); // ten modeled CPU/APB clocks
         p.write32(0x3ff5_f00c, 1);
         assert_eq!(p.read32(0x3ff5_f004), 5);
@@ -1467,7 +1768,10 @@ mod tests {
     #[test]
     fn apb_phase_and_deadlines_follow_xtal_pll_switches() {
         let mut p = Peripherals::new([0; 6]);
-        p.write32(0x3ff5_f000, (1 << 31) | (1 << 30) | (1 << 11) | (1 << 10) | (2 << 13));
+        p.write32(
+            0x3ff5_f000,
+            (1 << 31) | (1 << 30) | (1 << 11) | (1 << 10) | (2 << 13),
+        );
         p.write32(0x3ff5_f010, 10);
         p.write32(0x3ff5_f098, 1);
         assert_eq!(p.cycles_until_timer(), 114, "XTAL: (20 APB ticks - 1) * 6");
@@ -1481,7 +1785,11 @@ mod tests {
         assert_eq!(p.apb_phase, 0);
         p.tick(6);
         p.write32(0x3ff5_f00c, 1);
-        assert_eq!(p.read32(0x3ff5_f004), 1, "two APB ticks across a source switch");
+        assert_eq!(
+            p.read32(0x3ff5_f004),
+            1,
+            "two APB ticks across a source switch"
+        );
     }
 
     #[test]
@@ -1500,7 +1808,11 @@ mod tests {
         let mut p = Peripherals::new([0; 6]);
         let pin = 4usize;
         p.write32(0x3ff4_9048, (2 << 12) | (1 << 9) | (1 << 7));
-        assert_eq!(p.read32(0x3ff4_403c) & (1 << pin), 0, "pull-down drives an undriven input low");
+        assert_eq!(
+            p.read32(0x3ff4_403c) & (1 << pin),
+            0,
+            "pull-down drives an undriven input low"
+        );
         p.write32(0x3ff4_9048, (2 << 12) | (1 << 9) | (1 << 8));
         assert_eq!(p.read32(0x3ff4_403c) & (1 << pin), 1 << pin);
         p.gpio.set_input(pin as u8, false);
@@ -1691,7 +2003,6 @@ mod tests {
     fn classic_rtc_watchdog_requests_reset() {
         let mut p = Peripherals::new([0; 6]);
 
-
         p.write32(0x3ff4_80a4, 0x50d8_3aa1);
         p.write32(0x3ff4_8090, 2);
         p.write32(0x3ff4_808c, (1 << 31) | (3 << 28));
@@ -1727,10 +2038,14 @@ mod tests {
         sha.write(0x90, 1);
         sha.write(0x98, 1);
         let got: Vec<u8> = (0..8).flat_map(|i| sha.read(i * 4).to_be_bytes()).collect();
-        assert_eq!(got, [0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
-                         0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
-                         0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
-                         0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad]);
+        assert_eq!(
+            got,
+            [
+                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
+                0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,
+                0xf2, 0x00, 0x15, 0xad
+            ]
+        );
     }
     #[test]
     fn timer_edges_use_idf_sources_58_and_62_on_both_cores() {
@@ -1742,15 +2057,21 @@ mod tests {
                 p.write32(map + (source - 1) * 4, 11);
                 assert_eq!(p.cpu_lines(core), 0);
             }
-            p.write32(base, (1 << 31) | (1 << 30) | (2 << 13) | (1 << 12) | (1 << 10));
+            p.write32(
+                base,
+                (1 << 31) | (1 << 30) | (2 << 13) | (1 << 12) | (1 << 10),
+            );
             p.write32(base + 0x10, 2);
             p.write32(base + 0x98, 1);
             p.tick(12);
             assert_ne!(Device::irq_sources(&p.timg[group]) & (1 << 4), 0);
-            for core in 0..2 { assert_eq!(p.cpu_lines(core), 1 << 10); }
+            for core in 0..2 {
+                assert_eq!(p.cpu_lines(core), 1 << 10);
+            }
             p.write32(base + 0xa4, 1);
-            for core in 0..2 { assert_eq!(p.cpu_lines(core), 0); }
+            for core in 0..2 {
+                assert_eq!(p.cpu_lines(core), 0);
+            }
         }
     }
-
 }

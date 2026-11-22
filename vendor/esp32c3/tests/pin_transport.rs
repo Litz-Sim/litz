@@ -242,7 +242,8 @@ fn external_c3_arduino_pin_transport() {
     m.bus.attach_board_devices();
     m.console.capture = true;
     m.console.mask = 2;
-    m.load_rom(&std::fs::read(rom).expect("readable esp32c3_rev3_rom.elf")).unwrap();
+    m.load_rom(&std::fs::read(rom).expect("readable esp32c3_rev3_rom.elf"))
+        .unwrap();
     m.write_flash(
         0,
         &std::fs::read(build.join("firmware.factory.bin"))
@@ -393,7 +394,9 @@ fn rmt_channels_deliver_colours_and_raise_c3_interrupts() {
 #[test]
 fn reset_gpio_select_drives_software_cs_and_keeps_the_change_buffer() {
     let mut m = esp32c3::machine([0; 6], 4 << 20);
-    for pin in 0..22 { assert_eq!(m.bus.read32(0x6000_4554 + pin * 4).unwrap(), 128); }
+    for pin in 0..22 {
+        assert_eq!(m.bus.read32(0x6000_4554 + pin * 4).unwrap(), 128);
+    }
     let state = Arc::new(Mutex::new(State::default()));
     m.bus.board = Box::new(Board(state.clone()));
     m.bus.attach_board_devices();
@@ -419,11 +422,21 @@ fn reset_gpio_select_drives_software_cs_and_keeps_the_change_buffer() {
 fn idle_board_does_not_receive_clock_callbacks() {
     struct Idle;
     impl BoardModel for Idle {
-        fn name(&self) -> &'static str { "idle" }
-        fn uses_gpio_edges(&self) -> bool { false }
-        fn next_deadline(&self) -> Option<u64> { panic!("idle deadline queried"); }
-        fn advance_to(&mut self, _: u64) { panic!("idle board advanced"); }
-        fn take_edges(&mut self) -> Vec<BoardEdge> { panic!("idle board polled"); }
+        fn name(&self) -> &'static str {
+            "idle"
+        }
+        fn uses_gpio_edges(&self) -> bool {
+            false
+        }
+        fn next_deadline(&self) -> Option<u64> {
+            panic!("idle deadline queried");
+        }
+        fn advance_to(&mut self, _: u64) {
+            panic!("idle board advanced");
+        }
+        fn take_edges(&mut self) -> Vec<BoardEdge> {
+            panic!("idle board polled");
+        }
     }
     let mut m = esp32c3::machine([0; 6], 4 << 20);
     m.bus.board = Box::new(Idle);
@@ -446,8 +459,11 @@ fn pin_interrupts_follow_enable_clear_and_spi_completion() {
     ] {
         bus.periph.intc.map[source] = 5;
         bus.write32(base + ena, bit).unwrap();
-        if source == src::I2C_EXT0 { assert_eq!(read_i2c(bus), (true, 11)); }
-        else { spi(bus); }
+        if source == src::I2C_EXT0 {
+            assert_eq!(read_i2c(bus), (true, 11));
+        } else {
+            spi(bus);
+        }
         assert_ne!(bus.periph.source_status()[0] & (1 << source), 0);
         bus.periph.refresh_lines();
         assert_ne!(bus.periph.intc.lines.level & (1 << 5), 0);

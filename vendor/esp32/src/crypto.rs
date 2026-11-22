@@ -31,7 +31,9 @@ impl ClassicAes {
         }
     }
 
-    pub fn reset(&mut self) { *self = Self::new(); }
+    pub fn reset(&mut self) {
+        *self = Self::new();
+    }
 
     fn endian_words(words: &mut [u32], endian: u32) {
         if endian & 2 == 0 {
@@ -120,7 +122,9 @@ impl ClassicSha {
         }
     }
 
-    pub fn reset(&mut self) { *self = Self::new(); }
+    pub fn reset(&mut self) {
+        *self = Self::new();
+    }
 }
 
 impl Device for ClassicSha {
@@ -363,7 +367,8 @@ mod tests {
         }
         assert_eq!(
             sha_digest(&mut sha, 0),
-            b"\xe6\x1c\xff\xfe\x0d\x91\x95\xa5\x25\xfc\x6c\xf0\x6c\xa2\xd7\x71\x19\xc2\x4a\x40".to_vec()
+            b"\xe6\x1c\xff\xfe\x0d\x91\x95\xa5\x25\xfc\x6c\xf0\x6c\xa2\xd7\x71\x19\xc2\x4a\x40"
+                .to_vec()
         );
         assert_eq!(
             sha_digest(&mut sha, 1),
@@ -384,7 +389,10 @@ mod tests {
         assert_eq!(aes.blocks, 1);
         aes.reset();
         assert_eq!(aes.read(0x30), 0);
-        for mode in [3, 7] { aes.write(8, mode); aes.write(0, 1); }
+        for mode in [3, 7] {
+            aes.write(8, mode);
+            aes.write(0, 1);
+        }
         assert_eq!(aes.blocks, 0);
         let mut sha = ClassicSha::new();
         sha_block(&mut sha, 1, &padded(b"abc", 64), true);
@@ -407,14 +415,22 @@ impl ClassicRsa {
     pub fn new() -> Self {
         let mut inner = esp_periph::Rsa::new();
         inner.int_ena = 1;
-        Self { inner, modexp_mode: 0, mult_mode: 0 }
+        Self {
+            inner,
+            modexp_mode: 0,
+            mult_mode: 0,
+        }
     }
-    pub fn reset(&mut self) { *self = Self::new(); }
+    pub fn reset(&mut self) {
+        *self = Self::new();
+    }
 
     fn montgomery(&self, words: usize) -> Vec<u32> {
         let modulus = &self.inner.mem[..words];
-        let mut product =
-            esp_periph::crypto::bn_mul(&self.inner.mem[384..384 + words], &self.inner.mem[128..128 + words]);
+        let mut product = esp_periph::crypto::bn_mul(
+            &self.inner.mem[384..384 + words],
+            &self.inner.mem[128..128 + words],
+        );
         product.resize(2 * words + 2, 0);
         for i in 0..words {
             let q = product[i].wrapping_mul(self.inner.m_prime);
@@ -511,13 +527,17 @@ mod rsa_tests {
         for mode in 0..8 {
             let mut rsa = ClassicRsa::new();
             let words = 16 * (mode + 1);
-            for i in 0..words { rsa.write(4 * i, u32::MAX); }
+            for i in 0..words {
+                rsa.write(4 * i, u32::MAX);
+            }
             rsa.write(0x400, 1);
             rsa.write(0x600 + 4 * (words - 1), 0x1234);
             rsa.write(0x804, mode);
             rsa.write(0x808, 1);
             assert_eq!(rsa.read(0x200 + 4 * (words - 1)), 0x1234);
-            for i in 0..words - 1 { assert_eq!(rsa.read(0x200 + 4 * i), 0); }
+            for i in 0..words - 1 {
+                assert_eq!(rsa.read(0x200 + 4 * i), 0);
+            }
         }
     }
 
@@ -656,9 +676,11 @@ impl crate::periph::Peripherals {
         if reset & 0x14 != 0 || rsa_down {
             self.rsa.reset();
         }
-        self.crypto_enabled = [clock & 1 != 0 && reset & 0x19 == 0,
+        self.crypto_enabled = [
+            clock & 1 != 0 && reset & 0x19 == 0,
             clock & 2 != 0 && reset & 0x0a == 0,
-            clock & 4 != 0 && reset & 0x14 == 0 && !rsa_down];
+            clock & 4 != 0 && reset & 0x14 == 0 && !rsa_down,
+        ];
         self.rsa.inner.int_ena = self.crypto_enabled[2] as u32;
     }
 }
@@ -727,7 +749,11 @@ mod dport_tests {
         ] {
             p.write32(0x3ff0_0020, reset);
             assert_eq!(
-                (p.crypto_enabled[0], p.crypto_enabled[1], p.crypto_enabled[2]),
+                (
+                    p.crypto_enabled[0],
+                    p.crypto_enabled[1],
+                    p.crypto_enabled[2]
+                ),
                 (aes, sha, rsa)
             );
             p.write32(0x3ff0_0020, 0);

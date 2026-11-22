@@ -43,7 +43,9 @@ impl VhciBus for SocBus {
     // components/bt/controller/linker_rw_bt_controller.lf:31; in v5.5.4 the file is
     // components/bt/linker_rw_bt_controller.lf).
     fn valid_packet_range(&self, address: u32, len: usize) -> bool {
-        let Some(end) = address.checked_add(len as u32) else { return false };
+        let Some(end) = address.checked_add(len as u32) else {
+            return false;
+        };
         (address >= DRAM_LOW && end <= DRAM_HIGH) || self.psram_readable(address, len)
     }
 }
@@ -180,7 +182,11 @@ mod tests {
             let (mut bus, _) = fixture();
             bus.ble.task_created = true;
             bus.load_bytes(DRAM_LOW + 20, &[mode]).unwrap();
-            assert_eq!(call(&mut bus, BASE, DRAM_LOW), INVALID_ARG, "config mode {mode}");
+            assert_eq!(
+                call(&mut bus, BASE, DRAM_LOW),
+                INVALID_ARG,
+                "config mode {mode}"
+            );
             assert_eq!(bus.ble.status, 0);
         }
         // an init refused for its state leaves the mode of the one that was taken
@@ -195,7 +201,11 @@ mod tests {
         let (mut bus, _) = fixture();
         bus.ble.task_created = true;
         assert_eq!(call(&mut bus, BASE, 0x1000), INVALID_ARG);
-        assert_eq!(bus.last_fault, Some((0x1014, false)), "the mode's read missed");
+        assert_eq!(
+            bus.last_fault,
+            Some((0x1014, false)),
+            "the mode's read missed"
+        );
         let (mut bus, _) = fixture();
         bus.ble.task_created = true;
         assert_eq!(call(&mut bus, BASE, 0xffff_fff0), INVALID_ARG);
@@ -296,8 +306,11 @@ mod tests {
             assert!(intercept(&mut cpu, bus));
             let sent = bus.ble.send_ready;
             // a packet not taken was refused, not lost to a failed read
-            let rejected =
-                bus.ble.lines.take().is_some_and(|l| l.contains("rejected invalid VHCI"));
+            let rejected = bus
+                .ble
+                .lines
+                .take()
+                .is_some_and(|l| l.contains("rejected invalid VHCI"));
             assert_eq!(rejected, !sent);
             assert_eq!(bus.ble.session.pop_packet().is_some(), sent);
             // the hook takes a packet exactly when the read of its last byte, in its second page,
@@ -325,8 +338,14 @@ mod tests {
         map(&mut bus, 1, 9);
         assert!(!send(&mut bus, &symbols), "no PSRAM");
         let bus = configured();
-        assert!(!bus.valid_packet_range(HIGH - 2, 4), "crosses the window's end");
-        assert!(!bus.valid_packet_range(LOW - 2, 4), "crosses the window's start");
+        assert!(
+            !bus.valid_packet_range(HIGH - 2, 4),
+            "crosses the window's end"
+        );
+        assert!(
+            !bus.valid_packet_range(LOW - 2, 4),
+            "crosses the window's start"
+        );
         assert!(!bus.valid_packet_range(u32::MAX - 1, 4));
         assert!(bus.valid_packet_range(DRAM_LOW, 4) && !bus.valid_packet_range(DRAM_HIGH - 2, 4));
     }
@@ -397,13 +416,16 @@ mod tests {
         use esp_soc::SocBus as _;
         let (_, symbols) = fixture();
         let mut bus = SocBus::new(0, [0; 6]);
-        let mut elf = esp_soc::elf::Elf { by_name: symbols, ..Default::default() };
+        let mut elf = esp_soc::elf::Elf {
+            by_name: symbols,
+            ..Default::default()
+        };
         assert!(!bus.ble_enabled());
         assert!(bus.enable_ble(&elf).is_err());
-        elf.symbol_sizes.insert("esp_bt_controller_init".into(), 0x400);
+        elf.symbol_sizes
+            .insert("esp_bt_controller_init".into(), 0x400);
         bus.enable_ble(&elf).unwrap();
         assert!(bus.ble_enabled());
         assert_eq!(bus.ble_pending_commands(), 0);
     }
-
 }

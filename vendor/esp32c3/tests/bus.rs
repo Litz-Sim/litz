@@ -1,7 +1,9 @@
 use emu_core::{Bus, Fault};
 use esp32c3::bus::{SocBus, RTC_SLOW_HIGH};
 
-fn bus() -> SocBus { SocBus::new(1, [0; 6]) }
+fn bus() -> SocBus {
+    SocBus::new(1, [0; 6])
+}
 
 #[test]
 fn reads_ending_at_buffer_boundary_use_their_full_width() {
