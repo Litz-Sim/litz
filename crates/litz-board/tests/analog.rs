@@ -64,6 +64,95 @@ fn a_two_resistor_divider_solves_to_its_midpoint() {
 }
 
 #[test]
+fn a_bench_supply_holds_its_voltage_and_reads_out_its_current() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"pwr","type":"litz-power-supply","attrs":{"voltage":5.0}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"100"}}"#,
+        ],
+        &[
+            r#"["pwr:+","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+            r#"["pwr:-","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let solution = board.analog_solve().expect("the supply circuit solves");
+    assert_eq!(solution.node_voltage("pwr", "+"), Some(5.0));
+    let delivered = -solution
+        .current("pwr")
+        .expect("the supply's current is readable");
+    assert!(
+        (delivered - 0.05).abs() < 1e-6,
+        "the supply delivered {delivered} A"
+    );
+}
+
+#[test]
+fn a_supply_past_its_current_limit_lets_its_voltage_sag() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"pwr","type":"litz-power-supply","attrs":{"voltage":5.0,"current_limit":0.01}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"100"}}"#,
+        ],
+        &[
+            r#"["pwr:+","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+            r#"["pwr:-","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let solution = board.analog_solve().expect("the limited circuit solves");
+    // The load would draw 50 mA at 5 V; the supply holds 10 mA instead, so
+    // 100 Ω carries 10 mA and the terminal sits at 1 V.
+    let positive = solution.node_voltage("pwr", "+").expect("the rail solves");
+    assert!((positive - 1.0).abs() < 1e-6, "terminal was {positive} V");
+    let delivered = -solution
+        .current("pwr")
+        .expect("the supply's current is readable");
+    assert!(
+        (delivered - 0.01).abs() < 1e-6,
+        "the supply delivered {delivered} A"
+    );
+}
+
+#[test]
+fn a_bench_supply_follows_its_host_controls() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"pwr","type":"litz-power-supply","attrs":{"voltage":5.0}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"100"}}"#,
+        ],
+        &[
+            r#"["pwr:+","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+            r#"["pwr:-","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    assert!(board.set_named_control("pwr", "voltage", "3.3", 0));
+    let solution = board.analog_solve().expect("the circuit solves at 3.3 V");
+    assert!((solution.node_voltage("pwr", "+").unwrap() - 3.3).abs() < 1e-6);
+
+    // 3.3 V into 100 Ω is 33 mA; a 10 mA limit pulls the terminal to 1 V.
+    assert!(board.set_named_control("pwr", "current", "0.01", 0));
+    let solution = board.analog_solve().expect("the limited circuit solves");
+    assert!((solution.node_voltage("pwr", "+").unwrap() - 1.0).abs() < 1e-6);
+
+    assert!(board.set_named_control("pwr", "current", "0", 0));
+    let solution = board.analog_solve().expect("the limit is off again");
+    assert!((solution.node_voltage("pwr", "+").unwrap() - 3.3).abs() < 1e-6);
+
+    assert!(!board.set_named_control("pwr", "temperature", "20", 0));
+}
+
+#[test]
 fn a_gpio_driving_a_resistor_and_led_sets_its_current_and_lights_it() {
     let mut board = board(
         &[

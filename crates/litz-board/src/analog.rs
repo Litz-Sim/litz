@@ -229,8 +229,55 @@ pub(crate) fn solve(
     parts: &[Box<dyn Part>],
     config: &AnalogConfig,
 ) -> Result<AnalogSolution, String> {
-    let circuit = build(flat, drives, parts, config, false)?;
-    circuit.solve_dc(config)
+    build_operating(flat, drives, parts, config, false)?.solve_dc(config)
+}
+
+/// Build the circuit at its operating point, with every regulated source that
+/// is over its current limit folded back to that limit.
+///
+/// The first build assumes constant voltage. If the load then draws more than
+/// a supply allows, that supply is modelled as a current source and the circuit
+/// is built again; folding one supply back can push another over, so the set
+/// only grows and the loop ends after at most one build per limiting supply.
+/// The mode is fixed for the lifetime of the returned circuit, which is what a
+/// transient run wants: a load change rebuilds the circuit anyway.
+pub(crate) fn build_operating(
+    flat: &FlatBoard,
+    drives: &BTreeMap<(u16, u8), Drive>,
+    parts: &[Box<dyn Part>],
+    config: &AnalogConfig,
+    transient: bool,
+) -> Result<Circuit, String> {
+    let mut limited = BTreeSet::new();
+    loop {
+        let circuit = build(flat, drives, parts, config, transient, &limited)?;
+        let solution = circuit.solve_dc(config)?;
+        let folded = folded_sources(flat, parts, &solution);
+        let grown: BTreeSet<u16> = limited.union(&folded).copied().collect();
+        if grown == limited {
+            return Ok(circuit);
+        }
+        limited = grown;
+    }
+}
+
+/// Supplies whose load draws more than their current limit.
+fn folded_sources(
+    flat: &FlatBoard,
+    parts: &[Box<dyn Part>],
+    solution: &AnalogSolution,
+) -> BTreeSet<u16> {
+    parts
+        .iter()
+        .enumerate()
+        .filter_map(|(index, part)| {
+            let limit = part.current_limit()?;
+            // `part_currents` follows the element's first-terminal-to-second
+            // sense: a source delivering to its load reads negative.
+            let delivered = -solution.current(flat.parts.get(index)?.id.as_str())?;
+            (delivered > f64::from(limit) + 1e-9).then_some(index as u16)
+        })
+        .collect()
 }
 
 /// Whether an engine is an analog-only element this build maps but does not
@@ -376,6 +423,7 @@ pub(crate) fn build(
     parts: &[Box<dyn Part>],
     config: &AnalogConfig,
     transient: bool,
+    limited: &BTreeSet<u16>,
 ) -> Result<Circuit, String> {
     let net_count = flat.nets.len();
     let ground = net_count;
@@ -414,7 +462,9 @@ pub(crate) fn build(
 
     let mut models = Vec::new();
     for (index, part) in flat.parts.iter().enumerate() {
-        if let Some(model) = part_model(flat, parts, index as u16, part, config, &rail_nets) {
+        if let Some(model) =
+            part_model(flat, parts, index as u16, part, config, &rail_nets, limited)
+        {
             model.union(&mut sets, transient);
             models.push(model);
         }
@@ -610,11 +660,13 @@ enum Model {
         model: DiodeModel,
     },
     VoltageSource {
+        part: u16,
         p: Option<usize>,
         n: Option<usize>,
         volts: f64,
     },
     CurrentSource {
+        part: u16,
         p: Option<usize>,
         n: Option<usize>,
         amps: f64,
@@ -921,9 +973,9 @@ impl Model {
                     currents.push((*part, id));
                 }
             }
-            Model::VoltageSource { p, n, volts } => {
+            Model::VoltageSource { part, p, n, volts } => {
                 if let (Some(p), Some(n)) = (node(*p), node(*n)) {
-                    add(
+                    let id = add(
                         netlist,
                         Element::VoltageSource {
                             p,
@@ -932,15 +984,19 @@ impl Model {
                         },
                         "source",
                     )?;
+                    currents.push((*part, id));
                 }
             }
-            Model::CurrentSource { p, n, amps } => {
+            Model::CurrentSource { part, p, n, amps } => {
                 if let (Some(p), Some(n)) = (node(*p), node(*n)) {
-                    add(
+                    let id = add(
                         netlist,
                         Element::CurrentSource { p, n, amps: *amps },
                         "source",
                     )?;
+                    // A source that folds back reads out like a supply: the
+                    // caller sees the current it is actually delivering.
+                    currents.push((*part, id));
                 }
             }
             Model::Capacitor { part, a, b, farads } => {
@@ -1175,6 +1231,7 @@ fn part_model(
     part: &FlatPart,
     config: &AnalogConfig,
     rail_nets: &BTreeMap<Rail, usize>,
+    limited: &BTreeSet<u16>,
 ) -> Option<Model> {
     let Engine::Builtin(engine) = &part.engine else {
         return None;
@@ -1240,14 +1297,44 @@ fn part_model(
             })
         }
         "voltage-source" | "dc-source" | "vsource" | "battery" => {
-            let volts = attr("voltage")
-                .or_else(|| attr("volts"))
-                .or_else(|| attr("value"))
-                .and_then(parse_volts)
-                .unwrap_or(0.0);
+            let positive = pin(&["+", "V+", "P", "p", "1"]);
+            let negative = pin(&["-", "V-", "N", "n", "2"]);
+            // A bench supply reports its live setting; the attribute is the
+            // starting point and a part without a live reading falls back to
+            // it. A battery or a plain source has no control and never does.
+            let volts = parts
+                .get(index as usize)
+                .and_then(|part| positive.and_then(|pin| part.analog(PinId(pin))))
+                .map_or_else(
+                    || {
+                        attr("voltage")
+                            .or_else(|| attr("volts"))
+                            .or_else(|| attr("value"))
+                            .and_then(parse_volts)
+                            .unwrap_or(0.0)
+                    },
+                    f64::from,
+                );
+            if limited.contains(&index) {
+                // Fold-back: hold the current, let the voltage land where the
+                // load puts it. Current flows from the negative terminal
+                // through the supply to the positive one, so the element's
+                // `p`-to-`n` current is negative.
+                let amps = parts
+                    .get(index as usize)
+                    .and_then(|part| part.current_limit())
+                    .map_or(0.0, |limit| -f64::from(limit));
+                return Some(Model::CurrentSource {
+                    part: index,
+                    p: net(positive),
+                    n: net(negative),
+                    amps,
+                });
+            }
             Some(Model::VoltageSource {
-                p: net(pin(&["+", "V+", "P", "p", "1"])),
-                n: net(pin(&["-", "V-", "N", "n", "2"])),
+                part: index,
+                p: net(positive),
+                n: net(negative),
                 volts,
             })
         }
@@ -1258,6 +1345,7 @@ fn part_model(
             let out_pin = pin(&["OUT"])?;
             let volts = parts.get(index as usize)?.analog(PinId(out_pin))?;
             Some(Model::VoltageSource {
+                part: index,
                 p: net(Some(out_pin)),
                 n: net(pin(&["GND"])),
                 volts: f64::from(volts),
@@ -1270,6 +1358,7 @@ fn part_model(
                 .and_then(parse_volts)
                 .unwrap_or(0.0);
             Some(Model::CurrentSource {
+                part: index,
                 p: net(pin(&["+", "P", "p", "1"])),
                 n: net(pin(&["-", "N", "n", "2"])),
                 amps,

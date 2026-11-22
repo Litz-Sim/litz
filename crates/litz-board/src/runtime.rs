@@ -997,7 +997,7 @@ impl Board {
 
     /// Build a fresh zero-state transient from the current wiring and drives.
     fn start_transient(&mut self, dt_ns: u64) -> Result<(), String> {
-        let circuit = analog::build(
+        let circuit = analog::build_operating(
             &self.flat,
             &self.chip_drive,
             &self.parts,

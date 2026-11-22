@@ -1969,20 +1969,37 @@ impl Part for Battery {
 
 /// A bench power supply: the same ideal source, with a different default.
 pub struct PowerSupply {
+    positive: u16,
     volts: f32,
+    limit: Option<f32>,
 }
+
+/// The highest voltage a host may dial a bench supply to, in volts. Beyond it
+/// the analog view would be modelling a supply nobody puts on a bench.
+const SUPPLY_MAX_VOLTS: f32 = 24.0;
+
+/// The highest current limit a host may dial, in amperes.
+const SUPPLY_MAX_AMPS: f32 = 20.0;
 
 impl PowerSupply {
     pub fn build(part: &FlatPart) -> Result<Box<dyn Part>, BuildError> {
-        let _ = pins(part, ["+", "-"])?;
+        let [positive, _] = pins(part, ["+", "-"])?;
+        let limit = attr_f32(&part.attrs, "current_limit", 0.0);
         Ok(Box::new(Self {
-            volts: attr_f32(&part.attrs, "voltage", 5.0),
+            positive,
+            volts: attr_f32(&part.attrs, "voltage", 5.0).clamp(0.0, SUPPLY_MAX_VOLTS),
+            limit: (limit > 0.0).then(|| limit.min(SUPPLY_MAX_AMPS)),
         }))
     }
 
     /// The output voltage in volts.
     pub fn volts(&self) -> f32 {
         self.volts
+    }
+
+    /// The output current limit in amperes, if one is set.
+    pub fn limit(&self) -> Option<f32> {
+        self.limit
     }
 }
 
@@ -1995,6 +2012,35 @@ impl Part for PowerSupply {
 
     fn state(&self) -> PartState {
         PartState::None
+    }
+
+    fn analog(&self, pin: PinId) -> Option<f32> {
+        (pin.0 == self.positive).then_some(self.volts)
+    }
+
+    fn current_limit(&self) -> Option<f32> {
+        self.limit
+    }
+
+    fn set_named_control(&mut self, name: &str, value: &str) -> bool {
+        let Ok(value) = value.trim().parse::<f32>() else {
+            return false;
+        };
+        if !value.is_finite() {
+            return false;
+        }
+        match name {
+            "voltage" | "volts" => {
+                self.volts = value.clamp(0.0, SUPPLY_MAX_VOLTS);
+                true
+            }
+            // Zero turns the limit off: a bench supply with no current dial.
+            "current" | "current_limit" | "limit" => {
+                self.limit = (value > 0.0).then(|| value.min(SUPPLY_MAX_AMPS));
+                true
+            }
+            _ => false,
+        }
     }
 }
 

@@ -2,7 +2,7 @@
 id = "litz-power-supply"
 name = "Power supply"
 version = "1.0.0"
-description = "Ideal DC bench supply"
+description = "Adjustable DC bench supply with a current limit"
 license = "MIT"
 
 [pins."+"]
@@ -16,6 +16,12 @@ label = "negative terminal"
 [attrs.voltage]
 type = "float"
 default = 5.0
+
+# Amperes. Zero means no limit; a positive value folds the supply back from
+# constant voltage to constant current when the load asks for more.
+[attrs.current_limit]
+type = "float"
+default = 0.0
 
 [simulation]
 backend = "builtin"

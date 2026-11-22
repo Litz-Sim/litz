@@ -180,4 +180,4 @@ The dependency direction is one way: chip adapters depend on `litz-board`, while
 
 ## License
 
-Apache-2.0. The license is declared once in `Cargo.toml` under `[workspace.package]` and inherited by every crate. The crates carry version `0.1.0` from the same place; the `0.x` line makes no compatibility promise between minor versions. The esp32sim fork under `vendor/` keeps its upstream MIT license and ships that license file with each vendored crate.
+Apache-2.0. The license is declared once in `Cargo.toml` under `[workspace.package]` and inherited by every crate. The crates carry the version declared there; the `0.x` line makes no compatibility promise between minor versions. The esp32sim fork under `vendor/` keeps its upstream MIT license and ships that license file with each vendored crate.

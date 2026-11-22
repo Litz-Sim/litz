@@ -189,6 +189,13 @@ pub trait Part {
     fn analog(&self, _pin: PinId) -> Option<f32> {
         None
     }
+
+    /// The output current at which a regulated source stops holding its set
+    /// voltage and delivers this much instead, in amperes. `None` for a part
+    /// that does not limit: a battery, a rail, a plain source.
+    fn current_limit(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// The externally observable state of a part.

@@ -209,6 +209,8 @@ The engine names below are the values a part manifest writes in `[simulation].en
 
 A part that declares `[buses.*]` is built as that bus device and gets a passive pin shell, so its power and ground pins still join the netlist without a second driver touching a rail. An engine in the wrong group is a manifest error: a part cannot be an LED and an I2C device at the same time. An engine name the catalog accepts but this build does not implement is refused when the board is built.
 
+The `voltage-source` engine backs `litz-power-supply` and `litz-battery`. The bench supply is adjustable while the run is live: `set_named_control(part, "voltage", "3.3")` moves its output, and `"current"` sets the limit in amperes (`0` turns the limit off). A scenario writes the same call as `set-control: { part-id: pwr, name: voltage, value: "3.3" }`, and the JavaScript session exposes it as `setNamedControl`. When the load would draw more than the limit, the analog solve stops holding the set voltage and delivers the limit instead, so the terminal sags to whatever the load takes at that current; `analog_solve().current(part)` reports the element current, negative when the supply is delivering. The battery keeps its fixed `voltage` attribute and has no limit.
+
 Three builtin parts are wasm components rather than engines:
 
 | Part id | Module | ABI |
