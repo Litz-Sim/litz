@@ -46,5 +46,6 @@ required-features = ["esp32c3"]
 litz-esp-soc = { version = "0.1.0", path = "../../vendor/esp-soc" }
 litz-board = { version = "0.1.0", path = "../litz-board" }
 litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
+litz-chip-conformance = { version = "0.1.0", path = "../litz-chip-conformance" }
 litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
 litz-fixture = { version = "0.1.0", path = "../litz-fixture" }

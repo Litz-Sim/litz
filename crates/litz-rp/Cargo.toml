@@ -12,3 +12,7 @@ description = "RP2040 (Raspberry Pi Pico) chip backend: an ARMv6-M Cortex-M0+ co
 litz-core = { version = "0.1.0", path = "../litz-core" }
 litz-board = { version = "0.1.0", path = "../litz-board" }
 litz-mcu = { version = "0.1.0", path = "../litz-mcu" }
+
+[dev-dependencies]
+litz-chip-conformance = { version = "0.1.0", path = "../litz-chip-conformance" }
+litz-fixture = { version = "0.1.0", path = "../litz-fixture" }

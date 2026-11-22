@@ -1,0 +1,17 @@
+[package]
+name = "litz-chip-conformance"
+description = "The contract checks every Litz chip backend has to pass."
+keywords = ["simulator", "emulator", "embedded", "testing"]
+categories = ["emulators", "development-tools::testing"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+litz-board = { version = "0.1.0", path = "../litz-board" }
+litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
+litz-core = { version = "0.1.0", path = "../litz-core" }
+litz-diagram = { version = "0.1.0", path = "../litz-diagram" }

@@ -14,3 +14,6 @@ examples/*/firmware/*
 js/litz_wasm.wasm
 .DS_Store
 crates/litz-cli/templates/part/Cargo.toml
+
+# Agent worktrees live inside the checkout but are separate repositories.
+.claude/worktrees/

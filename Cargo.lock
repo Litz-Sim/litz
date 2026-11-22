@@ -1113,6 +1113,7 @@ version = "0.1.0"
 dependencies = [
  "litz-board",
  "litz-catalog",
+ "litz-chip-conformance",
  "litz-core",
  "litz-diagram",
 ]
@@ -1146,6 +1147,16 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
  "toml",
+]
+
+[[package]]
+name = "litz-chip-conformance"
+version = "0.1.0"
+dependencies = [
+ "litz-board",
+ "litz-catalog",
+ "litz-core",
+ "litz-diagram",
 ]
 
 [[package]]
@@ -1233,6 +1244,7 @@ dependencies = [
  "litz-ble",
  "litz-board",
  "litz-catalog",
+ "litz-chip-conformance",
  "litz-core",
  "litz-diagram",
  "litz-esp-periph",
@@ -1464,7 +1476,9 @@ name = "litz-rp"
 version = "0.1.0"
 dependencies = [
  "litz-board",
+ "litz-chip-conformance",
  "litz-core",
+ "litz-fixture",
  "litz-mcu",
 ]
 

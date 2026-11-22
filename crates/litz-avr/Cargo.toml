@@ -16,4 +16,5 @@ litz-core = { version = "0.1.0", path = "../litz-core" }
 
 [dev-dependencies]
 litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
+litz-chip-conformance = { version = "0.1.0", path = "../litz-chip-conformance" }
 litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
