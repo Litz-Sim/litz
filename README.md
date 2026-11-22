@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## JavaScript
 
-The npm package `@litz-sim/litz` (version 0.2.0) is built from `crates/litz-wasm` and `js/`. It loads one WebAssembly module, opens a session per board, and wraps the module's exports in plain objects. There is no DOM code and no runtime dependency.
+The npm package `@litz-sim/litz` (version 0.2.1) is built from `crates/litz-wasm` and `js/`. It loads one WebAssembly module, opens a session per board, and wraps the module's exports in plain objects. There is no DOM code and no runtime dependency.
 
 ```sh
 npm install @litz-sim/litz
