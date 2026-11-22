@@ -38,8 +38,18 @@ jobs:
       # `prepublishOnly` builds the module and runs the package's tests, so a
       # tag that does not pass them never reaches the registry. No token is
       # configured on purpose: npm exchanges the workflow's OIDC token for a
-      # short-lived publish credential.
-      - run: cd js && npm publish --provenance --access public
+      # short-lived publish credential. A version already on the registry is
+      # skipped, so re-running the workflow after a later step failed still
+      # reaches the release without a conflict.
+      - name: Publish to npm
+        working-directory: js
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "@litz-sim/litz@$version" version >/dev/null 2>&1; then
+            echo "@litz-sim/litz@$version is already published"
+          else
+            npm publish --provenance --access public
+          fi
       # The tag is the release boundary: one GitHub release with generated
       # notes per version. Re-running the workflow reuses an existing release
       # instead of failing on the second create.
