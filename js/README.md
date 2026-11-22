@@ -1,6 +1,6 @@
 # @litz-sim/litz
 
-`@litz-sim/litz` is the JavaScript binding for Litz, a deterministic electronics and firmware simulator. The package loads `litz_wasm.wasm`, opens a session on one board from a `diagram.json` and an application image, and exposes serial output, part state, pins, probes, decoders, displays and electrical conflicts as plain objects. It has no DOM code, no workers and no runtime dependencies, and it advances only when the host calls `run` or `advance`.
+`@litz-sim/litz` is the JavaScript binding for Litz, a deterministic electronics and firmware simulator. The package loads `litz_wasm.wasm`, opens a session over one or more development boards from a `diagram.json` and their application images, and exposes serial output, part state, pins, probes, decoders, displays, electrical conflicts and a RISC-V debugger as plain objects. It has no DOM code, no workers and no runtime dependencies, and it advances only when the host calls `run` or `advance`.
 
 ## Install
 
@@ -12,7 +12,7 @@ The package is an ES module for Node 18 or newer and for browsers. It ships `ind
 
 ## First session
 
-`loadLitz` reads, compiles and instantiates the module and returns a `Litz`. `createSession` opens one board, selected by the board named in the diagram. `advance` moves simulated time, `serial.take` drains the console and `close` releases the session. The sample below reads the repository's `blinky` example. In a checkout, `npm run example` runs it from `js/examples/blinky.mjs`, where Node resolves the package name through the enclosing `js/package.json`. In another project, install the package and pass that project's diagram and image.
+`loadLitz` reads, compiles and instantiates the module and returns a `Litz`. `createSession` boots every development board the diagram names, each from its own image (`boardImages`) or from one `app`. `advance` moves simulated time, `serial.take` drains the console and `close` releases the session. The sample below reads the repository's `blinky` example. In a checkout, `npm run example` runs it from `js/examples/blinky.mjs`, where Node resolves the package name through the enclosing `js/package.json`. In another project, install the package and pass that project's diagram and image.
 
 ```js
 import { readFile } from "node:fs/promises";

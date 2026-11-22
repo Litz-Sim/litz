@@ -166,14 +166,26 @@ export class Litz {
     manifests = [],
     parts = {},
     boards = {},
+    boardImages = [],
   } = {}) {
     this.#assertOpen();
     if (typeof diagram !== "string" || diagram.length === 0) {
       throw new LitzError("createSession needs the diagram.json text as `diagram`");
     }
-    const appBytes = bytesOf(app, "app");
-    if (appBytes.length === 0) {
+    const fleets = Array.isArray(boardImages) ? boardImages : [];
+    if (fleets.length === 0 && (app === undefined || app === null)) {
       throw new LitzError("createSession needs the application image as `app`");
+    }
+    if (
+      fleets.some(
+        (board) =>
+          typeof board !== "object" ||
+          board === null ||
+          board.app === undefined ||
+          board.app === null,
+      )
+    ) {
+      throw new LitzError("every `boardImages` entry needs an `app` image");
     }
     if (flashSize !== null && !(Number.isInteger(flashSize) && flashSize > 0)) {
       throw new LitzError("`flashSize` must be a positive whole number of bytes");
@@ -196,20 +208,41 @@ export class Litz {
     const romBytes = optionalBytes(rom, "rom");
     const bootBytes = optionalBytes(boot, "boot");
     const ptableBytes = optionalBytes(ptable, "ptable");
-    const buffers = [
-      hold(io, appBytes),
-      hold(io, romBytes),
-      hold(io, bootBytes),
-      hold(io, ptableBytes),
-    ];
-    const [appBuf, romBuf, bootBuf, ptableBuf] = buffers;
-    const spec = {
-      diagram,
-      app: { ptr: appBuf.ptr, len: appBuf.len },
-      rom: romBuf.len > 0 ? { ptr: romBuf.ptr, len: romBuf.len } : null,
-      boot: bootBuf.len > 0 ? { ptr: bootBuf.ptr, len: bootBuf.len } : null,
-      ptable: ptableBuf.len > 0 ? { ptr: ptableBuf.ptr, len: ptableBuf.len } : null,
-    };
+    const spec = { diagram };
+    const buffers = [];
+    if (fleets.length === 0) {
+      const appBytes = bytesOf(app, "app");
+      if (appBytes.length === 0) {
+        throw new LitzError("createSession needs the application image as `app`");
+      }
+      const appBuf = hold(io, appBytes);
+      const romBuf = hold(io, romBytes);
+      const bootBuf = hold(io, bootBytes);
+      const ptableBuf = hold(io, ptableBytes);
+      buffers.push(appBuf, romBuf, bootBuf, ptableBuf);
+      spec.app = { ptr: appBuf.ptr, len: appBuf.len };
+      if (romBuf.len > 0) spec.rom = { ptr: romBuf.ptr, len: romBuf.len };
+      if (bootBuf.len > 0) spec.boot = { ptr: bootBuf.ptr, len: bootBuf.len };
+      if (ptableBuf.len > 0) spec.ptable = { ptr: ptableBuf.ptr, len: ptableBuf.len };
+    } else {
+      spec.boards = fleets.map((board) => {
+        const appBuf = hold(io, bytesOf(board.app, "board.app"));
+        const romBuf = hold(io, optionalBytes(board.rom, "board.rom"));
+        const bootBuf = hold(io, optionalBytes(board.boot, "board.boot"));
+        const ptableBuf = hold(io, optionalBytes(board.ptable, "board.ptable"));
+        buffers.push(appBuf, romBuf, bootBuf, ptableBuf);
+        const entry = { app: { ptr: appBuf.ptr, len: appBuf.len } };
+        if (board.id !== undefined && board.id !== null) entry.id = String(board.id);
+        if (romBuf.len > 0) entry.rom = { ptr: romBuf.ptr, len: romBuf.len };
+        if (bootBuf.len > 0) entry.boot = { ptr: bootBuf.ptr, len: bootBuf.len };
+        if (ptableBuf.len > 0) entry.ptable = { ptr: ptableBuf.ptr, len: ptableBuf.len };
+        if (board.flashSize !== undefined && board.flashSize !== null) {
+          entry.flashSize = board.flashSize;
+        }
+        if (board.mac !== undefined && board.mac !== null) entry.mac = String(board.mac);
+        return entry;
+      });
+    }
     if (flashSize !== null) spec.flashSize = flashSize;
     if (mac !== null) spec.mac = mac;
     if (analog) spec.analog = true;

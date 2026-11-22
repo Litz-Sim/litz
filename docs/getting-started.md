@@ -149,4 +149,4 @@ Beyond serial, the session exposes `parts()`, `part(id)`, `press(id, pressed)`, 
 - [Building firmware](build.md) describes `litz.build.toml`.
 - [Architecture](architecture.md) explains how the crates fit together.
 - [MCP server](mcp.md) exposes the same runner over the Model Context Protocol.
-- [Examples](../examples/README.md) lists the other projects, including `button`, `pot`, `rv32`, `two-boards`, `uno-blink`, the Pico projects and the MicroPython and CircuitPython projects.
+- [Examples](https://github.com/Litz-Sim/litz/tree/main/examples) lists the other projects, including `button`, `pot`, `rv32`, `two-boards`, `uno-blink`, the Pico projects and the MicroPython and CircuitPython projects.

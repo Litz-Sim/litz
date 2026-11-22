@@ -456,3 +456,206 @@ fn require_c3(circuit: &Circuit, registry: &Registry) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// One development board's images for [`boot_fleet`]. A host that runs a
+/// multi-board diagram names each board's instance id and boots every chip
+/// against the same flattened circuit.
+pub struct BoardImage<'a> {
+    /// The `diagram.json` instance id. `None` matches boards by position.
+    pub id: Option<&'a str>,
+    pub app: &'a [u8],
+    pub rom: &'a [u8],
+    pub bootloader: &'a [u8],
+    pub partition_table: &'a [u8],
+    pub flash_size: Option<usize>,
+    pub mac: Option<[u8; 6]>,
+}
+
+/// The chips a multi-board circuit runs, with the board they share and the
+/// ids of the development board instances in diagram order.
+pub struct BootedFleet {
+    pub chips: Vec<Box<dyn Chip>>,
+    pub board: Rc<RefCell<Board>>,
+    pub circuit: Circuit,
+    pub ids: Vec<String>,
+}
+
+/// Every development board instance the diagram names, in part order.
+fn find_boards<'a>(
+    circuit: &'a Circuit,
+    registry: &'a Registry,
+) -> Result<Vec<(&'a str, &'a litz_catalog::BoardInfo)>, String> {
+    let mut found = Vec::new();
+    for part in &circuit.parts {
+        let Some(manifest) = registry.get(&part.type_key) else {
+            continue;
+        };
+        if let Some(info) = manifest.board.as_ref() {
+            found.push((part.id.as_str(), info));
+        }
+    }
+    if found.is_empty() {
+        return Err("the diagram has no development board".into());
+    }
+    Ok(found)
+}
+
+/// Boot one chip per development board, all attached to one shared circuit.
+///
+/// This is the in-memory counterpart of the native runner's fleet: every board
+/// gets its own images and its own index into the flattened board, so a wire
+/// between two boards is an ordinary net both chips drive.
+pub fn boot_fleet(
+    diagram: &str,
+    images: &[BoardImage<'_>],
+    options: &BootOptions,
+) -> Result<BootedFleet, String> {
+    let mut registry = Registry::builtin();
+    for manifest in &options.manifests {
+        let id = registry
+            .insert_text(&manifest.toml)
+            .map_err(|error| format!("catalog manifest: {error}"))?;
+        if let Some(schematic) = &manifest.schematic {
+            registry.set_schematic(&id, schematic.as_str());
+        }
+    }
+    let circuit = Circuit::from_json(diagram).map_err(|e| e.to_string())?;
+    let boards = find_boards(&circuit, &registry)?;
+    if images.is_empty() {
+        return Err("no application image: app_len is 0".into());
+    }
+    if images.len() != boards.len() {
+        return Err(format!(
+            "the diagram has {} development boards but {} images were supplied",
+            boards.len(),
+            images.len()
+        ));
+    }
+    let named = images.iter().any(|image| image.id.is_some());
+    if named && images.iter().any(|image| image.id.is_none()) {
+        return Err("boot images must either all name a board id or all omit it".into());
+    }
+    if named {
+        for (id, _) in &boards {
+            if !images.iter().any(|image| image.id == Some(*id)) {
+                return Err(format!("board {id:?} has no boot image"));
+            }
+        }
+    }
+
+    let flat = FlatBoard::build(&circuit, &registry).map_err(|e| e.to_string())?;
+    let mut board = Board::new(flat)
+        .map_err(|e| e.to_string())?
+        .with_analog(options.analog);
+    let network = board.network().cloned();
+    let bluetooth = board.bluetooth().cloned();
+    if let Some(config) = network.clone() {
+        board.set_network(config);
+    }
+    let shared = Rc::new(RefCell::new(board));
+
+    let mut chips: Vec<Box<dyn Chip>> = Vec::with_capacity(boards.len());
+    for (index, (id, info)) in boards.iter().enumerate() {
+        let image = if named {
+            images
+                .iter()
+                .find(|image| image.id == Some(*id))
+                .expect("checked above")
+        } else {
+            &images[index]
+        };
+        let name = info.chip.as_deref().unwrap_or("esp32c3").to_string();
+        let flash_size = image
+            .flash_size
+            .or_else(|| {
+                info.flash_size
+                    .as_deref()
+                    .and_then(|text| parse_size(text).ok())
+            })
+            .unwrap_or(4 * 1024 * 1024);
+        let mut chip: Box<dyn Chip> = if let Some(simulator) = &info.simulator {
+            #[cfg(target_arch = "wasm32")]
+            {
+                Box::new(litz_board::host::HostChip::open(
+                    &simulator.module,
+                    Rc::clone(&shared),
+                    index as u16,
+                )?)
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let _ = simulator;
+                return Err(
+                    "this board runs a wasm guest chip, which an in-memory session does not host; \
+                     install the board and run it from a project instead"
+                        .into(),
+                );
+            }
+        } else {
+            let mut chip = builtin_chip(
+                &name,
+                image.mac.unwrap_or(options.mac),
+                flash_size,
+                Rc::clone(&shared),
+                index as u16,
+                Attachments {
+                    network: network.as_ref(),
+                    bluetooth: bluetooth.as_ref(),
+                    elf: None,
+                    ble_controller: false,
+                },
+            )?;
+            if info.psram {
+                chip.set_psram_size(4 << 20)?;
+            }
+            chip
+        };
+
+        if !image.rom.is_empty() {
+            chip.load_image(ImageKind::Rom, 0, image.rom)?;
+        }
+        let flash = chip.info().flash;
+        match (
+            image.bootloader.is_empty(),
+            image.partition_table.is_empty(),
+        ) {
+            (false, false) => {
+                chip.load_image(ImageKind::Bootloader, flash.bootloader, image.bootloader)?;
+                chip.load_image(
+                    ImageKind::PartitionTable,
+                    flash.partition_table,
+                    image.partition_table,
+                )?;
+                chip.load_image(ImageKind::Firmware, flash.app, image.app)?;
+            }
+            (true, true) => {
+                if image.app.is_empty() {
+                    // A wasm MCU may carry its own program.
+                    chip.boot()?;
+                } else {
+                    let merged = flash.app > 0
+                        && detect_layout(image.app).unwrap_or(FirmwareLayout::Application)
+                            == FirmwareLayout::Merged;
+                    if merged {
+                        chip.load_image(ImageKind::Bootloader, flash.bootloader, image.app)?;
+                    } else {
+                        chip.load_image(ImageKind::Firmware, flash.app, image.app)?;
+                    }
+                    chip.boot()?;
+                }
+            }
+            _ => {
+                return Err("bootloader and partition table must be supplied together".into());
+            }
+        }
+        chips.push(chip);
+    }
+
+    let ids = boards.iter().map(|(id, _)| (*id).to_string()).collect();
+    Ok(BootedFleet {
+        chips,
+        board: shared,
+        circuit,
+        ids,
+    })
+}

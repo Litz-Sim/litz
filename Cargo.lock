@@ -1247,6 +1247,7 @@ dependencies = [
  "litz-chip-conformance",
  "litz-core",
  "litz-diagram",
+ "litz-emu-core",
  "litz-esp-periph",
  "litz-esp-soc",
  "litz-esp32",

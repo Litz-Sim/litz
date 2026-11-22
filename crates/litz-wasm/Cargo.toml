@@ -18,7 +18,7 @@ litz-board = { version = "0.1.0", path = "../litz-board" }
 litz-core = { version = "0.1.0", path = "../litz-core" }
 litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
 litz-engine = { version = "0.1.0", path = "../litz-engine" }
-litz-esp = { version = "0.1.0", path = "../litz-esp", features = ["esp32c3"] }
+litz-esp = { version = "0.1.0", path = "../litz-esp", features = ["esp32c3", "esp32c6", "esp32p4", "esp32s31"] }
 litz-mcu = { version = "0.1.0", path = "../litz-mcu" }
 litz-net = { version = "0.1.0", path = "../litz-net", optional = true }
 serde = { version = "1.0.229", features = ["derive"] }

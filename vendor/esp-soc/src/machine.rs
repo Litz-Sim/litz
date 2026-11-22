@@ -343,6 +343,15 @@ impl<S: Soc> Machine<S> {
         };
         self.bus.observe_gpio(self.probes.contains(Wants::GPIO));
     }
+    /// Replace the `breakpoints` observer's PC set. Removing every breakpoint
+    /// leaves the instruction hook attached (it is harmless) because the
+    /// observer set is append-only by design.
+    pub fn set_breakpoints(&mut self, pcs: Vec<u32>) {
+        self.observers.retain(|o| o.name() != "breakpoints");
+        if !pcs.is_empty() {
+            self.add_observer(Box::new(crate::observers::Breakpoints { pcs }));
+        }
+    }
     /// Attach a timing model before the machine has executed or reset.
     pub fn set_cost_model(&mut self, mut model: Box<dyn CostModel>) -> Result<(), String> {
         if self.bus.board_ref().uses_gpio_waveform() {
@@ -1001,6 +1010,29 @@ impl<S: Soc> Machine<S> {
     /// uses complete quanta (`QUANTUM` by default), so a busy round can exceed the budget by up to
     /// `quantum - 1` steps, but the cycle ceiling cuts the final round short.
     /// The modeled path schedules one priced event at a time.
+    /// Execute exactly one instruction on core 0, bypassing the idle skip
+    /// and the block fast path. A debugger uses this for single-step; it is
+    /// slower than `run(1)` because a waiting core still retires its `wfi`.
+    pub fn step_one(&mut self) -> Stop {
+        self.apply_script_events();
+        self.refresh_irq();
+        if self.bus.sw_reset() {
+            self.drain_console();
+            return Stop::SwReset;
+        }
+        if self.bus.cycles() >= self.max_cycles {
+            self.drain_console();
+            return Stop::Halted;
+        }
+        let stop = self.step_core(0);
+        self.after_round(1);
+        self.drain_console();
+        if self.bus.sw_reset() {
+            return Stop::SwReset;
+        }
+        stop.unwrap_or(Stop::MaxInsns)
+    }
+
     pub fn run(&mut self, max_insns: u64) -> Stop {
         self.web_poll_input();
         self.refresh_irq();

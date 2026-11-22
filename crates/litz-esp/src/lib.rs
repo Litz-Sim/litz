@@ -2112,6 +2112,91 @@ pub mod backend {
             }
         }
 
+        fn debug_available(&self) -> bool {
+            use emu_core::Core;
+            self.machine_ref()
+                .cores
+                .first()
+                .map(|core| {
+                    let mut names = Vec::new();
+                    core.regs(&mut names);
+                    names.iter().any(|(name, _)| *name == "ra")
+                        && names.iter().any(|(name, _)| *name == "sp")
+                })
+                .unwrap_or(false)
+        }
+
+        fn debug_pc(&self) -> Option<u32> {
+            use emu_core::Core;
+            self.machine_ref().cores.first().map(|core| core.pc())
+        }
+
+        fn debug_register_file(&self) -> Option<[u32; 33]> {
+            use emu_core::Core;
+            let core = self.machine_ref().cores.first()?;
+            let mut names = Vec::new();
+            core.regs(&mut names);
+            if !names.iter().any(|(name, _)| *name == "ra") {
+                return None;
+            }
+            const RV: [&str; 32] = [
+                "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2",
+                "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9",
+                "s10", "s11", "t3", "t4", "t5", "t6",
+            ];
+            let mut file = [0u32; 33];
+            for (index, want) in RV.iter().enumerate() {
+                if let Some((_, value)) = names.iter().find(|(name, _)| name == want) {
+                    file[index] = *value;
+                }
+            }
+            file[32] = core.pc();
+            Some(file)
+        }
+
+        fn debug_read_memory(&mut self, addr: u32, len: usize) -> Vec<u8> {
+            if len == 0 {
+                return Vec::new();
+            }
+            let start = addr & !3;
+            let skip = (addr - start) as usize;
+            let words = (skip + len).div_ceil(4);
+            let text = self.machine_mut().peek(start, words);
+            let mut bytes = Vec::with_capacity(words * 4);
+            for line in text.lines() {
+                let Some((_, word)) = line.split_once(": ") else {
+                    break;
+                };
+                let Ok(word) = u32::from_str_radix(word.trim(), 16) else {
+                    break;
+                };
+                bytes.extend_from_slice(&word.to_le_bytes());
+            }
+            if bytes.len() < skip {
+                return Vec::new();
+            }
+            let end = (skip + len).min(bytes.len());
+            bytes[skip..end].to_vec()
+        }
+
+        fn debug_disassemble(&mut self, addr: u32, count: usize) -> String {
+            self.disassemble(addr, count)
+        }
+
+        fn debug_set_breakpoints(&mut self, pcs: &[u32]) {
+            self.machine_mut().set_breakpoints(pcs.to_vec());
+        }
+
+        fn debug_step(&mut self) -> Option<litz_board::Stop> {
+            Some(match self.machine_mut().step_one() {
+                esp_soc::Stop::MaxInsns => litz_board::Stop::Budget,
+                esp_soc::Stop::Halted => litz_board::Stop::Halted,
+                esp_soc::Stop::SwReset => litz_board::Stop::Reset,
+                esp_soc::Stop::Breakpoint(pc) => litz_board::Stop::Breakpoint(pc),
+                _ => litz_board::Stop::Idle,
+            })
+        }
+
         fn debug(&mut self) -> Option<&mut dyn litz_board::ChipDebug> {
             Some(self)
         }

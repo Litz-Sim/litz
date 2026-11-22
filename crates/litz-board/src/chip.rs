@@ -238,6 +238,40 @@ pub trait Chip {
     fn debug(&mut self) -> Option<&mut dyn ChipDebug> {
         None
     }
+
+    /// Whether this backend can answer the browser-facing debug calls below.
+    /// A backend that returns false leaves every other debug method unused.
+    fn debug_available(&self) -> bool {
+        false
+    }
+
+    /// The stopped core's program counter.
+    fn debug_pc(&self) -> Option<u32> {
+        None
+    }
+
+    /// The 32 integer registers followed by the program counter.
+    fn debug_register_file(&self) -> Option<[u32; 33]> {
+        None
+    }
+
+    /// Bytes readable at `addr`, stopping at the first inaccessible word.
+    fn debug_read_memory(&mut self, _addr: u32, _len: usize) -> Vec<u8> {
+        Vec::new()
+    }
+
+    /// `count` instructions at `addr`, in the backend's disassembly format.
+    fn debug_disassemble(&mut self, _addr: u32, _count: usize) -> String {
+        String::new()
+    }
+
+    /// Replace the armed breakpoint set. Empty clears every breakpoint.
+    fn debug_set_breakpoints(&mut self, _pcs: &[u32]) {}
+
+    /// Execute exactly one instruction and report why execution ended.
+    fn debug_step(&mut self) -> Option<Stop> {
+        None
+    }
 }
 
 /// A GDB server over one chip.
@@ -331,6 +365,27 @@ impl<T: Chip + ?Sized> Chip for Box<T> {
     }
     fn debug(&mut self) -> Option<&mut dyn ChipDebug> {
         (**self).debug()
+    }
+    fn debug_available(&self) -> bool {
+        (**self).debug_available()
+    }
+    fn debug_pc(&self) -> Option<u32> {
+        (**self).debug_pc()
+    }
+    fn debug_register_file(&self) -> Option<[u32; 33]> {
+        (**self).debug_register_file()
+    }
+    fn debug_read_memory(&mut self, addr: u32, len: usize) -> Vec<u8> {
+        (**self).debug_read_memory(addr, len)
+    }
+    fn debug_disassemble(&mut self, addr: u32, count: usize) -> String {
+        (**self).debug_disassemble(addr, count)
+    }
+    fn debug_set_breakpoints(&mut self, pcs: &[u32]) {
+        (**self).debug_set_breakpoints(pcs)
+    }
+    fn debug_step(&mut self) -> Option<Stop> {
+        (**self).debug_step()
     }
     fn start_trace(&mut self) {
         (**self).start_trace()

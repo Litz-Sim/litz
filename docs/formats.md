@@ -667,7 +667,7 @@ The reference MCU implementation is `crates/litz-chip-rv32`: RV32IMC plus enough
 
 ## 12. Runtime host ABI
 
-`crates/litz-wasm` builds a `cdylib` for `wasm32-unknown-unknown` with a plain C ABI over linear memory: a host allocates a buffer with `litz_alloc`, writes bytes, passes `(ptr, len)`, and releases it with `litz_free`. There is no wasm-bindgen layer. The module has no WASI and reaches no filesystem, clock, network or random source on its own; everything it reads is passed in. The `@litz-sim/litz` 0.2.1 package in `js/`, built from `litz-wasm` and the JavaScript sources, wraps this ABI as a headless library and adds the custom-component bridge.
+`crates/litz-wasm` builds a `cdylib` for `wasm32-unknown-unknown` with a plain C ABI over linear memory: a host allocates a buffer with `litz_alloc`, writes bytes, passes `(ptr, len)`, and releases it with `litz_free`. There is no wasm-bindgen layer. The module has no WASI and reaches no filesystem, clock, network or random source on its own; everything it reads is passed in. The `@litz-sim/litz` 0.3.0 package in `js/`, built from `litz-wasm` and the JavaScript sources, wraps this ABI as a headless library and adds the custom-component bridge.
 
 ### 12.1 Session options — `litz_new_json`
 

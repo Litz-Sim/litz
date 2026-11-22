@@ -25,6 +25,7 @@ litz-net = { version = "0.1.0", path = "../litz-net", optional = true }
 litz-core = { version = "0.1.0", path = "../litz-core" }
 litz-mcu = { version = "0.1.0", path = "../litz-mcu" }
 gdbstub = "0.7.10"
+litz-emu-core = { version = "0.1.0", path = "../../vendor/emu-core" }
 
 [features]
 esp32c3 = ["dep:litz-esp32c3", "dep:litz-esp-soc", "dep:litz-esp-periph", "dep:litz-ble", "dep:litz-board", "dep:litz-net"]

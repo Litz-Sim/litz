@@ -27,4 +27,3 @@ litz test examples/blinky
 - [GitHub](https://github.com/Litz-Sim/litz)
 - [crates.io](https://crates.io/crates/litz)
 - [npm](https://www.npmjs.com/package/@litz-sim/litz)
-- [Homepage](../)

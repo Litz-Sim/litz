@@ -29,7 +29,9 @@ export class Session {
     const session = this;
     this.#serial = {
       take: () => session.#takeSerial(),
+      takeBoard: (board) => session.#takeBoardSerial(board),
       write: (data) => session.#writeSerial(data),
+      writeBoard: (board, data) => session.#writeBoardSerial(board, data),
     };
     this.#trace = Object.freeze({
       start: () => {
@@ -112,6 +114,52 @@ export class Session {
     } catch (error) {
       throw new LitzError("the chip description was not valid JSON", { cause: error });
     }
+  }
+
+  /** Every development board the session booted, in diagram order. */
+  boards() {
+    this.#assertOpen();
+    const count = this.#x.litz_board_count(this.#handle);
+    const out = [];
+    for (let index = 0; index < count; index += 1) {
+      const id = this.#readText(
+        (ptr, cap) => this.#x.litz_board_id(this.#handle, index, ptr, cap),
+        32,
+      );
+      const info = this.#readText(
+        (ptr, cap) => this.#x.litz_board_chip_info(this.#handle, index, ptr, cap),
+        128,
+      );
+      let chip;
+      try {
+        chip = JSON.parse(info);
+      } catch (error) {
+        throw new LitzError("the chip description was not valid JSON", { cause: error });
+      }
+      out.push({ index, id, ...chip });
+    }
+    return out;
+  }
+
+  /** One board by list index or `diagram.json` id. */
+  board(board = 0) {
+    this.#assertOpen();
+    if (typeof board === "number") {
+      const entry = this.boards()[board];
+      if (!entry) throw new LitzError(`there is no board at index ${board}`);
+      return entry;
+    }
+    const entry = this.boards().find((candidate) => candidate.id === board);
+    if (!entry) throw new LitzError(`there is no board ${board}`);
+    return entry;
+  }
+
+  /** The level one board sees on one of its own pads. */
+  gpioOn(board, pin) {
+    this.#assertOpen();
+    const index = this.#boardIndex(board);
+    const code = this.#x.litz_board_gpio_level(this.#handle, index, pin >>> 0);
+    return code < 0 ? null : LEVELS[code] ?? null;
   }
 
   /** How the last `run` ended: budget, idle, halted, trap, reset or breakpoint. */
@@ -310,6 +358,151 @@ export class Session {
     return this.#x.litz_touch(this.#handle, x >>> 0, y >>> 0, down ? 1 : 0) === 1;
   }
 
+  /** One board's display, addressed by list index or board id. */
+  displayOn(board = 0) {
+    this.#assertOpen();
+    const index = this.#boardIndex(board);
+    const info = this.#x.litz_board_display_info(this.#handle, index);
+    if (info === 0) return null;
+    const width = info >>> 16;
+    const height = info & 0xffff;
+    const session = this;
+    return {
+      width,
+      height,
+      get version() {
+        session.#assertOpen();
+        return session.#x.litz_board_display_version(session.#handle, index);
+      },
+      pixels() {
+        session.#assertOpen();
+        const needed = width * height * 4;
+        const cap = session.#io.writeOut(needed);
+        const written = session.#x.litz_board_display_rgba(
+          session.#handle,
+          index,
+          cap.ptr,
+          cap.len,
+        );
+        if (written !== needed) {
+          throw session.#io.error("the display frame could not be read");
+        }
+        return session.#io.copyOut(written);
+      },
+    };
+  }
+
+  /** The browser-facing debugger, one board at a time. */
+  get debug() {
+    const session = this;
+    return Object.freeze({
+      available: (board = 0) => {
+        session.#assertOpen();
+        return session.#x.litz_debug_available(session.#handle, session.#boardIndex(board)) === 1;
+      },
+      pc: (board = 0) => {
+        session.#assertOpen();
+        const pc = session.#x.litz_debug_pc(session.#handle, session.#boardIndex(board));
+        return pc < 0 ? null : pc >>> 0;
+      },
+      registers: (board = 0) => {
+        session.#assertOpen();
+        const index = session.#boardIndex(board);
+        const cap = session.#io.writeOut(33 * 4);
+        const written = session.#x.litz_debug_registers(
+          session.#handle,
+          index,
+          cap.ptr,
+          cap.len,
+        );
+        if (written !== 33 * 4) return null;
+        const bytes = session.#io.copyOut(written);
+        const values = [];
+        for (let offset = 0; offset < written; offset += 4) {
+          values.push(
+            (bytes[offset] |
+              (bytes[offset + 1] << 8) |
+              (bytes[offset + 2] << 16) |
+              (bytes[offset + 3] << 24)) >>>
+              0,
+          );
+        }
+        return { values: values.slice(0, 32), pc: values[32] };
+      },
+      memory: (board, addr, length) => {
+        session.#assertOpen();
+        const index = session.#boardIndex(board);
+        const cap = session.#io.writeOut(Math.max(1, length >>> 0));
+        const written = session.#x.litz_debug_memory(
+          session.#handle,
+          index,
+          addr >>> 0,
+          cap.ptr,
+          cap.len,
+        );
+        return session.#io.copyOut(written | 0);
+      },
+      disassemble: (board, addr, count = 8) => {
+        session.#assertOpen();
+        const index = session.#boardIndex(board);
+        return session.#readText(
+          (ptr, cap) =>
+            session.#x.litz_debug_disassemble(
+              session.#handle,
+              index,
+              addr >>> 0,
+              count >>> 0,
+              ptr,
+              cap,
+            ),
+          4096,
+        );
+      },
+      setBreakpoints: (board, pcs) => {
+        session.#assertOpen();
+        const index = session.#boardIndex(board);
+        const list = Array.from(pcs, (pc) => pc >>> 0);
+        const bytes = new Uint8Array(list.length * 4);
+        list.forEach((pc, slot) => {
+          bytes[slot * 4] = pc & 0xff;
+          bytes[slot * 4 + 1] = (pc >>> 8) & 0xff;
+          bytes[slot * 4 + 2] = (pc >>> 16) & 0xff;
+          bytes[slot * 4 + 3] = (pc >>> 24) & 0xff;
+        });
+        const buf = session.#io.writeIn(bytes);
+        let code;
+        try {
+          code = session.#x.litz_debug_breakpoints(
+            session.#handle,
+            index,
+            buf.ptr,
+            list.length,
+          );
+        } finally {
+          session.#io.release(buf);
+        }
+        if (code !== 1) throw session.#io.error("the breakpoints could not be set");
+      },
+      step: (board = 0) => {
+        session.#assertOpen();
+        const code = session.#x.litz_debug_step(
+          session.#handle,
+          session.#boardIndex(board),
+        );
+        return code < 0 ? "unsupported" : STOPS[code] ?? "unknown";
+      },
+      run: (board = 0, steps = DEFAULT_STEPS) => {
+        session.#assertOpen();
+        const code = session.#x.litz_debug_run(
+          session.#handle,
+          session.#boardIndex(board),
+          steps >>> 0,
+        );
+        return code < 0 ? "unsupported" : STOPS[code] ?? "unknown";
+      },
+    });
+  }
+
   /** The scope document: every probe's samples and every decoder's frames. */
   scope() {
     this.#assertOpen();
@@ -350,6 +543,49 @@ export class Session {
     if (code < 0) return null;
     const entry = STATE_CODES[code] ?? { kind: "unknown", state: "unknown" };
     return { id, code, kind: entry.kind, state: entry.state, value };
+  }
+
+  #boardIndex(board) {
+    if (typeof board === "number") {
+      if (!Number.isInteger(board) || board < 0) {
+        throw new LitzError(`there is no board ${board}`);
+      }
+      return board;
+    }
+    return this.board(board).index;
+  }
+
+  #takeBoardSerial(board) {
+    this.#assertOpen();
+    const index = this.#boardIndex(board);
+    const chunks = [];
+    for (;;) {
+      const cap = this.#io.writeOut(64 * 1024);
+      const written = this.#x.litz_serial_take_board(
+        this.#handle,
+        index,
+        cap.ptr,
+        cap.len,
+      );
+      if (written === 0) break;
+      chunks.push(this.#io.copyOut(written));
+      if (written < cap.len) break;
+    }
+    return decodeChunks(chunks);
+  }
+
+  #writeBoardSerial(board, data) {
+    this.#assertOpen();
+    const index = this.#boardIndex(board);
+    const bytes = typeof data === "string" ? ENCODER.encode(data) : bytesOf(data, "serial data");
+    if (bytes.length === 0) return;
+    const buf = this.#io.writeIn(bytes);
+    try {
+      this.#x.litz_serial_write_board(this.#handle, index, buf.ptr, buf.len);
+    } finally {
+      this.#io.release(buf);
+    }
+    this.#throwStored();
   }
 
   #takeSerial() {

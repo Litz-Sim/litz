@@ -17,7 +17,7 @@ use litz_board::{Board, Chip, Stop};
 use litz_core::PartState;
 use litz_diagram::Circuit;
 use litz_engine::config::DecodeSection;
-use litz_engine::machine::{self, BootOptions, Images};
+use litz_engine::machine::{self, BoardImage, BootOptions, Images};
 
 /// Serial text kept for the host. A runaway firmware can print without bound;
 /// past this many bytes the oldest output is dropped, because a browser tab
@@ -29,22 +29,27 @@ const SERIAL_CAP: usize = 1024 * 1024;
 const NO_NET: u16 = u16::MAX;
 
 pub(crate) struct Session {
-    chip: Box<dyn Chip>,
-    /// The same board the chip drives, kept so probes, the display and the
+    /// One chip per development board in diagram order.
+    chips: Vec<Box<dyn Chip>>,
+    /// The diagram ids of those boards, in the same order.
+    board_ids: Vec<String>,
+    /// The same board every chip drives, kept so probes, the display and the
     /// trace can be asked without another trait method for each.
     board: Rc<RefCell<Board>>,
     /// The parsed diagram, kept so part enumeration reports the ids the host
     /// wrote, not the prefixed ids a board expansion invents.
     diagram: Circuit,
-    /// Console bytes since the host last drained them.
+    /// Console bytes since the host last drained them, merged in board order.
     serial: Vec<u8>,
+    /// One console backlog per board, so a host can read a board on its own.
+    consoles: Vec<Vec<u8>>,
     /// Protocols the host asked to read off the probed channels, with the
     /// text it spelled them with, so the host can match its own list to the
     /// document even when two decoders share a label.
     decodes: Vec<(String, DecodeSection)>,
-    /// How the last `run` ended, which tells a halted firmware from one that
-    /// merely used its step budget.
-    stop: Stop,
+    /// How the last `run` ended, per board; the merged stop is the most
+    /// significant one any board reported.
+    stops: Vec<Stop>,
 }
 
 impl Session {
@@ -75,21 +80,50 @@ impl Session {
         images: Images<'_>,
         options: &BootOptions,
     ) -> Result<Self, String> {
-        let booted = machine::boot(diagram, images, options)?;
+        if images.app.is_empty() {
+            return Err("no application image: app_len is 0".into());
+        }
+        let board = BoardImage {
+            id: None,
+            app: images.app,
+            rom: images.rom,
+            bootloader: images.bootloader,
+            partition_table: images.partition_table,
+            flash_size: options.flash_size,
+            mac: Some(options.mac),
+        };
+        Self::with_fleet(diagram, &[board], options)
+    }
+
+    /// Build one chip per development board, sharing one circuit.
+    pub(crate) fn with_fleet(
+        diagram: &str,
+        images: &[BoardImage<'_>],
+        options: &BootOptions,
+    ) -> Result<Self, String> {
+        let booted = machine::boot_fleet(diagram, images, options)?;
+        let count = booted.chips.len();
         Ok(Self {
-            chip: booted.chip,
+            chips: booted.chips,
+            board_ids: booted.ids,
             board: booted.board,
             diagram: booted.circuit,
             serial: Vec::new(),
+            consoles: vec![Vec::new(); count],
             decodes: Vec::new(),
-            stop: Stop::Budget,
+            stops: vec![Stop::Budget; count],
         })
     }
 
     /// Simulated milliseconds since reset, saturating at `u32::MAX`
     /// (about 49.7 days of simulated time).
     pub(crate) fn ms(&self) -> u32 {
-        (self.chip.seconds() * 1000.0) as u32
+        let seconds = self
+            .chips
+            .iter()
+            .map(|chip| chip.seconds())
+            .fold(0.0f64, f64::max);
+        (seconds * 1000.0) as u32
     }
 
     /// Advance at most `steps` scheduling steps, collect the console and
@@ -97,34 +131,163 @@ impl Session {
     /// microsecond; the host decides how much simulated time a call should
     /// cover by its step budget.
     pub(crate) fn run(&mut self, steps: u32) -> u32 {
-        let result = self.chip.run(u64::from(steps));
-        self.stop = result.stop;
-        let chunk = self.chip.take_console();
-        append_capped(&mut self.serial, &chunk, SERIAL_CAP);
+        for (index, chip) in self.chips.iter_mut().enumerate() {
+            let result = chip.run(u64::from(steps));
+            self.stops[index] = result.stop;
+            let chunk = chip.take_console();
+            if !chunk.is_empty() {
+                append_capped(&mut self.serial, &chunk, SERIAL_CAP);
+                if let Some(console) = self.consoles.get_mut(index) {
+                    append_capped(console, &chunk, SERIAL_CAP);
+                }
+            }
+        }
         self.ms()
     }
 
     /// How the last run ended: 0 budget, 1 idle, 2 halted, 3 trap, 4 reset,
-    /// 5 breakpoint.
+    /// 5 breakpoint. With several chips the most significant stop wins.
     pub(crate) fn stop_code(&self) -> u32 {
-        match self.stop {
-            Stop::Budget => 0,
-            Stop::Idle => 1,
-            Stop::Halted => 2,
-            Stop::Trap => 3,
-            Stop::Reset => 4,
-            Stop::Breakpoint(_) => 5,
+        let stop = self
+            .stops
+            .iter()
+            .copied()
+            .max_by_key(|stop| stop_rank(*stop))
+            .unwrap_or(Stop::Budget);
+        stop_code(stop)
+    }
+
+    pub(crate) fn board_count(&self) -> u32 {
+        self.chips.len() as u32
+    }
+
+    pub(crate) fn board_id(&self, index: u32) -> Option<String> {
+        self.board_ids.get(index as usize).cloned()
+    }
+
+    pub(crate) fn board_chip_info_json(&self, index: u32) -> Option<String> {
+        let chip = self.chips.get(index as usize)?;
+        let info = chip.info();
+        Some(format!(
+            r#"{{"name":{},"cpuHz":{},"flash":{{"size":{},"bootloader":{},"partitionTable":{},"app":{}}}}}"#,
+            json_string(&info.name),
+            info.cpu_hz,
+            info.flash.size,
+            info.flash.bootloader,
+            info.flash.partition_table,
+            info.flash.app,
+        ))
+    }
+
+    pub(crate) fn board_gpio_level(&self, index: u32, pin: u8) -> Option<litz_core::Level> {
+        self.chips.get(index as usize)?.gpio_level(pin)
+    }
+
+    pub(crate) fn take_board_serial(&mut self, index: u32, max: usize) -> Option<Vec<u8>> {
+        let console = self.consoles.get_mut(index as usize)?;
+        let n = max.min(console.len());
+        Some(console.drain(..n).collect())
+    }
+
+    pub(crate) fn board_display(&mut self, index: u32) -> Option<(u32, u32, Vec<u16>, u64)> {
+        self.chips.get_mut(index as usize)?.display()
+    }
+
+    pub(crate) fn board_display_version(&mut self, index: u32) -> u64 {
+        self.chips
+            .get_mut(index as usize)
+            .map(|chip| chip.display_version())
+            .unwrap_or(0)
+    }
+
+    pub(crate) fn write_serial_board(&mut self, index: u32, data: &[u8]) -> bool {
+        match self.chips.get_mut(index as usize) {
+            Some(chip) => {
+                chip.write_console(data);
+                true
+            }
+            None => false,
         }
+    }
+
+    pub(crate) fn debug_available(&self, index: u32) -> bool {
+        self.chips
+            .get(index as usize)
+            .map(|chip| chip.debug_available())
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn debug_pc(&self, index: u32) -> Option<u32> {
+        self.chips.get(index as usize)?.debug_pc()
+    }
+
+    pub(crate) fn debug_registers(&self, index: u32) -> Option<[u32; 33]> {
+        self.chips.get(index as usize)?.debug_register_file()
+    }
+
+    pub(crate) fn debug_memory(&mut self, index: u32, addr: u32, len: usize) -> Option<Vec<u8>> {
+        Some(
+            self.chips
+                .get_mut(index as usize)?
+                .debug_read_memory(addr, len),
+        )
+    }
+
+    pub(crate) fn debug_disassemble(
+        &mut self,
+        index: u32,
+        addr: u32,
+        count: usize,
+    ) -> Option<String> {
+        Some(
+            self.chips
+                .get_mut(index as usize)?
+                .debug_disassemble(addr, count),
+        )
+    }
+
+    pub(crate) fn debug_set_breakpoints(&mut self, index: u32, pcs: &[u32]) -> bool {
+        match self.chips.get_mut(index as usize) {
+            Some(chip) => {
+                chip.debug_set_breakpoints(pcs);
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub(crate) fn debug_step(&mut self, index: u32) -> Option<u32> {
+        let chip = self.chips.get_mut(index as usize)?;
+        let stop = chip.debug_step()?;
+        self.stops[index as usize] = stop;
+        let chunk = chip.take_console();
+        if !chunk.is_empty() {
+            append_capped(&mut self.serial, &chunk, SERIAL_CAP);
+            append_capped(&mut self.consoles[index as usize], &chunk, SERIAL_CAP);
+        }
+        Some(stop_code(stop))
+    }
+
+    pub(crate) fn debug_run(&mut self, index: u32, steps: u32) -> Option<u32> {
+        let chip = self.chips.get_mut(index as usize)?;
+        let result = chip.run(u64::from(steps));
+        self.stops[index as usize] = result.stop;
+        let chunk = chip.take_console();
+        if !chunk.is_empty() {
+            append_capped(&mut self.serial, &chunk, SERIAL_CAP);
+            append_capped(&mut self.consoles[index as usize], &chunk, SERIAL_CAP);
+        }
+        Some(stop_code(result.stop))
     }
 
     /// The backend's own explanation for a trap or fault, if it has one.
     pub(crate) fn fault(&self) -> Option<String> {
-        self.chip.fault()
+        self.chips.iter().find_map(|chip| chip.fault())
     }
 
     /// The chip's name, clock and flash layout, as the host spells them.
     pub(crate) fn chip_info_json(&self) -> String {
-        let info = self.chip.info();
+        let info = self.chips[0].info();
         format!(
             r#"{{"name":{},"cpuHz":{},"flash":{{"size":{},"bootloader":{},"partitionTable":{},"app":{}}}}}"#,
             json_string(&info.name),
@@ -163,12 +326,12 @@ impl Session {
 
     /// The board's display as RGB565, with its size and change counter.
     pub(crate) fn display(&mut self) -> Option<(u32, u32, Vec<u16>, u64)> {
-        self.chip.display()
+        self.board_display(0)
     }
 
     /// The display's change counter, without building a frame.
     pub(crate) fn display_version(&mut self) -> u64 {
-        self.chip.display_version()
+        self.board_display_version(0)
     }
 
     /// Touch the panel at raw controller codes. False when the board has no
@@ -259,13 +422,13 @@ impl Session {
     }
 
     pub(crate) fn conflict_count(&self) -> u32 {
-        self.chip.conflicts().len() as u32
+        self.chips[0].conflicts().len() as u32
     }
 
     /// Text for one conflict. A fault that belongs to no particular net (a
     /// board that would not settle) is reported without the `net` prefix.
     pub(crate) fn conflict_text(&self, index: u32) -> Option<String> {
-        let conflicts = self.chip.conflicts();
+        let conflicts = self.chips[0].conflicts();
         let conflict = conflicts.get(index as usize)?;
         Some(if conflict.net == NO_NET {
             format!("board: {}", conflict.detail)
@@ -276,7 +439,7 @@ impl Session {
 
     /// Part-state code for the ABI, or `-1` when the diagram has no such part.
     pub(crate) fn state_of(&self, id: &str) -> i32 {
-        match self.chip.state(id) {
+        match self.chips[0].state(id) {
             None => -1,
             Some(state) => state_code(state),
         }
@@ -284,7 +447,7 @@ impl Session {
 
     /// The number behind a state code, or `0` when the state has none.
     pub(crate) fn value_of(&self, id: &str) -> f64 {
-        self.chip.state(id).map(state_value).unwrap_or(0.0)
+        self.chips[0].state(id).map(state_value).unwrap_or(0.0)
     }
 
     /// Number of parts the diagram declares. Board-expanded parts such as
@@ -307,10 +470,10 @@ impl Session {
     /// the circuit routes the switch to a pin. That is why a switch in series
     /// with an LED lights it here as well.
     pub(crate) fn press(&mut self, id: &str, pressed: bool) -> Result<(), String> {
-        if self.chip.state(id).is_none() {
+        if self.chips[0].state(id).is_none() {
             return Err(format!("no part {id:?} in the diagram"));
         }
-        if self.chip.press(id, pressed) {
+        if self.chips[0].press(id, pressed) {
             Ok(())
         } else {
             Err(format!(
@@ -321,10 +484,10 @@ impl Session {
 
     /// Move a continuous control such as a potentiometer's knob.
     pub(crate) fn set_control(&mut self, id: &str, permille: u16) -> Result<(), String> {
-        if self.chip.state(id).is_none() {
+        if self.chips[0].state(id).is_none() {
             return Err(format!("no part {id:?} in the diagram"));
         }
-        if self.chip.set_control(id, permille) {
+        if self.chips[0].set_control(id, permille) {
             Ok(())
         } else {
             Err(format!("part {id:?} has no continuous control"))
@@ -339,10 +502,10 @@ impl Session {
         name: &str,
         value: &str,
     ) -> Result<(), String> {
-        if self.chip.state(id).is_none() {
+        if self.chips[0].state(id).is_none() {
             return Err(format!("no part {id:?} in the diagram"));
         }
-        if self.chip.set_named_control(id, name, value) {
+        if self.chips[0].set_named_control(id, name, value) {
             Ok(())
         } else {
             Err(format!("part {id:?} has no control {name:?}"))
@@ -351,23 +514,48 @@ impl Session {
 
     /// The level on one of a part's own pins, when the part has it.
     pub(crate) fn part_pin_level(&self, id: &str, pin: Option<&str>) -> Option<litz_core::Level> {
-        self.chip.part_pin_level(id, pin)
+        self.chips[0].part_pin_level(id, pin)
     }
 
     /// The level the chip sees on one of its own pads, by GPIO number.
     pub(crate) fn gpio_level(&self, pin: u8) -> Option<litz_core::Level> {
-        self.chip.gpio_level(pin)
+        self.chips[0].gpio_level(pin)
     }
 
     /// The firmware's own free-heap figure, when the backend can ask it.
     pub(crate) fn sample_heap(&mut self) -> Result<u32, String> {
-        self.chip.sample_heap()
+        self.chips[0].sample_heap()
     }
 
     /// Bytes typed into the serial monitor, straight into the console's
     /// receive path.
     pub(crate) fn write_serial(&mut self, data: &[u8]) {
-        self.chip.write_console(data);
+        self.chips[0].write_console(data);
+    }
+}
+
+/// Rank stops so a trap on one board outranks a budget stop on another.
+fn stop_rank(stop: Stop) -> u8 {
+    match stop {
+        Stop::Budget => 0,
+        Stop::Idle => 1,
+        Stop::Halted => 2,
+        Stop::Breakpoint(_) => 3,
+        Stop::Reset => 4,
+        Stop::Trap => 5,
+    }
+}
+
+/// The ABI's stop code: 0 budget, 1 idle, 2 halted, 3 trap, 4 reset,
+/// 5 breakpoint.
+fn stop_code(stop: Stop) -> u32 {
+    match stop {
+        Stop::Budget => 0,
+        Stop::Idle => 1,
+        Stop::Halted => 2,
+        Stop::Trap => 3,
+        Stop::Reset => 4,
+        Stop::Breakpoint(_) => 5,
     }
 }
 

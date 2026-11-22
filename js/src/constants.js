@@ -43,6 +43,23 @@ export const REQUIRED_EXPORTS = [
   "litz_guest_console",
   "litz_guest_fault",
   "litz_guest_call",
+  "litz_board_count",
+  "litz_board_id",
+  "litz_board_chip_info",
+  "litz_board_gpio_level",
+  "litz_serial_take_board",
+  "litz_serial_write_board",
+  "litz_board_display_info",
+  "litz_board_display_version",
+  "litz_board_display_rgba",
+  "litz_debug_available",
+  "litz_debug_pc",
+  "litz_debug_registers",
+  "litz_debug_memory",
+  "litz_debug_disassemble",
+  "litz_debug_breakpoints",
+  "litz_debug_step",
+  "litz_debug_run",
 ];
 
 // State codes from `litz_part_state`; `-1` means the diagram has no such id.

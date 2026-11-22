@@ -12,10 +12,12 @@ export declare class Litz {
 }
 
 export interface SessionOptions {
-  /** The diagram.json text. The board it names selects the chip. */
+  /** The diagram.json text. The boards it names select the chips. */
   diagram: string;
-  /** The application image. */
-  app: Uint8Array | ArrayBuffer | ArrayBufferView;
+  /** The application image for a single-board diagram. */
+  app?: Uint8Array | ArrayBuffer | ArrayBufferView;
+  /** One image per development board; replaces `app` in a multi-board diagram. */
+  boardImages?: BoardImage[];
   /** Mask ROM, when the firmware needs one. */
   rom?: Uint8Array | ArrayBuffer | ArrayBufferView | null;
   /** Second-stage bootloader; requires `ptable`. */
@@ -34,6 +36,18 @@ export interface SessionOptions {
   parts?: Record<string, PartFactory>;
   /** Wasm chip modules: `{ "x.wasm": (host) => instance }`. */
   boards?: Record<string, ChipFactory>;
+}
+
+/** One board's images in a multi-board session. */
+export interface BoardImage {
+  /** The `diagram.json` instance id; omitted entries match boards by position. */
+  id?: string;
+  app: Uint8Array | ArrayBuffer | ArrayBufferView;
+  rom?: Uint8Array | ArrayBuffer | ArrayBufferView | null;
+  boot?: Uint8Array | ArrayBuffer | ArrayBufferView | null;
+  ptable?: Uint8Array | ArrayBuffer | ArrayBufferView | null;
+  flashSize?: number | null;
+  mac?: string | null;
 }
 
 /** One instantiated `litz:part` component, as the simulator drives it. */
@@ -174,10 +188,35 @@ export interface Display {
 }
 
 export interface Serial {
-  /** Drain what the firmware printed since the last call. */
+  /** Drain what the boards printed since the last call, merged in board order. */
   take(): string;
-  /** Deliver bytes to the board's UART0 receiver. */
+  /** Drain one board's console, by list index or board id. */
+  takeBoard(board: number | string): string;
+  /** Deliver bytes to the first board's UART0 receiver. */
   write(data: string | Uint8Array | ArrayBuffer | ArrayBufferView): void;
+  /** Deliver bytes to one board's UART0 receiver. */
+  writeBoard(
+    board: number | string,
+    data: string | Uint8Array | ArrayBuffer | ArrayBufferView,
+  ): void;
+}
+
+/** One development board the session booted. */
+export interface BoardInfo extends ChipInfo {
+  readonly index: number;
+  readonly id: string;
+}
+
+/** The browser-facing debugger over one RISC-V board. */
+export interface Debug {
+  available(board?: number | string): boolean;
+  pc(board?: number | string): number | null;
+  registers(board?: number | string): { values: number[]; pc: number } | null;
+  memory(board: number | string, addr: number, length: number): Uint8Array;
+  disassemble(board: number | string, addr: number, count?: number): string;
+  setBreakpoints(board: number | string, pcs: ArrayLike<number>): void;
+  step(board?: number | string): StopWord | "unsupported";
+  run(board?: number | string, steps?: number): StopWord | "unsupported";
 }
 
 export interface Trace {
@@ -255,6 +294,10 @@ export declare class Session {
   readonly ms: number;
   /** The backend the diagram booted, its clock and its flash layout. */
   chip(): ChipInfo;
+  /** Every development board the session booted, in diagram order. */
+  boards(): BoardInfo[];
+  /** One board by list index or `diagram.json` id. */
+  board(board?: number | string): BoardInfo;
   /** How the last `run` ended. */
   readonly stop: StopWord;
   /** The backend's explanation for a trap, or `null`. */
@@ -281,12 +324,18 @@ export declare class Session {
   partPin(id: string, pin?: string): Level | null;
   /** The level the chip sees on its own pad, by GPIO number. */
   gpio(pin: number): Level | null;
+  /** The level one board sees on one of its own pads. */
+  gpioOn(board: number | string, pin: number): Level | null;
   /** The panel, or `null` when the circuit has no display. */
   display(): Display | null;
+  /** One board's panel, by list index or board id. */
+  displayOn(board?: number | string): Display | null;
   /** Deliver a touch at panel pixels. False without a panel. */
   touch(x: number, y: number, down?: boolean): boolean;
   /** Probes' samples and decoders' frames. */
   scope(): ScopeDocument;
+  /** Registers, memory, breakpoints and single-step. */
+  readonly debug: Debug;
   /** Drop the session. */
   close(): void;
 }

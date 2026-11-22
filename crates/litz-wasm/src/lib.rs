@@ -123,7 +123,10 @@ pub mod abi {
     #[serde(rename_all = "camelCase", deny_unknown_fields)]
     struct SessionSpec {
         diagram: String,
-        app: ImageRef,
+        #[serde(default)]
+        app: Option<ImageRef>,
+        #[serde(default)]
+        boards: Vec<BoardSpec>,
         #[serde(default)]
         rom: Option<ImageRef>,
         #[serde(default)]
@@ -140,6 +143,37 @@ pub mod abi {
         /// whose internal schematic the host also supplies.
         #[serde(default)]
         manifests: Vec<ManifestSpec>,
+    }
+
+    /// One development board's images for a multi-board session.
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
+    struct BoardSpec {
+        #[serde(default)]
+        id: Option<String>,
+        app: ImageRef,
+        #[serde(default)]
+        rom: Option<ImageRef>,
+        #[serde(default)]
+        boot: Option<ImageRef>,
+        #[serde(default)]
+        ptable: Option<ImageRef>,
+        #[serde(default)]
+        flash_size: Option<u32>,
+        #[serde(default)]
+        mac: Option<String>,
+    }
+
+    /// One board's images, owned so the fleet can borrow them after the
+    /// JSON spec has been consumed.
+    struct OwnedBoard {
+        id: Option<String>,
+        app: Vec<u8>,
+        rom: Vec<u8>,
+        boot: Vec<u8>,
+        ptable: Vec<u8>,
+        flash_size: Option<usize>,
+        mac: Option<[u8; 6]>,
     }
 
     /// A manifest the host handed over.
@@ -277,34 +311,31 @@ pub mod abi {
             Ok(spec) => spec,
             Err(error) => return error_u32(format!("session options: {error}")),
         };
-        let mac = match spec.mac.as_deref().map(parse_mac) {
+        let SessionSpec {
+            diagram,
+            app,
+            boards,
+            rom,
+            boot,
+            ptable,
+            flash_size,
+            mac: mac_text,
+            analog,
+            manifests,
+        } = spec;
+        let mac = match mac_text.as_deref().map(parse_mac) {
             None => litz_engine::machine::DEFAULT_MAC,
             Some(Ok(mac)) => mac,
             Some(Err(message)) => return error_u32(message),
         };
-        if spec.flash_size == Some(0) {
+        if flash_size == Some(0) {
             return error_u32("flashSize must be positive");
         }
-        let rom = spec
-            .rom
-            .map(|r| memory::to_vec(r.ptr, r.len))
-            .unwrap_or_default();
-        let boot = spec
-            .boot
-            .map(|r| memory::to_vec(r.ptr, r.len))
-            .unwrap_or_default();
-        let ptable = spec
-            .ptable
-            .map(|r| memory::to_vec(r.ptr, r.len))
-            .unwrap_or_default();
-        let app = memory::to_vec(spec.app.ptr, spec.app.len);
-
         let options = litz_engine::machine::BootOptions {
-            flash_size: spec.flash_size.map(|size| size as usize),
+            flash_size: flash_size.map(|size| size as usize),
             mac,
-            analog: spec.analog.unwrap_or(false),
-            manifests: spec
-                .manifests
+            analog: analog.unwrap_or(false),
+            manifests: manifests
                 .into_iter()
                 .map(|manifest| match manifest {
                     ManifestSpec::Text(toml) => litz_engine::machine::ManifestText {
@@ -317,16 +348,76 @@ pub mod abi {
                 })
                 .collect(),
         };
-        match Session::with_options(
-            &spec.diagram,
-            litz_engine::machine::Images {
-                rom: &rom,
-                bootloader: &boot,
-                partition_table: &ptable,
-                app: &app,
-            },
-            &options,
-        ) {
+
+        let session = if boards.is_empty() {
+            let Some(app) = app else {
+                return error_u32("no application image: app_len is 0");
+            };
+            let rom = rom
+                .map(|r| memory::to_vec(r.ptr, r.len))
+                .unwrap_or_default();
+            let boot = boot
+                .map(|r| memory::to_vec(r.ptr, r.len))
+                .unwrap_or_default();
+            let ptable = ptable
+                .map(|r| memory::to_vec(r.ptr, r.len))
+                .unwrap_or_default();
+            let app = memory::to_vec(app.ptr, app.len);
+            Session::with_options(
+                &diagram,
+                litz_engine::machine::Images {
+                    rom: &rom,
+                    bootloader: &boot,
+                    partition_table: &ptable,
+                    app: &app,
+                },
+                &options,
+            )
+        } else {
+            let mut owned = Vec::with_capacity(boards.len());
+            for spec in boards {
+                let mac = match spec.mac.as_deref().map(parse_mac) {
+                    None => None,
+                    Some(Ok(mac)) => Some(mac),
+                    Some(Err(message)) => return error_u32(message),
+                };
+                if spec.flash_size == Some(0) {
+                    return error_u32("flashSize must be positive");
+                }
+                owned.push(OwnedBoard {
+                    id: spec.id,
+                    app: memory::to_vec(spec.app.ptr, spec.app.len),
+                    rom: spec
+                        .rom
+                        .map(|r| memory::to_vec(r.ptr, r.len))
+                        .unwrap_or_default(),
+                    boot: spec
+                        .boot
+                        .map(|r| memory::to_vec(r.ptr, r.len))
+                        .unwrap_or_default(),
+                    ptable: spec
+                        .ptable
+                        .map(|r| memory::to_vec(r.ptr, r.len))
+                        .unwrap_or_default(),
+                    flash_size: spec.flash_size.map(|size| size as usize),
+                    mac,
+                });
+            }
+            let images: Vec<litz_engine::machine::BoardImage<'_>> = owned
+                .iter()
+                .map(|board| litz_engine::machine::BoardImage {
+                    id: board.id.as_deref(),
+                    app: &board.app,
+                    rom: &board.rom,
+                    bootloader: &board.boot,
+                    partition_table: &board.ptable,
+                    flash_size: board.flash_size,
+                    mac: board.mac,
+                })
+                .collect();
+            Session::with_fleet(&diagram, &images, &options)
+        };
+        match session {
             Ok(session) => register(session),
             Err(message) => error_u32(message),
         }
@@ -475,6 +566,255 @@ pub mod abi {
         }
         let rgba = to_rgba(&pixels);
         memory::copy_out(dst_ptr, cap, &rgba)
+    }
+
+    /// Number of development boards the session booted.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_board_count(handle: u32) -> u32 {
+        clear_error();
+        match with_session(handle, |session| session.board_count()) {
+            Some(count) => count,
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// The `diagram.json` id of board `index`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_board_id(handle: u32, index: u32, dst_ptr: u32, cap: u32) -> u32 {
+        clear_error();
+        match with_session(handle, |session| session.board_id(index)) {
+            Some(Some(id)) => memory::copy_out(dst_ptr, cap, id.as_bytes()),
+            Some(None) => error_u32(format!("no board at index {index}")),
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// One board's chip name, clock and flash layout as JSON.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_board_chip_info(handle: u32, index: u32, dst_ptr: u32, cap: u32) -> u32 {
+        clear_error();
+        match with_session(handle, |session| session.board_chip_info_json(index)) {
+            Some(Some(text)) => memory::copy_out(dst_ptr, cap, text.as_bytes()),
+            Some(None) => error_u32(format!("no board at index {index}")),
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// The level board `index` sees on one of its own pads.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_board_gpio_level(handle: u32, index: u32, pin: u32) -> i32 {
+        clear_error();
+        let Ok(pin) = u8::try_from(pin) else {
+            return error_i32(format!("GPIO number {pin} is past the chip's last pin"));
+        };
+        match with_session(handle, |session| {
+            session.board_gpio_level(index, pin).map(level_code)
+        }) {
+            Some(Some(code)) => code,
+            Some(None) => -1,
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// Drain one board's console; the merged stream is `litz_serial_take`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_serial_take_board(
+        handle: u32,
+        index: u32,
+        dst_ptr: u32,
+        cap: u32,
+    ) -> u32 {
+        clear_error();
+        if !has_session(handle) {
+            return error_u32(missing_session(handle));
+        }
+        if dst_ptr == 0 || cap == 0 {
+            return 0;
+        }
+        match with_session(handle, |session| {
+            session.take_board_serial(index, cap as usize)
+        }) {
+            Some(Some(chunk)) => memory::copy_out(dst_ptr, cap, &chunk),
+            Some(None) => error_u32(format!("no board at index {index}")),
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// Bytes typed into one board's console receive path.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_serial_write_board(handle: u32, index: u32, ptr: u32, len: u32) -> i32 {
+        clear_error();
+        let data = memory::to_vec(ptr, len);
+        match with_session(handle, |session| session.write_serial_board(index, &data)) {
+            Some(true) => 1,
+            Some(false) => error_i32(format!("no board at index {index}")),
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// One board's display size as `width << 16 | height`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_board_display_info(handle: u32, index: u32) -> u32 {
+        clear_error();
+        match with_session(handle, |session| session.board_display(index)) {
+            Some(Some((width, height, _, _))) => (width << 16) | (height & 0xffff),
+            Some(None) => 0,
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// One board's display change counter.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_board_display_version(handle: u32, index: u32) -> u32 {
+        clear_error();
+        match with_session(handle, |session| session.board_display_version(index)) {
+            Some(version) => version as u32,
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// One board's display as RGBA8888.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_board_display_rgba(
+        handle: u32,
+        index: u32,
+        dst_ptr: u32,
+        cap: u32,
+    ) -> u32 {
+        clear_error();
+        if !has_session(handle) {
+            return error_u32(missing_session(handle));
+        }
+        let Some(Some((width, height, pixels, _))) =
+            with_session(handle, |session| session.board_display(index))
+        else {
+            return 0;
+        };
+        let needed = width as usize * height as usize * 4;
+        if dst_ptr == 0 || (cap as usize) < needed {
+            return 0;
+        }
+        let rgba = to_rgba(&pixels);
+        memory::copy_out(dst_ptr, cap, &rgba)
+    }
+
+    /// Whether board `index` has a browser-facing debugger.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_debug_available(handle: u32, index: u32) -> i32 {
+        clear_error();
+        match with_session(handle, |session| session.debug_available(index)) {
+            Some(true) => 1,
+            Some(false) => 0,
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// The stopped core's program counter, or -1.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_debug_pc(handle: u32, index: u32) -> i32 {
+        clear_error();
+        match with_session(handle, |session| session.debug_pc(index)) {
+            Some(Some(pc)) => pc as i32,
+            Some(None) => -1,
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// 32 integer registers then pc, as little-endian u32s.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_debug_registers(handle: u32, index: u32, dst_ptr: u32, cap: u32) -> u32 {
+        clear_error();
+        let Some(Some(file)) = with_session(handle, |session| session.debug_registers(index))
+        else {
+            return 0;
+        };
+        let needed = 33 * 4;
+        if dst_ptr == 0 || (cap as usize) < needed {
+            return 0;
+        }
+        let mut bytes = Vec::with_capacity(needed);
+        for word in file {
+            bytes.extend_from_slice(&word.to_le_bytes());
+        }
+        memory::copy_out(dst_ptr, cap, &bytes)
+    }
+
+    /// Bytes readable at `addr`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_debug_memory(
+        handle: u32,
+        index: u32,
+        addr: u32,
+        dst_ptr: u32,
+        cap: u32,
+    ) -> u32 {
+        clear_error();
+        let Some(Some(bytes)) = with_session(handle, |session| {
+            session.debug_memory(index, addr, cap as usize)
+        }) else {
+            return 0;
+        };
+        memory::copy_out(dst_ptr, cap, &bytes)
+    }
+
+    /// Disassemble `count` instructions at `addr`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_debug_disassemble(
+        handle: u32,
+        index: u32,
+        addr: u32,
+        count: u32,
+        dst_ptr: u32,
+        cap: u32,
+    ) -> u32 {
+        clear_error();
+        let Some(Some(text)) = with_session(handle, |session| {
+            session.debug_disassemble(index, addr, count as usize)
+        }) else {
+            return 0;
+        };
+        memory::copy_out(dst_ptr, cap, text.as_bytes())
+    }
+
+    /// Replace the armed breakpoints with `count` addresses at `ptr`.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_debug_breakpoints(handle: u32, index: u32, ptr: u32, count: u32) -> i32 {
+        clear_error();
+        let bytes = memory::to_vec(ptr, count.saturating_mul(4));
+        if bytes.len() != count as usize * 4 {
+            return error_i32("breakpoint list is truncated");
+        }
+        let pcs: Vec<u32> = bytes
+            .chunks_exact(4)
+            .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+            .collect();
+        match with_session(handle, |session| session.debug_set_breakpoints(index, &pcs)) {
+            Some(true) => 1,
+            Some(false) => error_i32(format!("no board at index {index}")),
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// Execute exactly one instruction on one board.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_debug_step(handle: u32, index: u32) -> i32 {
+        clear_error();
+        match with_session(handle, |session| session.debug_step(index)) {
+            Some(Some(code)) => code as i32,
+            Some(None) => -1,
+            None => error_i32(missing_session(handle)),
+        }
+    }
+
+    /// Run one board until a breakpoint or the step budget.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_debug_run(handle: u32, index: u32, steps: u32) -> i32 {
+        clear_error();
+        match with_session(handle, |session| session.debug_run(index, steps)) {
+            Some(Some(code)) => code as i32,
+            Some(None) => -1,
+            None => error_i32(missing_session(handle)),
+        }
     }
 
     /// Deliver a touch at panel pixels. Returns 1, or 0 when the board has no

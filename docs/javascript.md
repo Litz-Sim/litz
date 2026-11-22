@@ -1,6 +1,6 @@
 # JavaScript API
 
-This page is the reference for `@litz-sim/litz` 0.2.1. It documents every export of `index.js` and `index.d.ts`, the shapes that cross the WebAssembly boundary, the lifecycle rules, the host bridge that runs custom parts and chips, and the determinism guarantees. All samples are ES modules and run from the repository root with `node`; the package name resolves through `js/package.json` when a sample is saved inside `js/`.
+This page is the reference for `@litz-sim/litz` 0.3.0. It documents every export of `index.js` and `index.d.ts`, the shapes that cross the WebAssembly boundary, the lifecycle rules, the host bridge that runs custom parts and chips, and the determinism guarantees. All samples are ES modules and run from the repository root with `node`; the package name resolves through `js/package.json` when a sample is saved inside `js/`.
 
 The same simulator is a Rust library: [the Rust reference](rust.md) covers `machine::boot`, the project runner and the native extension points. The package wraps one compiled module, `js/litz_wasm.wasm`, built from `crates/litz-wasm`. The module exposes a synchronous C ABI over linear memory: pointers are byte offsets, strings are UTF-8, and every call returns immediately. The wrapper turns that ABI into `Litz`, `Session` and their supporting objects.
 
@@ -43,12 +43,13 @@ A `Litz` owns one instantiated module. Its constructor is private; obtain an ins
 
 ### `createSession(options: SessionOptions): Session`
 
-Builds one board from the diagram and images and returns a `Session`. The call is synchronous. The chip is selected by the board instance in `diagram.json`; a diagram must name exactly one development board.
+Builds one chip per development board named in `diagram.json` and returns a `Session`. The call is synchronous. A single-board diagram takes `app`; a diagram with several boards takes `boardImages`, one entry per board.
 
 | `SessionOptions` field | Type | Default | Meaning |
 |---|---|---|---|
 | `diagram` | `string` | required | The `diagram.json` text. |
-| `app` | `Uint8Array \| ArrayBuffer \| ArrayBufferView` | required | The application image. The bytes are copied before the call returns. |
+| `app` | `Uint8Array \| ArrayBuffer \| ArrayBufferView` | required without `boardImages` | The application image. The bytes are copied before the call returns. |
+| `boardImages` | `BoardImage[]` | `[]` | One image per development board, matched by `id` or by diagram order. Replaces `app` when present. |
 | `rom` | `Uint8Array \| ArrayBuffer \| ArrayBufferView \| null` | `null` | Mask ROM. |
 | `boot` | `Uint8Array \| ArrayBuffer \| ArrayBufferView \| null` | `null` | Second-stage bootloader. The module requires `ptable` as well. |
 | `ptable` | `Uint8Array \| ArrayBuffer \| ArrayBufferView \| null` | `null` | Partition table. The module requires `boot` as well. |
@@ -59,11 +60,13 @@ Builds one board from the diagram and images and returns a `Session`. The call i
 | `parts` | `Record<string, PartFactory>` | `{}` | Part factories keyed by the module name in the part manifest. |
 | `boards` | `Record<string, ChipFactory>` | `{}` | Chip factories keyed by the module name in the board manifest. |
 
+`BoardImage` is `{ id?: string, app, rom?, boot?, ptable?, flashSize?, mac? }`. Omitting `id` matches the images to the boards in diagram order; giving it on one entry means every entry must name a board. Each board's fields override the session-wide `flashSize` and `mac`.
+
 `PartFactory` is `() => HostPart`. `ChipFactory` is `(host: ChipHost) => HostChip`.
 
 The wrapper validates the arguments before it crosses into the module. A diagram that is not a non-empty string throws ``LitzError("createSession needs the diagram.json text as `diagram`")``. An absent or empty application image throws ``LitzError("createSession needs the application image as `app`")``. A `flashSize` that is not a positive integer throws ``LitzError("`flashSize` must be a positive whole number of bytes")``. A `mac` that is not a string throws ``LitzError("`mac` must be a string such as 24:0a:c4:12:34:56")``. A `manifests` value that is not an array of strings and `{ toml, schematic }` objects throws ``LitzError("`manifests` must be an array of TOML texts or {toml, schematic}")``. A `parts` or `boards` value that is not a function throws `LitzError("the factory for NAME must be a function")`.
 
-The module adds its own checks and returns its message through `LitzError`. A diagram with no board reports `the diagram has no development board`; a diagram with more than one board reports `the diagram has N boards (ids); an in-memory session runs one`. A bootloader without a partition table, or the reverse, reports `bootloader and partition table must be supplied together`. An Xtensa board reports that the chip runs on Xtensa and that the browser module cannot execute its JIT, and names the RISC-V, ATmega328P and RP2040 alternatives. An application image of length zero is also rejected by the module.
+The module adds its own checks and returns its message through `LitzError`. A diagram with no board reports `the diagram has no development board`; a diagram whose board count differs from `boardImages` reports how many of each were supplied. A bootloader without a partition table, or the reverse, reports `bootloader and partition table must be supplied together`. An Xtensa board reports that the chip runs on Xtensa and that the browser module cannot execute its JIT, and names the RISC-V, ATmega328P and RP2040 alternatives. An application image of length zero is also rejected by the module.
 
 Factories are registered for the duration of the call and restored afterward, so two sessions can use different factories for the same module name. The factory of a part is called once per part instance while the board is built. The session keeps each returned object and drops it through the bridge when the session closes. A factory that throws, returns a non-object, or is missing for a module the diagram names causes `createSession` to throw a `LitzError` that includes the module name, such as `the host has no runtime for module test-inverter.wasm`.
 
@@ -81,7 +84,7 @@ Releases the runtime's reusable buffers and the bridge's host-call buffers. The 
 
 ## `Session`
 
-A `Session` owns one board: its chip, flash, peripherals, flattened circuit, console, probes and display. Its constructor is private; obtain an instance from `Litz.createSession`. Every member that reads or writes module state throws `LitzError("this session has been closed")` after the session is closed, except `trace.vcd()`, which returns an empty document when the module refuses the dropped handle. `handle` remains readable and `close` is idempotent.
+A `Session` owns one chip per development board, all sharing one flattened circuit, probes and display bus. Board-wide calls (`part`, `press`, `setControl`, `gpio`, `display`, `touch`, `serial.write`) address the first board; the `*On`/`takeBoard`/`writeBoard` members address any board by list index or `diagram.json` id. Its constructor is private; obtain an instance from `Litz.createSession`. Every member that reads or writes module state throws `LitzError("this session has been closed")` after the session is closed, except `trace.vcd()`, which returns an empty document when the module refuses the dropped handle. `handle` remains readable and `close` is idempotent.
 
 ### `run(steps?: number): number`
 
@@ -107,6 +110,26 @@ The simulated milliseconds since reset. The module stores this as a saturating 3
 ### `chip(): ChipInfo`
 
 Returns the backend the diagram booted, its clock and its flash layout. The value is parsed from JSON. A malformed document throws `LitzError("the chip description was not valid JSON")`.
+
+### `boards(): BoardInfo[]`
+
+Every development board the session booted, in diagram order. An entry is `{ index, id, name, cpuHz, flash }`, where `id` is the diagram instance id and `name` is the chip backend.
+
+### `board(board?: number | string): BoardInfo`
+
+One entry of `boards()`, by list index or diagram id. An unknown index or id throws `LitzError`.
+
+### `gpioOn(board: number | string, pin: number): Level | null`
+
+The level one board sees on one of its own pads. `gpio(pin)` is `gpioOn(0, pin)`.
+
+### `displayOn(board?: number | string): Display | null`
+
+One board's panel, or `null` when that board has none.
+
+### `debug: Debug`
+
+Instruction-level control of one RISC-V board. See [Debug](#debug).
 
 ### `stop: StopWord`
 
@@ -197,9 +220,11 @@ Calls `close()`. It allows `using session = litz.createSession(...)` on runtimes
 | Member | Signature | Behavior |
 |---|---|---|
 | `take` | `() => string` | Drains the console since the last call and decodes it as UTF-8. Returns `""` when nothing is buffered. |
-| `write` | `(data: string \| Uint8Array \| ArrayBuffer \| ArrayBufferView) => void` | Delivers bytes to the board's UART0 receiver. A string is encoded as UTF-8. Empty input is a no-op. A module refusal throws `LitzError`. |
+| `write` | `(data: string \| Uint8Array \| ArrayBuffer \| ArrayBufferView) => void` | Delivers bytes to the first board's UART0 receiver. A string is encoded as UTF-8. Empty input is a no-op. A module refusal throws `LitzError`. |
+| `takeBoard` | `(board: number \| string) => string` | Drains one board's console. |
+| `writeBoard` | `(board: number \| string, data: string \| Uint8Array \| ArrayBuffer \| ArrayBufferView) => void` | Delivers bytes to one board's UART0 receiver. |
 
-`take` reads in 64 KiB chunks until the module reports a short or empty chunk, so large bursts are returned whole. The 1 MiB cap is inside the module and applies to output the host has not drained yet.
+`take` merges the boards' consoles in board order; `takeBoard` removes only one board's bytes. Both read in 64 KiB chunks until the module reports a short or empty chunk, so large bursts are returned whole. The 1 MiB cap is inside the module and applies to output the host has not drained yet.
 
 ## `Trace`
 
@@ -226,6 +251,23 @@ spi:sck=<probe>,mosi=<probe>,cs=<probe>[,miso=<probe>][,mode=N]
 ```
 
 The probe names are the names passed to `probe.add`. A specification the module rejects throws `LitzError("the decoder could not be added")` or the module's own message. Decoded frames appear in `scope().decodes`, with the original specification echoed back.
+
+## `Debug`
+
+`session.debug` drives one RISC-V board at a time, addressed by index or diagram id. A board whose core is not RISC-V reports `available() === false` and `step()`/`run()` return `"unsupported"`.
+
+| Member | Signature | Behavior |
+|---|---|---|
+| `available` | `(board?) => boolean` | Whether the board exposes a register file and single-step. |
+| `pc` | `(board?) => number \| null` | The program counter, or `null` when unavailable. |
+| `registers` | `(board?) => { values: number[], pc: number } \| null` | `values` is x0–x31 in order. |
+| `memory` | `(board, addr, length) => Uint8Array` | Reads up to `length` bytes; the array may be shorter when the bus refuses part of the range. |
+| `disassemble` | `(board, addr, count?) => string` | `count` instructions as `"<addr>: <text> <symbol>"` lines. Defaults to 8. |
+| `setBreakpoints` | `(board, pcs: ArrayLike<number>) => void` | Replaces the armed instruction addresses. |
+| `step` | `(board?) => StopWord \| "unsupported"` | Executes one instruction. |
+| `run` | `(board?, steps?) => StopWord \| "unsupported"` | Runs until a breakpoint, halt or the step budget; defaults to `DEFAULT_STEPS`. |
+
+A breakpoint stop reports `breakpoint`; the PC stays on the breakpoint instruction, so a second `run` would stop there again until it is cleared or single-stepped.
 
 ## `Display`
 
