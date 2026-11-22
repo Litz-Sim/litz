@@ -1,5 +1,6 @@
 [package]
 name = "litz-project"
+description = "Portable Litz project documents: the circuit, its source files and runner options in one versioned JSON file."
 edition = "2024"
 version.workspace = true
 license.workspace = true

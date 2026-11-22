@@ -1,5 +1,6 @@
 [package]
 name = "litz-editor"
+description = "Editing model for Litz schematics: the document, validated transactions, undo history and orthogonal wire geometry, with no UI toolkit."
 edition = "2024"
 version.workspace = true
 license.workspace = true
