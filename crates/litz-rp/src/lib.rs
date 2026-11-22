@@ -25,19 +25,30 @@
 //! image and an image built here both run unchanged, and a program compiled by
 //! `arm-none-eabi-gcc -mcpu=cortex-m0plus` runs as compiled.
 //!
-//! The blocks behind [`peripherals`] are SIO, IO_BANK0/PADS, the 64-bit timer
-//! with four alarms, TICKS, the watchdog, RESETS, CLOCKS, PWM, ADC, DMA, the
-//! two PL011 UARTs, SPI0/1, I2C0/1, the XIP controller and the QSPI SSI
-//! sequence `boot2` uses, plus the system control space (`NVIC`, `SysTick`,
-//! `SCB`).
+//! The blocks behind [`peripherals`] are SIO (GPIO, the inter-core FIFOs,
+//! spinlocks and the hardware divider), IO_BANK0/PADS, the 64-bit timer with
+//! four alarms, TICKS, the watchdog, RESETS, CLOCKS, PWM, ADC, DMA, the two
+//! PL011 UARTs, SPI0/1, I2C0/1, the XIP controller and the QSPI SSI sequence
+//! `boot2` uses, the USB device controller and its CDC console, plus the
+//! system control space (`NVIC`, `SysTick`, `SCB`).
 //!
 //! # What is not modelled yet
 //!
-//! PIO, the USB device controller, the interpolators, the hardware
-//! divider/square-root peripherals, and core 1 — the SIO FIFO and spinlocks
-//! exist for single-core firmware, but releasing core 1 starts nothing. A
-//! firmware that depends on any of these traps with a named fault rather than
-//! running into behaviour the model invented.
+//! PIO and its state machines, the interpolators, and core 1. PIO0 and PIO1
+//! share a scratch register file: their registers accept writes, read back
+//! what was written and otherwise read zero, but no state machine runs and no
+//! FIFO moves. The interpolator registers in SIO fall into scratch storage the
+//! same way, so a lane's accumulators and shifters never advance. Releasing
+//! core 1 starts no second core: the SIO FIFO and spinlocks exist for
+//! single-core firmware, and `CPUID` always reports core 0.
+//!
+//! The hardware divider is not a gap: SIO implements the signed and unsigned
+//! divide, its quotient and remainder read back, and `DIV_CSR.READY` is always
+//! set. The RP2040 has no square-root peripheral to model.
+//!
+//! None of these traps. Firmware that touches a gap keeps running against the
+//! inert version above; the named [`cpu::Fault`]s are reserved for undefined
+//! or unimplemented instructions, a bus access with no target, and a halt.
 #![forbid(unsafe_code)]
 
 pub mod bus;
