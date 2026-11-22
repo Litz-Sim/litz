@@ -30,6 +30,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Node 22 ships npm 10, which has no OIDC publishing: it looks for a
+      # token, finds none and exits ENEEDAUTH before npmjs ever sees the
+      # workflow. Trusted publishing needs npm 11.5.1 or newer.
+      - run: npm install --global npm@^11
       # `prepublishOnly` builds the module and runs the package's tests, so a
       # tag that does not pass them never reaches the registry. No token is
       # configured on purpose: npm exchanges the workflow's OIDC token for a
