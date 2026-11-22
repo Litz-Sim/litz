@@ -179,4 +179,4 @@ The dependency direction is one way: chip adapters depend on `litz-board`, while
 
 ## License
 
-MIT OR Apache-2.0. The license is declared once in `Cargo.toml` under `[workspace.package]` and inherited by every crate. The crates carry version `0.0.1` from the same place; treat it as a placeholder rather than a compatibility promise.
+MIT OR Apache-2.0. The license is declared once in `Cargo.toml` under `[workspace.package]` and inherited by every crate. The crates carry version `0.1.0` from the same place; the `0.x` line makes no compatibility promise between minor versions.
