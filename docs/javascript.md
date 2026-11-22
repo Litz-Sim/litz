@@ -630,7 +630,7 @@ The part's `module` name in the catalog manifest is `74hc595.wasm`; the built-in
 
 Sessions and runtimes have a fixed close order: close every `Session` first, then call `Litz.close()`. Each session drops its handle, flash and peripherals when it closes, and the runtime then releases the scratch and host-call buffers that the sessions shared.
 
-One session runs one board. The module rejects a diagram with no board and a diagram with more than one board; the multi-board message lists the board ids. A host that needs several boards opens one single-board session per board, either from the same runtime or from separate runtimes.
+One session runs every development board the diagram names, each with its own chip, flash and console over a shared circuit. The module rejects a diagram with no board and a `boardImages` list whose length does not match the board count. Boards advance in diagram order inside each `run`, so a host that needs the boards isolated can still open one session per board on separate runtimes.
 
 The wrapper reuses two scratch buffers per runtime, one for input and one for output, and grows them when a call needs more room. Returned values are copies: `serial.take()` decodes into a new string, `display().pixels()` returns a new array and `scope()` returns a parsed object, so a later call does not overwrite them. Calls are synchronous, so two sessions on one runtime cannot interleave across an `await`.
 
