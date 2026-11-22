@@ -1,0 +1,381 @@
+// The 0.2 contract between Litz and a microcontroller that is itself a
+// WebAssembly component.
+//
+// 0.1 could only exchange pin levels and console bytes. That was enough for a
+// retro CPU, but not for a board with I2C sensors, an ADC or a radio: the
+// guest could wiggle pins and nothing on the bus fabric would answer. 0.2
+// adds the host calls a real MCU peripheral block needs, plus the simulated
+// wireless services the native chips already have.
+//
+// Everything is still a host call, not a file or a socket. The guest has no
+// WASI, no clock and no randomness; time is the cycle count it reports, and
+// every network answer comes from the deterministic router the circuit
+// configured.
+package litz:mcu@0.2.0;
+
+interface types {
+  /// A digital pin. `floating` is the host releasing the pad (the chip's own
+  /// pull decides), not a third logic state a chip could read.
+  enum level {
+    low,
+    high,
+    floating,
+  }
+
+  /// What an image is, so a chip can put it where its boot sequence expects.
+  enum image {
+    rom,
+    bootloader,
+    partition-table,
+    firmware,
+  }
+
+  /// One contiguous window of the address space the core may execute from.
+  record memory-region {
+    name: string,
+    start: u32,
+    len: u32,
+  }
+
+  /// Where images live in the chip's non-volatile memory.
+  record flash-layout {
+    size: u64,
+    bootloader: u64,
+    partition-table: u64,
+    app: u64,
+  }
+
+  record chip-info {
+    name: string,
+    description: string,
+    /// The rate `run-result.cycles` is counted at. This is the host's clock.
+    cpu-hz: u64,
+    memory: list<memory-region>,
+    flash: flash-layout,
+  }
+
+  /// A level the host holds on a pad before the next run.
+  record pin-input {
+    pin: u8,
+    level: level,
+  }
+
+  /// What the chip did to a pad during the last run.
+  record pin-output {
+    pin: u8,
+    level: level,
+    /// False once the chip has stopped driving the pad (open drain off, the
+    /// pin turned back into an input).
+    enabled: bool,
+  }
+
+  enum stop {
+    /// The cycle budget ran out; run again to continue.
+    budget,
+    /// The chip has nothing to do until the host changes an input.
+    idle,
+    /// The core stopped on purpose.
+    halted,
+    /// The core faulted; `host.fault` carries the detail.
+    trap,
+    /// The chip asked for its own reset.
+    reset,
+  }
+
+  record run-result {
+    /// Device cycles consumed, measured at `chip-info.cpu-hz`.
+    cycles: u64,
+    stop: stop,
+  }
+
+  /// One access point a scan hears. `joined` is true for the network the
+  /// station is currently associated with.
+  record wifi-network {
+    ssid: string,
+    channel: u8,
+    rssi: s8,
+    secure: bool,
+    joined: bool,
+  }
+
+  /// The lease a station receives when it joins the simulated network.
+  record wifi-lease {
+    ip: list<u8>,
+    gateway: list<u8>,
+    dns: list<u8>,
+  }
+
+  /// One advertiser a BLE scan hears. Addresses are six octets, least
+  /// significant first, the order the controller reports them.
+  record ble-advertisement {
+    address: list<u8>,
+    name: option<string>,
+    rssi: s8,
+    data: list<u8>,
+    scan-response: list<u8>,
+  }
+
+  /// One characteristic a peripheral serves. `access` is a bit set: 1
+  /// readable, 2 writable, 4 notifiable. `value` is its current bytes.
+  record gatt-characteristic {
+    uuid: u16,
+    access: u8,
+    value: list<u8>,
+  }
+
+  record gatt-service {
+    uuid: u16,
+    characteristics: list<gatt-characteristic>,
+  }
+
+  /// A write a central made, read by the peripheral.
+  record gatt-write {
+    service: u16,
+    characteristic: u16,
+    value: list<u8>,
+  }
+
+  /// A notification a subscribed central reads.
+  record gatt-notification {
+    service: u16,
+    characteristic: u16,
+    value: list<u8>,
+  }
+
+  /// One raw frame the shared radio medium hands a station. `sender` is the
+  /// sender's configured address; `to` is none for a broadcast. Times are
+  /// device cycles, the unit `run-result.cycles` uses.
+  record radio-frame {
+    sender: list<u8>,
+    to: option<list<u8>>,
+    bytes: list<u8>,
+    sent-at: u64,
+    airtime: u64,
+  }
+}
+
+interface host {
+  use types.{
+    level, wifi-network, wifi-lease, ble-advertisement,
+    gatt-service, gatt-write, gatt-notification, radio-frame,
+  };
+
+  /// Bytes the chip wrote to its console (a UART, a USB-serial bridge). The
+  /// host routes them; the chip does not know where they end up.
+  console: func(bytes: list<u8>);
+
+  /// A fault the host must report. The run stops at this point.
+  fault: func(detail: string);
+
+  /// The solved voltage on `pin`, in millivolts. `none` means the pin is
+  /// floating or the circuit has no analog solution; it is not 0 V.
+  analog-read: func(pin: u8) -> option<u32>;
+
+  /// One I2C register read or write. `write` is clocked first, then
+  /// `read-len` bytes are clocked back; a plain write uses `read-len = 0`.
+  /// The controller numbers are the board's (`i2c0` is 0).
+  i2c-transfer: func(
+    controller: u8,
+    address: u8,
+    write: list<u8>,
+    read-len: u32,
+  ) -> result<list<u8>, string>;
+
+  /// A full SPI transaction on one chip select of `controller`. An
+  /// unpopulated select reads 0xFF, like a floating MISO line.
+  spi-transfer: func(
+    controller: u8,
+    chip-select: u8,
+    tx: list<u8>,
+    read-len: u32,
+  ) -> result<list<u8>, string>;
+
+  /// Bytes the chip transmits on a UART port. False when no part is wired
+  /// there, which is the same thing a floating TX pin would tell the chip.
+  uart-write: func(port: u8, bytes: list<u8>) -> bool;
+
+  /// Bytes a part has for the chip on `port` since the last call.
+  uart-read: func(port: u8) -> list<u8>;
+
+  /// Every access point and nearby network the circuit places on the air.
+  wifi-scan: func() -> list<wifi-network>;
+
+  /// Associate with one of them. The password is checked against the
+  /// circuit's access point; a refusal is an error, not a silent no-op.
+  wifi-join: func(ssid: string, psk: option<string>) -> result<wifi-lease, string>;
+
+  /// Leave the network and close every flow this station owns.
+  wifi-leave: func();
+
+  /// Resolve a name through the simulated DNS. Returns four octets; an
+  /// unknown name is an error unless the circuit resolves unknown names.
+  wifi-resolve: func(name: string) -> result<list<u8>, string>;
+
+  /// Connect to a service on the simulated network. `host` is four octets;
+  /// the router answers on its own service table, so the address selects the
+  /// network, not a separate machine.
+  tcp-connect: func(host: list<u8>, port: u16) -> result<u32, string>;
+
+  /// Write to a flow. Returns how many bytes were accepted.
+  tcp-write: func(id: u32, bytes: list<u8>) -> result<u32, string>;
+
+  /// Read up to `max` bytes. An empty list means nothing is ready yet (the
+  /// guest should poll), not end of file.
+  tcp-read: func(id: u32, max: u32) -> result<list<u8>, string>;
+
+  tcp-close: func(id: u32);
+
+  /// Open a datagram flow to a service port on the simulated network.
+  udp-open: func(port: u16) -> result<u32, string>;
+
+  /// Send a datagram to `host:port`. The service table, not the address,
+  /// decides who answers.
+  udp-send: func(
+    id: u32,
+    host: list<u8>,
+    port: u16,
+    bytes: list<u8>,
+  ) -> result<u32, string>;
+
+  /// Read one datagram, up to `max` bytes. Empty means nothing is ready.
+  udp-read: func(id: u32, max: u32) -> result<list<u8>, string>;
+
+  udp-close: func(id: u32);
+
+  /// Every advertiser in range — the circuit's beacon parts and the runtime
+  /// advertisements other stations started — in address order.
+  ble-scan: func() -> list<ble-advertisement>;
+
+  /// Start advertising. `data` is the advertising payload (at most 31
+  /// octets); `scan-response` is what an active scan reads. `address` is six
+  /// octets, least significant first; an empty list derives a random-static
+  /// address from the payload, and the address used is returned. The
+  /// advertisement is heard by every other station running this contract on
+  /// the board, not by the advertising station itself.
+  ble-advertise: func(
+    address: list<u8>,
+    data: list<u8>,
+    scan-response: list<u8>,
+  ) -> result<list<u8>, string>;
+
+  /// Stop advertising on `address`. Removing an address that is not
+  /// advertising is not an error.
+  ble-stop-advertising: func(address: list<u8>);
+
+  /// Register the GATT table this station serves as a peripheral. It is
+  /// announced with the next advertisement and may be replaced at any time;
+  /// connecting centrals see the table as it stands.
+  ble-set-gatt: func(services: list<gatt-service>) -> result<_, string>;
+
+  /// Connect to the advertiser at `address` (six octets, least significant
+  /// first). A beacon with no GATT table refuses, as a real one would.
+  /// Returns a connection handle.
+  ble-connect: func(address: list<u8>) -> result<u16, string>;
+
+  ble-disconnect: func(handle: u16);
+
+  /// The services and characteristics of a connection, with values empty.
+  ble-discover: func(handle: u16) -> result<list<gatt-service>, string>;
+
+  ble-read: func(
+    handle: u16,
+    service: u16,
+    characteristic: u16,
+  ) -> result<list<u8>, string>;
+
+  /// Write a characteristic. The peripheral reads it through
+  /// `ble-take-writes`.
+  ble-write: func(
+    handle: u16,
+    service: u16,
+    characteristic: u16,
+    value: list<u8>,
+  ) -> result<_, string>;
+
+  /// Subscribe to or leave a characteristic's notifications.
+  ble-subscribe: func(
+    handle: u16,
+    service: u16,
+    characteristic: u16,
+    enabled: bool,
+  ) -> result<_, string>;
+
+  /// Notifications received on a connection since the last call.
+  ble-notifications: func(handle: u16) -> list<gatt-notification>;
+
+  /// Writes centrals made to this station's table since the last call.
+  ble-take-writes: func() -> list<gatt-write>;
+
+  /// Notify every subscribed central that a characteristic changed.
+  ble-notify: func(
+    service: u16,
+    characteristic: u16,
+    value: list<u8>,
+  ) -> result<_, string>;
+
+  /// Join the shared packet medium as a station, or retune the one this chip
+  /// already has. Frames on one network and channel hear each other, exactly
+  /// as the nRF24, SX1276 and AT86RF233 parts do.
+  radio-configure: func(
+    network: string,
+    channel: u16,
+    address: list<u8>,
+  ) -> result<_, string>;
+
+  /// Put one raw frame on the air. `airtime-ns` is the caller's modulation
+  /// result, the same number a radio part computes; `to` is none to
+  /// broadcast. Frames whose airtimes overlap destroy each other.
+  radio-send: func(
+    bytes: list<u8>,
+    to: option<list<u8>>,
+    airtime-ns: u64,
+  ) -> result<_, string>;
+
+  /// Frames that have finished and are addressed to this station since the
+  /// last call.
+  radio-receive: func() -> list<radio-frame>;
+}
+
+interface chip {
+  use types.{
+    chip-info, image, pin-input, pin-output, run-result,
+  };
+
+  /// Describe the core, its clock and the memory it expects.
+  info: func() -> chip-info;
+
+  /// Place an image. `offset` is in the chip's non-volatile space.
+  load-image: func(kind: image, offset: u64, bytes: list<u8>) -> result<_, string>;
+
+  /// Reset the core. `mac` is the station address a network-capable chip
+  /// keeps across reset; an empty list means the host has no opinion.
+  reset: func(mac: list<u8>);
+
+  /// Start the firmware just loaded and return its entry address.
+  boot: func() -> result<u32, string>;
+
+  /// Levels the host holds on pads. Applied before the next `run`.
+  set-inputs: func(inputs: list<pin-input>);
+
+  /// Execute for at most `budget-cycles` device cycles, or until the core has
+  /// nothing left to do. Never loops past the budget: an infinite firmware
+  /// loop has to come back to the host so it can advance its own clock.
+  run: func(budget-cycles: u64) -> run-result;
+
+  /// Pads whose drive changed since the last call.
+  take-outputs: func() -> list<pin-output>;
+
+  /// Bytes from a host terminal into the chip's console receive path (a
+  /// serial monitor's input box, a scripted `write-serial`). A chip without a
+  /// console ignores it.
+  write-console: func(bytes: list<u8>);
+
+  /// Debug read of the address space; an unmapped range is an error, not
+  /// zeroes.
+  read: func(addr: u32, len: u32) -> result<list<u8>, string>;
+}
+
+world simulator {
+  import host;
+  export chip;
+}

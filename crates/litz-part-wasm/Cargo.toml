@@ -3,7 +3,10 @@ name = "litz-part-wasm"
 description = "Runs a schematic part provided as a WebAssembly component."
 keywords = ["simulator", "components", "wasm", "component-model"]
 categories = ["emulators", "wasm"]
-version.workspace = true
+# 0.1.0 shipped without the WIT contract, so it cannot build from the
+# registry. 0.1.1 carries a copy beside the source; a test in `litz-part-wit`
+# keeps the two identical.
+version = "0.1.1"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true

@@ -1,0 +1,104 @@
+// The contract between Litz and a schematic part that is itself a WebAssembly
+// component.
+//
+// A `part.toml` may name a wasm module instead of one of the engines built
+// into Litz; this world is everything that module has to provide and
+// everything it is allowed to do. The guest is loaded with no WASI, no
+// filesystem and no clock: the only way in or out is what is declared here.
+//
+// The shape mirrors `litz_core::Part` exactly. Pins are indices into the
+// part's own pin table, assigned once when the board is flattened, so a guest
+// never matches names at run time. Time is integer nanoseconds since the
+// simulation started; there is no wall clock anywhere in this contract.
+package litz:part@0.1.0;
+
+interface types {
+  /// A digital pin. `floating` means the net resolved to no driver, which is
+  /// what a receiving part sees when nothing holds its pin.
+  enum level {
+    low,
+    high,
+    floating,
+  }
+
+  /// How hard a pin drives its net. `strong` is a push-pull output or a supply
+  /// rail; `weak` is a resistor passing a level through.
+  enum strength {
+    strong,
+    weak,
+  }
+
+  /// What one pin is doing to its net. `level` is `floating` when the part is
+  /// not driving; `strength` is then meaningless.
+  record drive {
+    level: level,
+    strength: strength,
+  }
+
+  /// A buzzer's current tone.
+  record tone {
+    sounding: bool,
+    hz: u32,
+  }
+
+  /// What a UI or a test can read back without knowing the part's type. This
+  /// is `litz_core::PartState`, one case per variant; `none` is a part with
+  /// nothing to report (a resistor, a shift register).
+  variant part-state {
+    led(bool),
+    button(bool),
+    switch(bool),
+    segments(u8),
+    tone(tone),
+    servo(u16),
+    knob(u16),
+    none,
+  }
+
+  /// The part's own description. `pins` is the pin table in the order the
+  /// host assigns indices, so a guest can check itself against its manifest.
+  record part-info {
+    name: string,
+    description: string,
+    pins: list<string>,
+  }
+}
+
+interface part {
+  // `drive` is both a record and the name of the function that reads it; the
+  // type is renamed on import so the two do not share one namespace.
+  use types.{drive as drive-result, level, part-info, part-state};
+
+  /// Describe the part and its pin table. Called once when the host loads the
+  /// module.
+  info: func() -> part-info;
+
+  /// A net this part is attached to resolved a level at `at-ns`.
+  set-pin: func(pin: u16, level: level, at-ns: u64);
+
+  /// Advance the part's own time to `to-ns`. Only called when a previous
+  /// `next-event` named a tick at or before it.
+  advance: func(to-ns: u64);
+
+  /// The earliest tick at which this part wants `advance`. `none` means the
+  /// part is purely reactive to `set-pin`.
+  next-event: func() -> option<u64>;
+
+  /// What this pin drives onto its net right now.
+  drive: func(pin: u16) -> drive-result;
+
+  /// The part's externally observable state.
+  state: func() -> part-state;
+
+  /// Host interaction: a person pressed or released the part. Returns whether
+  /// the part has such an input at all.
+  press: func(pressed: bool) -> bool;
+
+  /// Host interaction: a person moved a continuous control, in permille
+  /// (0 through 1000). Returns whether the part has such a control.
+  set-control: func(permille: u16) -> bool;
+}
+
+world component {
+  export part;
+}

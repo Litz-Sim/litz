@@ -189,4 +189,32 @@ mod tests {
             ]
         );
     }
+
+    /// A published crate can only carry files under its own directory, so the
+    /// host and guest crates keep a copy of the contract beside their source.
+    /// Every copy must be byte-identical to the one here. The check skips when
+    /// the sibling crates are absent, which is the case inside a packaged
+    /// tarball.
+    #[test]
+    fn every_packaged_copy_carries_this_contract_unchanged() {
+        let copies = [
+            ("../litz-part-wasm/wit/litz-part.wit", "wit/litz-part.wit"),
+            (
+                "../litz-part-wasm/wit-legacy/litz-part.wit",
+                "wit-legacy/litz-part.wit",
+            ),
+            ("../litz-part-sdk/wit/litz-part.wit", "wit/litz-part.wit"),
+            (
+                "../litz-part-74hc595/wit-legacy/litz-part.wit",
+                "wit-legacy/litz-part.wit",
+            ),
+        ];
+        for (copy, canonical) in copies {
+            let Ok(expected) = std::fs::read_to_string(canonical) else {
+                return;
+            };
+            let actual = std::fs::read_to_string(copy).expect("the copy is checked in");
+            assert_eq!(actual, expected, "{copy} drifted from {canonical}");
+        }
+    }
 }

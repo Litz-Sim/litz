@@ -24,7 +24,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 pub mod bindings {
     wasmtime::component::bindgen!({
-        path: "../litz-mcu-wit/wit",
+        path: "wit",
         world: "simulator",
     });
 }
@@ -35,7 +35,7 @@ pub mod bindings {
 #[cfg(not(target_arch = "wasm32"))]
 pub mod bindings_v2 {
     wasmtime::component::bindgen!({
-        path: "../litz-mcu-wit/wit-v2",
+        path: "wit-v2",
         world: "simulator",
     });
 }

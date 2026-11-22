@@ -31,7 +31,7 @@
 #[allow(unsafe_code)]
 pub mod abi {
     wit_bindgen::generate!({
-        path: "../litz-part-wit/wit",
+        path: "wit",
         world: "component",
         pub_export_macro: true,
     });

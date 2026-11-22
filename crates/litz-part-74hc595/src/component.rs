@@ -6,7 +6,7 @@
 
 mod bindings {
     wit_bindgen::generate!({
-        path: "../litz-part-wit/wit-legacy",
+        path: "wit-legacy",
         world: "component",
     });
 }

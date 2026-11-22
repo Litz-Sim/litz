@@ -1,0 +1,148 @@
+// The contract between Litz and a microcontroller that is itself a WebAssembly
+// component.
+//
+// A `board.toml` may name a wasm module instead of one of the chips built into
+// Litz; this world is everything that module has to provide and everything it
+// is allowed to do. The guest is loaded with no WASI, no filesystem and no
+// clock: the only way in or out is what is declared here.
+//
+// Two shapes are deliberate:
+//
+//   * `run` takes a budget and runs many instructions per cross-component
+//     call. A per-instruction `step` would spend more time in the boundary
+//     than in the chip.
+//   * Inputs are pushed before a run and outputs pulled after it. The chip
+//     never asks the board what is wired to it, so the same module works on
+//     any carrier board.
+package litz:mcu@0.1.0;
+
+interface types {
+  /// A digital pin. `floating` is the host releasing the pad (the chip's own
+  /// pull decides), not a third logic state a chip could read.
+  enum level {
+    low,
+    high,
+    floating,
+  }
+
+  /// What an image is, so a chip can put it where its boot sequence expects.
+  enum image {
+    rom,
+    bootloader,
+    partition-table,
+    firmware,
+  }
+
+  /// One contiguous window of the address space the core may execute from.
+  record memory-region {
+    name: string,
+    start: u32,
+    len: u32,
+  }
+
+  /// Where images live in the chip's non-volatile memory.
+  record flash-layout {
+    size: u64,
+    bootloader: u64,
+    partition-table: u64,
+    app: u64,
+  }
+
+  record chip-info {
+    name: string,
+    description: string,
+    /// The rate `run-result.cycles` is counted at. This is the host's clock.
+    cpu-hz: u64,
+    memory: list<memory-region>,
+    flash: flash-layout,
+  }
+
+  /// A level the host holds on a pad before the next run.
+  record pin-input {
+    pin: u8,
+    level: level,
+  }
+
+  /// What the chip did to a pad during the last run.
+  record pin-output {
+    pin: u8,
+    level: level,
+    /// False once the chip has stopped driving the pad (open drain off, the
+    /// pin turned back into an input).
+    enabled: bool,
+  }
+
+  enum stop {
+    /// The cycle budget ran out; run again to continue.
+    budget,
+    /// The chip has nothing to do until the host changes an input.
+    idle,
+    /// The core stopped on purpose.
+    halted,
+    /// The core faulted; `host.fault` carries the detail.
+    trap,
+    /// The chip asked for its own reset.
+    reset,
+  }
+
+  record run-result {
+    /// Device cycles consumed, measured at `chip-info.cpu-hz`.
+    cycles: u64,
+    stop: stop,
+  }
+}
+
+interface host {
+  use types.{level};
+
+  /// Bytes the chip wrote to its console (a UART, a USB-serial bridge). The
+  /// host routes them; the chip does not know where they end up.
+  console: func(bytes: list<u8>);
+
+  /// A fault the host must report. The run stops at this point.
+  fault: func(detail: string);
+}
+
+interface chip {
+  use types.{
+    chip-info, image, pin-input, pin-output, run-result,
+  };
+
+  /// Describe the core, its clock and the memory it expects.
+  info: func() -> chip-info;
+
+  /// Place an image. `offset` is in the chip's non-volatile space.
+  load-image: func(kind: image, offset: u64, bytes: list<u8>) -> result<_, string>;
+
+  /// Reset the core. `mac` is the station address a network-capable chip
+  /// keeps across reset; an empty list means the host has no opinion.
+  reset: func(mac: list<u8>);
+
+  /// Start the firmware just loaded and return its entry address.
+  boot: func() -> result<u32, string>;
+
+  /// Levels the host holds on pads. Applied before the next `run`.
+  set-inputs: func(inputs: list<pin-input>);
+
+  /// Execute for at most `budget-cycles` device cycles, or until the core has
+  /// nothing left to do. Never loops past the budget: an infinite firmware
+  /// loop has to come back to the host so it can advance its own clock.
+  run: func(budget-cycles: u64) -> run-result;
+
+  /// Pads whose drive changed since the last call.
+  take-outputs: func() -> list<pin-output>;
+
+  /// Bytes from a host terminal into the chip's console receive path (a
+  /// serial monitor's input box, a scripted `write-serial`). A chip without a
+  /// console ignores it.
+  write-console: func(bytes: list<u8>);
+
+  /// Debug read of the address space; an unmapped range is an error, not
+  /// zeroes.
+  read: func(addr: u32, len: u32) -> result<list<u8>, string>;
+}
+
+world simulator {
+  import host;
+  export chip;
+}

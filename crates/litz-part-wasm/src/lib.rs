@@ -26,7 +26,7 @@
 // `Component` is always written by its full path below.
 pub mod bindings {
     wasmtime::component::bindgen!({
-        path: "../litz-part-wit/wit",
+        path: "wit",
         world: "component",
     });
 }
@@ -34,7 +34,7 @@ pub mod bindings {
 /// The 0.1.0 contract, unchanged, so components built before 0.2 keep loading.
 pub mod legacy {
     wasmtime::component::bindgen!({
-        path: "../litz-part-wit/wit-legacy",
+        path: "wit-legacy",
         world: "component",
     });
 }

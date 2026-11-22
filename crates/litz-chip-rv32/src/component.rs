@@ -7,7 +7,7 @@
 
 mod bindings {
     wit_bindgen::generate!({
-        path: "../litz-mcu-wit/wit",
+        path: "wit",
         world: "simulator",
     });
 }
