@@ -5,10 +5,13 @@ name = "litz-cli"
 # files in its tarball. They live in directories with their own `Cargo.toml`,
 # which Cargo otherwise treats as nested packages and leaves out.
 include = ["src/**", "tests/**", "templates/**", "Cargo.toml"]
+# 0.1.0's packaged lockfile pins litz-catalog 0.1.0, which predates the bench
+# supply's current_limit attribute. `cargo install --locked` would keep serving
+# it; this patch carries the refreshed lock.
+version = "0.1.1"
 description = "Command-line runner for Litz firmware simulations, designed to work as a GitHub Actions test step."
 keywords = ["simulator", "cli", "ci", "embedded"]
 categories = ["emulators", "command-line-utilities"]
-version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true

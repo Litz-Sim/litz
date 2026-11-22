@@ -148,6 +148,18 @@ else
     exit "$rc"
 fi
 
+# The binary carries the builtin catalog through its litz-catalog dependency.
+# A packaged lockfile can pin a catalog older than the one this tree ships, and
+# nothing shows it until a diagram uses an attribute the old copy lacks. The
+# bench supply's current_limit shipped after the first catalog release, so it
+# is the attribute that catches that drift.
+if "$litz" catalog --json | grep -q current_limit; then
+    :
+else
+    printf 'install-smoke: FAIL — the installed catalog has no current_limit attribute\n' >&2
+    exit 1
+fi
+
 # Run the example from the repository root so the relative project path and
 # the committed firmware resolve. `litz test` exits 0 on pass, 1 on failure.
 printf 'install-smoke: running litz test examples/blinky\n' >&2

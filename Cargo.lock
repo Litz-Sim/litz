@@ -1141,7 +1141,7 @@ dependencies = [
 
 [[package]]
 name = "litz-catalog"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "litz-diagram",
  "serde",
@@ -1168,7 +1168,7 @@ dependencies = [
 
 [[package]]
 name = "litz-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "litz-catalog",
  "litz-diagram",
@@ -1473,7 +1473,7 @@ dependencies = [
 
 [[package]]
 name = "litz-rp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "litz-board",
  "litz-chip-conformance",
