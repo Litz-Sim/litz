@@ -1,0 +1,28 @@
+name: install smoke
+
+# The workspace tests build against this checkout's path dependencies, so they
+# can pass while the tarball a user actually downloads is missing a file. This
+# job installs the published `litz-cli` from crates.io and runs the blinky
+# example through the installed binary.
+#
+# It is not part of `ci.yml` because it needs the registry to be reachable and
+# the crate graph to be published: a pull request that adds a crate cannot pass
+# until that crate is on crates.io. Run it on demand after publishing, and
+# weekly so a yanked or broken dependency is noticed without a push.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  install-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: tools/install-smoke.sh
