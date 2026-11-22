@@ -785,8 +785,10 @@ pub mod abi {
             return error_i32("breakpoint list is truncated");
         }
         let pcs: Vec<u32> = bytes
-            .chunks_exact(4)
-            .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|word| u32::from_le_bytes(*word))
             .collect();
         match with_session(handle, |session| session.debug_set_breakpoints(index, &pcs)) {
             Some(true) => 1,
