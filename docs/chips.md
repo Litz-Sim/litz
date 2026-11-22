@@ -343,6 +343,8 @@ BLE and radio have a scope limit worth designing around. A runtime advertisement
 
 A chip is tested through the ordinary project harness: a `diagram.json`, a `litz.toml`, and `[[test]]` entries that assert console text and part state. For a board whose guest carries its own program, no firmware entry is needed.
 
+The `litz-chip-conformance` crate is the executable floor under that. `Fixture` names the chip, its board diagram, a firmware image and what the run must produce; `check` builds a fresh board, boots the image twice and compares the console, pin level, stop reason, cycle count and part state. The builtin backends run it in `crates/litz-esp`, `crates/litz-avr` and `crates/litz-rp`; a community chip points at the same crate to show it clears the same floor.
+
 ```toml
 [project]
 diagram = "diagram.json"
