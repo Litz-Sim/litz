@@ -174,6 +174,7 @@ The dependency direction is one way: chip adapters depend on `litz-board`, while
 - [Architecture](docs/architecture.md)
 - [File formats](docs/formats.md)
 - [Parts and boards](docs/parts.md)
+- [Writing a chip](docs/chips.md)
 - [Building firmware](docs/build.md)
 - [MCP server](docs/mcp.md)
 - [Examples](examples/README.md)

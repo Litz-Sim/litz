@@ -424,7 +424,7 @@ created /project/boards/board-vendor-mcu
         litz board check .
 ```
 
-The id gains the `board-` prefix when it does not already have one. The directory contains `board.toml`, `<id>.onboard.json`, `simulator/Cargo.toml`, `simulator/src/lib.rs`, `simulator/build.sh`, `wit-v2/litz-mcu.wit` and `README.md`. The generated manifest uses `litz-mcu-2`. `simulator/build.sh` needs `litz-componentize` on `PATH`; from a Litz checkout, install it with `cargo install --path crates/litz-mcu-wasm --features tooling`. The script compiles for `wasm32-unknown-unknown` and writes `<id>.wasm` next to `board.toml`.
+The id gains the `board-` prefix when it does not already have one. The directory contains `board.toml`, `<id>.onboard.json`, `simulator/Cargo.toml`, `simulator/src/lib.rs`, `simulator/build.sh`, `wit-v2/litz-mcu.wit` and `README.md`. The generated manifest uses `litz-mcu-2`. `simulator/build.sh` needs `litz-componentize` on `PATH`; from a Litz checkout, install it with `cargo install --path crates/litz-mcu-wasm --features tooling`. The script compiles for `wasm32-unknown-unknown` and writes `<id>.wasm` next to `board.toml`. [Writing a chip](chips.md) covers the rest of the contract: the `$chip` schematic, the ABI choice, the host calls and the component build.
 
 ### Remove a part or board
 
