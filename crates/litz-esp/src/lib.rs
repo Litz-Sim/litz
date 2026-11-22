@@ -48,6 +48,14 @@ pub mod debug;
 pub mod gdb;
 pub mod screenshot;
 
+#[cfg(any(
+    feature = "esp32",
+    feature = "esp32c3",
+    feature = "esp32c6",
+    feature = "esp32s3",
+    feature = "esp32p4",
+    feature = "esp32s31"
+))]
 pub use litz_net::{NetworkConfig, Service};
 #[cfg(any(
     feature = "esp32",
