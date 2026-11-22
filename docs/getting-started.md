@@ -113,6 +113,10 @@ The directory defaults to the current one. `check` and `lint` are the same comma
 
 A project whose firmware is built locally can keep its commands in `litz.build.toml`, an ordered list of shell steps. `litz build [directory]` runs the recipe, and `litz test [directory] --build` runs it before the tests. The recipe format is described in [Building firmware](build.md). `litz serve [directory]` serves a directory over HTTP on `127.0.0.1:8000` for a page that loads the WebAssembly build.
 
+## Using the Rust library
+
+The crates are the simulator, and `litz-engine` is the layer a host embeds. `cargo add litz-engine` and call `machine::boot` with a diagram and its images, or `runner::execute` with a project directory to get the same pass/fail result the CLI prints. [The Rust reference](rust.md) covers the boot loop, reading part state, the project runner, probes, custom `Part` and `Chip` implementations and WebAssembly components.
+
 ## Using the JavaScript library
 
 The npm package wraps the WebAssembly module in plain objects. Load the module once with `loadLitz`, open a session with `createSession`, call `advance` with a number of simulated milliseconds, and drain the console with `serial.take`. From a checkout of this repository:

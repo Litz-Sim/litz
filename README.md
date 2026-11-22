@@ -1,5 +1,11 @@
 # Litz
 
+[![CI](https://github.com/Litz-Sim/litz/actions/workflows/ci.yml/badge.svg)](https://github.com/Litz-Sim/litz/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/litz.svg)](https://crates.io/crates/litz)
+[![docs.rs](https://docs.rs/litz/badge.svg)](https://docs.rs/litz)
+[![npm](https://img.shields.io/npm/v/@litz-sim/litz.svg)](https://www.npmjs.com/package/@litz-sim/litz)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+
 Litz is an open-source electronics and firmware simulator. A `diagram.json` file describes the parts and wiring, a manifest names the firmware image, and Litz boots that image on an emulated microcontroller, resolves pins, buses and analog nets against the parts on the board, and advances only when asked. Tests assert on serial output, part state and recorded waveforms. The core is Rust, runs natively and compiles to WebAssembly, loads parts from TOML manifests, and solves analog nets with an MNA solver rather than lookup tables.
 
 ## Status
@@ -17,6 +23,33 @@ The following works in this repository today.
 - The `litz` CLI with `run`, `test`, `check`/`lint`, `build`, `serve`, `catalog`, `heap`, `board check`, `toolchain`/`doctor`, `editor` and `mcp`, plus fixed exit codes, JSON/JUnit reports, heap tracking, GDB, screenshots and coverage.
 - Custom parts and boards as sandboxed WebAssembly components speaking `litz:part` and `litz:mcu`, with no WASI.
 - CI through `.github/workflows/ci.yml` and a composite action in `action.yml` wrapping `litz test`.
+
+## Rust
+
+The simulator is a set of crates. `litz-engine` is the embeddable layer: boot a diagram already in memory, or load a project directory and evaluate its tests. `litz-board` is the layer below it, where a host owns the `Board` and drives a `Chip` itself.
+
+```sh
+cargo add litz-engine
+```
+
+```rust
+use litz_engine::machine::{boot, BootOptions, Images};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let diagram = std::fs::read_to_string("diagram.json")?;
+    let app = std::fs::read("firmware.bin")?;
+    let mut session = boot(
+        &diagram,
+        Images { rom: &[], bootloader: &[], partition_table: &[], app: &app },
+        &BootOptions::default(),
+    )?;
+    session.chip.run(100_000);
+    print!("{}", String::from_utf8_lossy(&session.chip.take_console()));
+    Ok(())
+}
+```
+
+`session.board` is the `Board` the chip drives: `state(id)` reads a part, `press` and `set_control` drive it, `add_probe` and `scope` record nets. The [Rust reference](docs/rust.md) covers the project runner, custom `Part` and `Chip` implementations, WebAssembly components, probes and the analog solver.
 
 ## JavaScript
 
@@ -135,6 +168,7 @@ The dependency direction is one way: chip adapters depend on `litz-board`, while
 
 - [Getting started](docs/getting-started.md)
 - [CLI reference](docs/cli.md)
+- [Rust reference](docs/rust.md)
 - [JavaScript reference](docs/javascript.md)
 - [Architecture](docs/architecture.md)
 - [File formats](docs/formats.md)
