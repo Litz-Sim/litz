@@ -1,5 +1,10 @@
 [package]
 name = "litz-cli"
+# The board and part scaffolds ship with the binary: `litz catalog new` writes
+# them from `include_str!`, so a crate installed with `cargo install` needs the
+# files in its tarball. They live in directories with their own `Cargo.toml`,
+# which Cargo otherwise treats as nested packages and leaves out.
+include = ["src/**", "tests/**", "templates/**", "Cargo.toml"]
 description = "Command-line runner for Litz firmware simulations, designed to work as a GitHub Actions test step."
 keywords = ["simulator", "cli", "ci", "embedded"]
 categories = ["emulators", "command-line-utilities"]

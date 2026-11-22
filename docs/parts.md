@@ -62,7 +62,7 @@ id = "vendor-mirror"
 name = "Mirror"
 version = "0.1.0"
 description = "Output follows input"
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 
 [pins.IN]
 kind = "digital-in"
@@ -451,7 +451,7 @@ id = "vendor-led"
 name = "Vendor LED"
 version = "1.0.0"
 description = "5 mm green LED"
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 
 [pins.A]
 kind = "digital-in"
@@ -491,17 +491,17 @@ The diagram may now use `"type": "vendor-led"` wherever `litz-led` is allowed.
 
 ## Worked example: a wasm part
 
-Start from `templates/part/`, a buildable part whose `OUT` pin mirrors its `IN` pin. Change the id and name in `part.toml` and in `src/lib.rs`, then build:
+Start from `crates/litz-cli/templates/part/`, a buildable part whose `OUT` pin mirrors its `IN` pin. Change the id and name in `part.toml` and in `src/lib.rs`, then build:
 
 ```sh
-templates/part/build.sh
+crates/litz-cli/templates/part/build.sh
 ```
 
 The script compiles the crate for `wasm32-unknown-unknown` and writes the wrapped component next to the manifest:
 
 ```
-templates/part/part.toml
-templates/part/part.wasm
+crates/litz-cli/templates/part/part.toml
+crates/litz-cli/templates/part/part.wasm
 ```
 
 The manifest it ships is:
@@ -512,7 +512,7 @@ id = "litz-part-example"
 name = "Example mirror"
 version = "0.1.0"
 description = "A two-pin part whose output follows its input"
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 
 [pins.IN]
 kind = "digital-in"
@@ -533,7 +533,7 @@ abi = "litz-part-2"
 From the project that should receive it:
 
 ```sh
-litz catalog add path/to/templates/part
+litz catalog add crates/litz-cli/templates/part
 litz catalog check .
 ```
 

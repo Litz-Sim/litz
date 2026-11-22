@@ -3,7 +3,7 @@ id = "litz-part-example"
 name = "Example mirror"
 version = "0.1.0"
 description = "A two-pin part whose output follows its input"
-license = "MIT OR Apache-2.0"
+license = "Apache-2.0"
 
 [pins.IN]
 kind = "digital-in"

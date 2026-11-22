@@ -4,13 +4,13 @@ Litz is a deterministic electronics and firmware simulator. A `diagram.json` fil
 
 ## Install
 
-The native runner is a Rust binary. Install it from a checkout of this repository:
+The native runner is a Rust binary published as the `litz-cli` crate. `cargo install litz-cli` installs the `litz` binary and puts it on `PATH`. From a checkout of this repository, install the same binary with:
 
 ```sh
 cargo install --path crates/litz-cli
 ```
 
-That puts `litz` on `PATH`. Without installing it, every command below also runs through Cargo, with the binary crate named explicitly:
+Without installing it, every command below also runs through Cargo, with the binary crate named explicitly:
 
 ```sh
 cargo run -p litz-cli -- test examples/blinky

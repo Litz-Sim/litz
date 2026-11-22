@@ -224,4 +224,4 @@ The full API reference, including every type, lifecycle rule, host import name a
 
 ## License
 
-MIT OR Apache-2.0.
+Apache-2.0.

@@ -4,7 +4,7 @@
 [![crates.io](https://img.shields.io/crates/v/litz.svg)](https://crates.io/crates/litz)
 [![docs.rs](https://docs.rs/litz/badge.svg)](https://docs.rs/litz)
 [![npm](https://img.shields.io/npm/v/@litz-sim/litz.svg)](https://www.npmjs.com/package/@litz-sim/litz)
-[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](#license)
 
 Litz is an open-source electronics and firmware simulator. A `diagram.json` file describes the parts and wiring, a manifest names the firmware image, and Litz boots that image on an emulated microcontroller, resolves pins, buses and analog nets against the parts on the board, and advances only when asked. Tests assert on serial output, part state and recorded waveforms. The core is Rust, runs natively and compiles to WebAssembly, loads parts from TOML manifests, and solves analog nets with an MNA solver rather than lookup tables.
 
@@ -89,7 +89,8 @@ session.close();
 ## CLI
 
 ```sh
-cargo install --path crates/litz-cli   # installs the `litz` binary
+cargo install litz-cli                 # installs the `litz` binary from crates.io
+cargo install --path crates/litz-cli   # or build it from a checkout
 cargo run -p litz-cli -- test examples/blinky   # LED on GPIO8 blinks, exit 0
 cargo run -p litz-cli -- run examples/blinky    # stream serial output
 cargo run -p litz-cli -- check examples/blinky  # validate the diagram only
@@ -158,7 +159,7 @@ The `instantiate` functions and core modules are the jco output for each compone
 | `js/` | the `@litz-sim/litz` package: ES module wrapper, type declarations, built wasm and tests |
 | `examples/` | complete projects with `diagram.json`, `litz.toml` and firmware, including `blinky`, `button`, `pot`, `rv32`, `uno-blink` and the Pico, MicroPython and CircuitPython projects |
 | `docs/` | reference documentation for formats, architecture, parts, builds and MCP |
-| `templates/` | board and part scaffolds used by `litz catalog new` |
+| `crates/litz-cli/templates/` | board and part scaffolds used by `litz catalog new` |
 | `tools/` | scripts that fetch pinned MicroPython and CircuitPython images |
 | `action.yml`, `.github/workflows/ci.yml` | CI entry points |
 
@@ -179,4 +180,4 @@ The dependency direction is one way: chip adapters depend on `litz-board`, while
 
 ## License
 
-MIT OR Apache-2.0. The license is declared once in `Cargo.toml` under `[workspace.package]` and inherited by every crate. The crates carry version `0.1.0` from the same place; the `0.x` line makes no compatibility promise between minor versions.
+Apache-2.0. The license is declared once in `Cargo.toml` under `[workspace.package]` and inherited by every crate. The crates carry version `0.1.0` from the same place; the `0.x` line makes no compatibility promise between minor versions. The esp32sim fork under `vendor/` keeps its upstream MIT license and ships that license file with each vendored crate.

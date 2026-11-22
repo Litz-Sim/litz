@@ -501,15 +501,15 @@ fn validate_id(id: &str) -> Result<(), String> {
 /// file, so the repository documents the generated layout. `onboard.json` is
 /// renamed to `<id>.onboard.json` when written, because the manifest resolves
 /// the schematic by that name.
-const BOARD_MANIFEST: &str = include_str!("../../../templates/board/board.toml");
-const BOARD_SCHEMATIC: &str = include_str!("../../../templates/board/onboard.json");
-const SIMULATOR_MANIFEST: &str = include_str!("../../../templates/board/simulator/Cargo.toml");
-const SIMULATOR_SOURCE: &str = include_str!("../../../templates/board/simulator/src/lib.rs");
-const SIMULATOR_BUILD: &str = include_str!("../../../templates/board/simulator/build.sh");
-const BOARD_README: &str = include_str!("../../../templates/board/README.md");
+const BOARD_MANIFEST: &str = include_str!("../templates/board/board.toml");
+const BOARD_SCHEMATIC: &str = include_str!("../templates/board/onboard.json");
+const SIMULATOR_MANIFEST: &str = include_str!("../templates/board/simulator/Cargo.toml.in");
+const SIMULATOR_SOURCE: &str = include_str!("../templates/board/simulator/src/lib.rs");
+const SIMULATOR_BUILD: &str = include_str!("../templates/board/simulator/build.sh");
+const BOARD_README: &str = include_str!("../templates/board/README.md");
 /// The contract copy placed next to `simulator/`. The test module keeps it
 /// byte-identical to `crates/litz-mcu-wit/wit-v2`.
-const BOARD_WIT: &str = include_str!("../../../templates/board/wit-v2/litz-mcu.wit");
+const BOARD_WIT: &str = include_str!("../templates/board/wit-v2/litz-mcu.wit");
 
 /// Every file of a board bundle, relative to the board directory.
 fn board_files(id: &str, name: &str) -> Vec<(String, String)> {

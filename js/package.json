@@ -10,7 +10,7 @@
     "electronics",
     "wasm"
   ],
-  "license": "MIT OR Apache-2.0",
+  "license": "Apache-2.0",
   "author": "redelectricity",
   "repository": {
     "type": "git",

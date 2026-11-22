@@ -13,3 +13,4 @@ examples/*/firmware/*
 !examples/two-boards/firmware/hold-low.bin
 js/litz_wasm.wasm
 .DS_Store
+crates/litz-cli/templates/part/Cargo.toml
