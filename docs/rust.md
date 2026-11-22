@@ -138,7 +138,7 @@ for channel in session.board.borrow().scope() {
 }
 ```
 
-A `Channel` holds the probe, its digital `Series` (level changes, not samples) and its analog `Series` (solved volts at each settle). `probe::measure` computes edges, high and low time, pulse widths, frequency and duty from a series, and `probe::triggered` applies a `Trigger`.
+A `Channel` holds the probe, one `Series` (level changes, not samples, plus the solved volts at each settle) and the `Measurements` taken from it. `probe::measure` computes edges, high and low time, pulse widths, frequency and duty from a series, and `probe::triggered` applies a `Trigger`.
 
 `litz_engine::decode::frames` reads a `DecodeSection` (`uart`, `i2c` or `spi`) off the channels, and `decode::check` verifies that its points exist before the run.
 
