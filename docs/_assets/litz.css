@@ -1,0 +1,259 @@
+/* Litz docs: registry-style — flat surfaces, hairline borders, square corners. */
+
+:root {
+  --theme-color: #1a7f37;
+  --base-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica,
+    Arial, sans-serif;
+  --mono-font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+  --sidebar-width: 300px;
+  --border: #d8dee4;
+  --border-muted: #eaeef2;
+  --text: #1f2328;
+  --muted: #59636e;
+  --subtle: #f6f8fa;
+}
+
+body {
+  color: var(--text);
+}
+
+.markdown-section {
+  max-width: 860px;
+  padding: 28px 36px 72px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+/* Sidebar */
+
+.sidebar {
+  background: #ffffff;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  padding-top: 22px;
+  padding-bottom: 80px;
+}
+
+.sidebar .app-name {
+  padding: 0 20px 16px;
+  margin: 0;
+}
+
+.sidebar .app-name-link {
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.sidebar ul {
+  margin: 0;
+}
+
+.sidebar ul li {
+  margin: 0;
+}
+
+.sidebar ul li a {
+  display: block;
+  color: var(--muted);
+  font-size: 13.5px;
+  padding: 6px 20px;
+  border-right: 2px solid transparent;
+}
+
+.sidebar ul li a:hover {
+  color: var(--text);
+  text-decoration: none;
+  background: var(--subtle);
+}
+
+.sidebar ul li.active a {
+  color: var(--text);
+  font-weight: 600;
+  border-right-color: var(--theme-color);
+  background: var(--subtle);
+}
+
+/* Docsify wraps every sidebar entry in a paragraph; only the bold group
+   labels get the small-caps treatment. */
+.sidebar ul li > p {
+  margin: 0;
+}
+
+.sidebar ul li > p > strong {
+  display: block;
+  margin: 18px 20px 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8c959f;
+}
+
+.sidebar-toggle {
+  background-color: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 0;
+}
+
+.sidebar-toggle span {
+  background-color: var(--muted);
+}
+
+/* Content */
+
+.markdown-section h1,
+.markdown-section h2,
+.markdown-section h3,
+.markdown-section h4 {
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.markdown-section h1 {
+  font-size: 28px;
+  margin: 0.4em 0 0.7em;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--border);
+}
+
+.markdown-section h2 {
+  font-size: 20px;
+  margin-top: 1.9em;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--border);
+}
+
+.markdown-section h3 {
+  font-size: 16px;
+  margin-top: 1.6em;
+}
+
+.markdown-section a {
+  color: #0969da;
+  border-bottom: 0;
+}
+
+.markdown-section a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-section code {
+  font-family: var(--mono-font-family);
+  font-size: 85%;
+  color: var(--text);
+  background: var(--subtle);
+  border: 1px solid var(--border-muted);
+  border-radius: 0;
+  padding: 0.1em 0.3em;
+}
+
+.markdown-section pre {
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 12px 14px;
+}
+
+.markdown-section pre > code {
+  background: none;
+  border: 0;
+  color: var(--text);
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.markdown-section pre[data-lang]::after {
+  display: none;
+}
+
+.markdown-section blockquote {
+  border-left: 3px solid var(--theme-color);
+  background: var(--subtle);
+  color: var(--muted);
+  padding: 0.6em 1em;
+  border-radius: 0;
+  margin-left: 0;
+}
+
+.markdown-section table {
+  border-collapse: collapse;
+  display: table;
+  width: 100%;
+  font-size: 13.5px;
+}
+
+.markdown-section th {
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.markdown-section td {
+  border: 1px solid var(--border);
+}
+
+.markdown-section hr {
+  border-bottom-color: var(--border);
+}
+
+.markdown-section img {
+  border: 1px solid var(--border-muted);
+}
+
+/* The repo link lives in the sidebar, so the corner ribbon is redundant. */
+.github-corner {
+  display: none;
+}
+
+/* Search and copy button */
+
+.search {
+  margin-bottom: 16px;
+  padding: 0 20px;
+}
+
+.search input {
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: #ffffff;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.search input::placeholder {
+  color: #8c959f;
+}
+
+.search .results-panel {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--muted);
+}
+
+.search .matching-post {
+  border-bottom-color: var(--border-muted);
+}
+
+.search .matching-post a {
+  color: var(--text);
+}
+
+.docsify-copy-code-button {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+@media (max-width: 768px) {
+  .markdown-section {
+    padding: 22px 20px 56px;
+  }
+}

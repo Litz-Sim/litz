@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Litz documentation</title>
+    <meta name="description" content="Documentation for Litz, a deterministic electronics and firmware simulator." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" href="_assets/favicon.svg" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css" />
+    <link rel="stylesheet" href="_assets/litz.css" />
+  </head>
+  <body>
+    <div id="app">Loading…</div>
+
+    <script>
+      window.$docsify = {
+        name: 'Litz',
+        repo: 'https://github.com/Litz-Sim/litz',
+        loadSidebar: true,
+        subMaxLevel: 2,
+        auto2top: true,
+        homepage: 'README.md',
+        executeScript: false,
+        search: {
+          placeholder: 'Search the docs',
+          noData: 'No matches',
+          depth: 4
+        },
+        copyCode: {
+          buttonText: 'Copy',
+          errorText: 'Press Ctrl+C to copy',
+          successText: 'Copied'
+        },
+        // Hash routing keeps the site working on any static host without a
+        // rewrite rule: docs/rust.md is reached at #/rust.
+        routerMode: 'hash'
+      };
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/docsify@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  </body>
+</html>
