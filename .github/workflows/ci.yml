@@ -1,7 +1,10 @@
 name: ci
 
 on:
+  # A release is a tag on a commit whose branch push already ran this
+  # workflow; letting tag pushes start it again only doubles the work.
   push:
+    branches: ["**"]
   pull_request:
 
 env:
