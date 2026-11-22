@@ -8,21 +8,21 @@
 
 Litz is an open-source electronics and firmware simulator. A `diagram.json` file describes the parts and wiring, a manifest names the firmware image, and Litz boots that image on an emulated microcontroller, resolves pins, buses and analog nets against the parts on the board, and advances only when asked. Tests assert on serial output, part state and recorded waveforms. The core is Rust, runs natively and compiles to WebAssembly, loads parts from TOML manifests, and solves analog nets with an MNA solver rather than lookup tables.
 
-## Status
+## Feature list
 
-The following works in this repository today.
-
-- `diagram.json` parsing, catalog-backed structural validation, and flattening a development board into a flat part list and nets.
-- Eight microcontrollers behind one `Chip` interface: the classic ESP32, ESP32-S3, ESP32-C3, ESP32-C6, ESP32-P4 and ESP32-S31 through `litz-esp`, the ATmega328P through `litz-avr`, and the RP2040 through `litz-rp`.
-- A builtin catalog of parts and boards compiled in from TOML manifests: LEDs, displays, buttons, switches, sensors, EEPROM and flash, I/O expanders, real-time clocks, motor drivers, relays, IR parts and passives.
-- Buses as transfers, not pin wiggles: I2C by 7-bit address, SPI by chip select, and UART by port, with device-side implementations in the parts.
-- Instruments: probes on `<board>:<GPIO>` or `<part>:<pin>`, per-channel edges, frequency, duty, pulse widths and voltage range, `--scope FILE` CSV output, `--vcd FILE` net traces, and `--decode` for UART/I2C/SPI.
-- Analog co-simulation in Rust with `--analog` or `[sim] analog = true`; an ADC reads the solved node voltage.
-- Deterministic radios in the circuit: a Wi-Fi router part (DNS, TCP, UDP, TLS, WebSocket, MQTT), BLE beacon parts with optional GATT tables, nRF24L01/SX1276/AT86RF233 packet peers, and IEEE 802.15.4 frame decoding.
-- More than one board per diagram, each with its own firmware, chip pins and bus fabric; a wire between boards is one net.
-- The `litz` CLI with `run`, `test`, `check`/`lint`, `build`, `serve`, `catalog`, `heap`, `board check`, `toolchain`/`doctor`, `editor` and `mcp`, plus fixed exit codes, JSON/JUnit reports, heap tracking, GDB, screenshots and coverage.
-- Custom parts and boards as sandboxed WebAssembly components speaking `litz:part` and `litz:mcu`, with no WASI.
-- CI through `.github/workflows/ci.yml` and a composite action in `action.yml` wrapping `litz test`.
+| Area | What it does |
+|---|---|
+| Circuit | Parses and validates `diagram.json`, then flattens a development board into parts and nets. |
+| Chips | Eight MCUs behind one `Chip` interface: ESP32, ESP32-S3, ESP32-C3, ESP32-C6, ESP32-P4, ESP32-S31, ATmega328P and RP2040. |
+| Parts | Builtin catalog from TOML manifests: LEDs, displays, buttons, switches, sensors, EEPROM and flash, I/O expanders, real-time clocks, motor drivers, relays, IR parts and passives. |
+| Buses | I2C by 7-bit address, SPI by chip select and UART by port, as transfers rather than pin wiggles, with device-side implementations in the parts. |
+| Instruments | Probes on `<board>:<GPIO>` or `<part>:<pin>`, edges, frequency, duty, pulse widths and voltage range; `--scope` CSV, `--vcd` traces and `--decode` for UART, I2C and SPI. |
+| Analog | MNA co-simulation with `--analog` or `[sim] analog = true`; an ADC reads the solved node voltage. |
+| Wireless | A Wi-Fi router (DNS, TCP, UDP, TLS, WebSocket, MQTT), BLE beacons with optional GATT tables, nRF24L01/SX1276/AT86RF233 peers and IEEE 802.15.4 decoding. |
+| Multi-board | Several boards per diagram, each with its own firmware, pins and buses; a wire between boards is one net. |
+| CLI | `run`, `test`, `check`/`lint`, `build`, `serve`, `catalog`, `heap`, `board check`, `toolchain`/`doctor`, `editor` and `mcp`, with fixed exit codes, JSON/JUnit reports, GDB, screenshots and coverage. |
+| Extensibility | Custom parts and boards as sandboxed WebAssembly components speaking `litz:part` and `litz:mcu`, with no WASI. |
+| CI | `.github/workflows/ci.yml` and a composite action in `action.yml` wrapping `litz test`. |
 
 ## Rust
 
