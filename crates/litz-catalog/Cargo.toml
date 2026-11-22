@@ -3,7 +3,10 @@ name = "litz-catalog"
 description = "Part and dev-board manifests for Litz: the catalog a circuit's part types resolve against."
 keywords = ["simulator", "components", "catalog", "embedded"]
 categories = ["emulators", "embedded"]
-version.workspace = true
+# 0.1.0 shipped the builtin catalog before the bench supply gained its
+# `current_limit` attribute. The manifest data changed, so the patch release
+# carries it; `^0.1.0` requirements pick this up.
+version = "0.1.1"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
