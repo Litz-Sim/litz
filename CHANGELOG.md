@@ -6,6 +6,13 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-23
+
+### Added
+
+- Each display part's own framebuffer is reachable from the host: `Session#partDisplay(id)` in the JavaScript binding, backed by `litz_part_display_info`, `litz_part_display_version` and `litz_part_display_rgba`. It covers the SSD1306, SH1106, ILI9341, ST7735, e-paper, MAX7219 chain and Nokia 5110, so a host can show an e-paper panel the board-level `display()` never reported.
+- `Board::part_framebuffer_version` reports the panel's change counter, so a host re-reads pixels only when the glass moved.
+
 ## [0.4.1] - 2026-11-23
 
 ### Added

@@ -334,6 +334,32 @@ impl Session {
         self.board_display_version(0)
     }
 
+    /// One part's display as RGBA8888, with its size and change counter.
+    ///
+    /// The board hands back a [`litz_board::Framebuffer`], which is RGB8 for
+    /// every whole-frame model. Reading it through `pixel()` gives one RGBA
+    /// path for all of them, in the channel order the PNG writer uses. `None`
+    /// when the id names no part with a framebuffer.
+    pub(crate) fn part_display(&mut self, part: &str) -> Option<(u32, u32, Vec<u8>, u64)> {
+        let board = self.board.borrow();
+        let framebuffer = board.part_framebuffer(part)?;
+        let version = board.part_framebuffer_version(part);
+        let width = framebuffer.width();
+        let height = framebuffer.height();
+        let mut pixels = Vec::with_capacity(width as usize * height as usize * 4);
+        for y in 0..height {
+            for x in 0..width {
+                pixels.extend_from_slice(&framebuffer.pixel(x, y).unwrap_or([0, 0, 0, 255]));
+            }
+        }
+        Some((width, height, pixels, version))
+    }
+
+    /// One part's display change counter, without copying a frame.
+    pub(crate) fn part_display_version(&mut self, part: &str) -> u64 {
+        self.board.borrow().part_framebuffer_version(part)
+    }
+
     /// Touch the panel at raw controller codes. False when the board has no
     /// touch controller, because a finger on a panel that is not there changes
     /// nothing and the host should not be told otherwise.

@@ -330,6 +330,11 @@ export declare class Session {
   display(): Display | null;
   /** One board's panel, by list index or board id. */
   displayOn(board?: number | string): Display | null;
+  /**
+   * One part's panel by diagram id, such as an e-paper display, or `null` when
+   * that part has no framebuffer. The shape is the same as `display()`.
+   */
+  partDisplay(part: string): Display | null;
   /** Deliver a touch at panel pixels. False without a panel. */
   touch(x: number, y: number, down?: boolean): boolean;
   /** Probes' samples and decoders' frames. */

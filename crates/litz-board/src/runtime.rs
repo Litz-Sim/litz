@@ -1392,6 +1392,138 @@ impl Board {
         }
     }
 
+    /// A counter for the display part `part_id`, matching
+    /// [`Board::part_framebuffer`].
+    ///
+    /// A host reads it before and after a run to tell whether the picture
+    /// moved without copying the frame. The TFT, OLED and e-paper models keep
+    /// their own counter, which grows when a write reaches the pixels; e-paper
+    /// counts the refresh that reaches the glass, not the pending frame. A
+    /// MAX7219 or PCD8544 has no counter, so a stable FNV-1a hash of its
+    /// framebuffer stands in for one.
+    ///
+    /// An unknown id, a part with no display model, and a builtin part whose
+    /// device is not attached all answer `0`.
+    pub fn part_framebuffer_version(&self, part_id: &str) -> u64 {
+        let Some(part) = self.flat.parts.iter().find(|part| part.id == part_id) else {
+            return 0;
+        };
+        let Engine::Builtin(engine) = &part.engine else {
+            return 0;
+        };
+        let Some(device) = part.device else {
+            return 0;
+        };
+        match (engine.as_str(), device) {
+            (
+                "ili9341",
+                Device::Spi {
+                    board,
+                    controller,
+                    chip_select,
+                },
+            ) => self
+                .buses
+                .spi
+                .get(&(board, controller))
+                .and_then(|spi| spi.device_as::<crate::displays::Ili9341>(chip_select))
+                .map_or(0, crate::displays::Ili9341::frame_version),
+            (
+                "st7735",
+                Device::Spi {
+                    board,
+                    controller,
+                    chip_select,
+                },
+            ) => self
+                .buses
+                .spi
+                .get(&(board, controller))
+                .and_then(|spi| spi.device_as::<crate::displays::St7735>(chip_select))
+                .map_or(0, crate::displays::St7735::frame_version),
+            (
+                "ssd1306",
+                Device::I2c {
+                    board,
+                    controller,
+                    address,
+                },
+            ) => self
+                .buses
+                .i2c
+                .get(&(board, controller))
+                .and_then(|bus| bus.device_as::<crate::bus_parts::Ssd1306>(address))
+                .map_or(0, crate::bus_parts::Ssd1306::frame_version),
+            (
+                "sh1106",
+                Device::I2c {
+                    board,
+                    controller,
+                    address,
+                },
+            ) => self
+                .buses
+                .i2c
+                .get(&(board, controller))
+                .and_then(|bus| bus.device_as::<crate::bus_parts::Sh1106>(address))
+                .map_or(0, crate::bus_parts::Sh1106::frame_version),
+            (
+                "epaper",
+                Device::Spi {
+                    board,
+                    controller,
+                    chip_select,
+                },
+            ) => self
+                .buses
+                .spi
+                .get(&(board, controller))
+                .and_then(|spi| spi.device_as::<crate::displays::Epd>(chip_select))
+                .map_or(0, crate::displays::Epd::frame_version),
+            (
+                "max7219",
+                Device::Spi {
+                    board,
+                    controller,
+                    chip_select,
+                },
+            ) => {
+                let Some(matrix) = self.buses.spi.get(&(board, controller)).and_then(|spi| {
+                    spi.device_as::<crate::protocol_displays::Max7219>(chip_select)
+                }) else {
+                    return 0;
+                };
+                let mut rows = Vec::with_capacity(matrix.chain() * 8);
+                for unit in 0..matrix.chain() {
+                    if let Some(bytes) = matrix.rows(unit) {
+                        rows.extend_from_slice(&bytes);
+                    }
+                }
+                // The MAX7219 has no change counter, so a hash of the row
+                // bytes stands in for one.
+                fnv1a(&rows)
+            }
+            (
+                "pcd8544",
+                Device::Spi {
+                    board,
+                    controller,
+                    chip_select,
+                },
+            ) => {
+                let Some(panel) = self.buses.spi.get(&(board, controller)).and_then(|spi| {
+                    spi.device_as::<crate::protocol_displays::Pcd8544>(chip_select)
+                }) else {
+                    return 0;
+                };
+                // The PCD8544 has no change counter, so a hash of its GDDRAM
+                // stands in for one.
+                fnv1a(panel.framebuffer())
+            }
+            _ => 0,
+        }
+    }
+
     /// Put a finger on (or lift it from) the first XPT2046 touch controller on
     /// any SPI controller of any board.
     ///
@@ -2291,6 +2423,17 @@ fn build_part(
         }
         Err(error) => Err(error),
     }
+}
+
+/// The 64-bit FNV-1a hash of `bytes`.
+///
+/// A display model with no change counter needs some stable value that moves
+/// with its pixels and does not depend on the process, so the version a host
+/// polls is the same in a browser, in a test and across runs.
+fn fnv1a(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |hash, &byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
 }
 
 /// The one-character value a VCD uses for a level.

@@ -352,6 +352,63 @@ export class Session {
     };
   }
 
+  /**
+   * One part's panel by diagram id, such as an e-paper display, or `null` when
+   * that part has no framebuffer. The shape is the same as `display()`.
+   */
+  partDisplay(part) {
+    this.#assertOpen();
+    if (typeof part !== "string" || part.length === 0) {
+      throw new LitzError("partDisplay() needs a part id");
+    }
+    const infoBuf = this.#io.writeIn(ENCODER.encode(part));
+    let info;
+    try {
+      info = this.#x.litz_part_display_info(this.#handle, infoBuf.ptr, infoBuf.len);
+    } finally {
+      this.#io.release(infoBuf);
+    }
+    if (info === 0) return null;
+    const width = info >>> 16;
+    const height = info & 0xffff;
+    const session = this;
+    return {
+      width,
+      height,
+      get version() {
+        session.#assertOpen();
+        const buf = session.#io.writeIn(ENCODER.encode(part));
+        try {
+          return session.#x.litz_part_display_version(session.#handle, buf.ptr, buf.len);
+        } finally {
+          session.#io.release(buf);
+        }
+      },
+      pixels() {
+        session.#assertOpen();
+        const needed = width * height * 4;
+        const buf = session.#io.writeIn(ENCODER.encode(part));
+        const cap = session.#io.writeOut(needed);
+        let written;
+        try {
+          written = session.#x.litz_part_display_rgba(
+            session.#handle,
+            buf.ptr,
+            buf.len,
+            cap.ptr,
+            cap.len,
+          );
+        } finally {
+          session.#io.release(buf);
+        }
+        if (written !== needed) {
+          throw session.#io.error("the display frame could not be read");
+        }
+        return session.#io.copyOut(written);
+      },
+    };
+  }
+
   /** Deliver a touch at panel pixels. False when the board has no panel. */
   touch(x, y, down = true) {
     this.#assertOpen();

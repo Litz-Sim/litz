@@ -184,6 +184,44 @@ describe("a session", () => {
     }
   });
 
+  test("reads a part's own panel, which the board-level display does not cover", async () => {
+    const diagram = JSON.stringify({
+      version: 1,
+      parts: [
+        { id: "esp", type: "board-esp32-c3-devkitm-1", attrs: {} },
+        { id: "paper", type: "litz-epaper-1in54", attrs: {} },
+      ],
+      connections: [
+        ["esp:GPIO7", "paper:CS", "", []],
+        ["esp:GPIO8", "paper:CLK", "", []],
+        ["esp:GPIO9", "paper:DIN", "", []],
+        ["esp:3V3", "paper:VCC", "", []],
+        ["esp:GND.1", "paper:GND", "", []],
+      ],
+    });
+    const session = litz.createSession({
+      diagram,
+      app: await fixture("examples/blinky/firmware/blinky.bin"),
+    });
+    try {
+      session.run(1000);
+      assert.equal(session.display(), null, "the board has no first display here");
+      const paper = session.partDisplay("paper");
+      assert.ok(paper, "the e-paper part is a whole-frame panel");
+      assert.equal(paper.width, 200);
+      assert.equal(paper.height, 200);
+      assert.equal(typeof paper.version, "number");
+      const pixels = paper.pixels();
+      assert.equal(pixels.length, 200 * 200 * 4);
+      // The panel boots all white, so the first pixel is opaque white.
+      assert.deepEqual(Array.from(pixels.slice(0, 4)), [255, 255, 255, 255]);
+      assert.equal(session.partDisplay("esp"), null, "a board is not a panel");
+      assert.equal(session.partDisplay("nope"), null, "an unknown id has no panel");
+    } finally {
+      session.close();
+    }
+  });
+
   test("an unknown part is null, not an error", async () => {
     const session = await blinky(litz);
     try {

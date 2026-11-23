@@ -51,6 +51,9 @@
 //! | [`litz_display_info`] | `(handle: u32) -> u32` | `width << 16 \| height`, or 0 without a display |
 //! | [`litz_display_version`] | `(handle: u32) -> u32` | display change counter |
 //! | [`litz_display_rgba`] | `(handle, dst, cap) -> u32` | the frame as RGBA8888, bytes written |
+//! | [`litz_part_display_info`] | `(handle, id, id_len) -> u32` | `width << 16 \| height` of a part's panel, or 0 |
+//! | [`litz_part_display_version`] | `(handle, id, id_len) -> u32` | a part's panel change counter |
+//! | [`litz_part_display_rgba`] | `(handle, id, id_len, dst, cap) -> u32` | a part's frame as RGBA8888, bytes written |
 //! | [`litz_touch`] | `(handle, x, y, down) -> i32` | touch panel pixels; `1` on success |
 //!
 //! A session owns one board, its flattened circuit and its flash. The backend
@@ -566,6 +569,70 @@ pub mod abi {
         }
         let rgba = to_rgba(&pixels);
         memory::copy_out(dst_ptr, cap, &rgba)
+    }
+
+    /// One part's display size as `width << 16 | height`, or 0 when the id
+    /// names no part with a whole-frame panel.
+    ///
+    /// `part` is the diagram id (`paper`, `oled`, `tft`), not the catalog type
+    /// key. The covered engines are the ILI9341, ST7735, SSD1306, SH1106, the
+    /// e-paper panels, a MAX7219 chain and the Nokia PCD8544.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_part_display_info(handle: u32, part_ptr: u32, part_len: u32) -> u32 {
+        clear_error();
+        let part = match memory::to_string(part_ptr, part_len, "part id") {
+            Ok(part) => part,
+            Err(message) => return error_u32(message),
+        };
+        match with_session(handle, |session| session.part_display(&part)) {
+            Some(Some((width, height, _, _))) => (width << 16) | (height & 0xffff),
+            Some(None) => 0,
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// One part's display change counter, so a host can skip a frame that did
+    /// not move. 0 when the id names no part with a framebuffer.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_part_display_version(handle: u32, part_ptr: u32, part_len: u32) -> u32 {
+        clear_error();
+        let part = match memory::to_string(part_ptr, part_len, "part id") {
+            Ok(part) => part,
+            Err(message) => return error_u32(message),
+        };
+        match with_session(handle, |session| session.part_display_version(&part)) {
+            Some(version) => version as u32,
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// Copy one part's display as RGBA8888, one byte per channel, into `dst`.
+    /// Returns the bytes written; a buffer smaller than `width * height * 4`
+    /// receives nothing and gets 0.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_part_display_rgba(
+        handle: u32,
+        part_ptr: u32,
+        part_len: u32,
+        dst_ptr: u32,
+        cap: u32,
+    ) -> u32 {
+        clear_error();
+        let part = match memory::to_string(part_ptr, part_len, "part id") {
+            Ok(part) => part,
+            Err(message) => return error_u32(message),
+        };
+        let Some(frame) = with_session(handle, |session| session.part_display(&part)) else {
+            return error_u32(missing_session(handle));
+        };
+        let Some((width, height, pixels, _)) = frame else {
+            return 0;
+        };
+        let needed = width as usize * height as usize * 4;
+        if dst_ptr == 0 || (cap as usize) < needed {
+            return 0;
+        }
+        memory::copy_out(dst_ptr, cap, &pixels)
     }
 
     /// Number of development boards the session booted.
