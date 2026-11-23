@@ -3,8 +3,9 @@
 #
 # A tag can point at a commit whose earlier run already reached some crates, so
 # each one is checked against the registry first. The order comes from the
-# workspace graph and skips publish = false members. `--no-verify` omits the
-# per-crate verification build: CI ran the suite on the commit the tag names.
+# workspace graph, dev-dependencies included, and skips publish = false members.
+# `--no-verify` omits the per-crate verification build: CI ran the suite on the
+# commit the tag names.
 #
 # CARGO_REGISTRY_TOKEN comes from the publish workflow's trusted-publishing
 # exchange, or from a developer's own token when run locally.
@@ -40,8 +41,10 @@ def visit(name):
         return
     seen.add(name)
     for dependency in packages[name]["dependencies"]:
-        # Dev-dependencies never gate a publish and only add waiting.
-        if dependency.get("kind") in (None, "normal", "build") and dependency["name"] in packages:
+        # Dev-dependencies count here: `cargo publish` resolves them against the
+        # registry too, so a crate whose dev-dependency is unpublished is
+        # refused at packaging, even though it would not gate the build.
+        if dependency["name"] in packages:
             visit(dependency["name"])
     order.append(name)
 
