@@ -11,9 +11,9 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
-litz-core = { version = "0.1.0", path = "../litz-core" }
-litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
+litz-catalog = { workspace = true }
+litz-core = { workspace = true }
+litz-diagram = { workspace = true }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 toml = "1.2.1"

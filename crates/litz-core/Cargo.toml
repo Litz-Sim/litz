@@ -6,7 +6,7 @@ categories = ["emulators", "embedded", "no-std"]
 # 0.1.0 is already on crates.io without `Part::current_limit`; a dependent
 # published today has to resolve a release that carries it. Everything else
 # stays on the workspace version, and `^0.1.0` requirements pick this up.
-version = "0.1.1"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true

@@ -2,7 +2,7 @@
 name = "litz-rp"
 # 0.1.0 documented PIO, USB and the divider inaccurately. This patch carries
 # the corrected module docs to docs.rs; the API is unchanged.
-version = "0.1.1"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
@@ -11,10 +11,10 @@ homepage.workspace = true
 description = "RP2040 (Raspberry Pi Pico) chip backend: an ARMv6-M Cortex-M0+ core and the peripherals a Pico firmware drives."
 
 [dependencies]
-litz-core = { version = "0.1.0", path = "../litz-core" }
-litz-board = { version = "0.1.0", path = "../litz-board" }
-litz-mcu = { version = "0.1.0", path = "../litz-mcu" }
+litz-core = { workspace = true }
+litz-board = { workspace = true }
+litz-mcu = { workspace = true }
 
 [dev-dependencies]
-litz-chip-conformance = { version = "0.1.0", path = "../litz-chip-conformance" }
-litz-fixture = { version = "0.1.0", path = "../litz-fixture" }
+litz-chip-conformance = { workspace = true }
+litz-fixture = { workspace = true }

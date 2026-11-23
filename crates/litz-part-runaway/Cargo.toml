@@ -15,4 +15,4 @@ homepage.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
-litz-part-sdk = { version = "0.1.0", path = "../litz-part-sdk" }
+litz-part-sdk = { workspace = true }

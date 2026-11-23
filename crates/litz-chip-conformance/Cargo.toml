@@ -11,7 +11,7 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-litz-board = { version = "0.1.0", path = "../litz-board" }
-litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
-litz-core = { version = "0.1.0", path = "../litz-core" }
-litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
+litz-board = { workspace = true }
+litz-catalog = { workspace = true }
+litz-core = { workspace = true }
+litz-diagram = { workspace = true }

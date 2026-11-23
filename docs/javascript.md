@@ -1,6 +1,6 @@
 # JavaScript API
 
-This page is the reference for `@litz-sim/litz` 0.3.0. It documents every export of `index.js` and `index.d.ts`, the shapes that cross the WebAssembly boundary, the lifecycle rules, the host bridge that runs custom parts and chips, and the determinism guarantees. All samples are ES modules and run from the repository root with `node`; the package name resolves through `js/package.json` when a sample is saved inside `js/`.
+This page is the reference for `@litz-sim/litz` 0.4.1. It documents every export of `index.js` and `index.d.ts`, the shapes that cross the WebAssembly boundary, the lifecycle rules, the host bridge that runs custom parts and chips, and the determinism guarantees. All samples are ES modules and run from the repository root with `node`; the package name resolves through `js/package.json` when a sample is saved inside `js/`.
 
 The same simulator is a Rust library: [the Rust reference](rust.md) covers `machine::boot`, the project runner and the native extension points. The package wraps one compiled module, `js/litz_wasm.wasm`, built from `crates/litz-wasm`. The module exposes a synchronous C ABI over linear memory: pointers are byte offsets, strings are UTF-8, and every call returns immediately. The wrapper turns that ABI into `Litz`, `Session` and their supporting objects.
 

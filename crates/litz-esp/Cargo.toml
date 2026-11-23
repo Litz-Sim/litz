@@ -19,11 +19,11 @@ litz-esp32c6 = { version = "0.1.0", path = "../../vendor/esp32c6", optional = tr
 litz-esp32p4 = { version = "0.1.0", path = "../../vendor/esp32p4", optional = true }
 litz-esp32s3 = { version = "0.1.0", path = "../../vendor/esp32s3", optional = true }
 litz-esp32s31 = { version = "0.1.0", path = "../../vendor/esp32s31", optional = true }
-litz-ble = { version = "0.1.0", path = "../litz-ble", optional = true }
-litz-board = { version = "0.1.0", path = "../litz-board", optional = true }
-litz-net = { version = "0.1.0", path = "../litz-net", optional = true }
-litz-core = { version = "0.1.0", path = "../litz-core" }
-litz-mcu = { version = "0.1.0", path = "../litz-mcu" }
+litz-ble = { workspace = true, optional = true }
+litz-board = { workspace = true, optional = true }
+litz-net = { workspace = true, optional = true }
+litz-core = { workspace = true }
+litz-mcu = { workspace = true }
 gdbstub = "0.7.10"
 litz-emu-core = { version = "0.1.0", path = "../../vendor/emu-core" }
 
@@ -45,8 +45,8 @@ required-features = ["esp32c3"]
 
 [dev-dependencies]
 litz-esp-soc = { version = "0.1.0", path = "../../vendor/esp-soc" }
-litz-board = { version = "0.1.0", path = "../litz-board" }
-litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
-litz-chip-conformance = { version = "0.1.0", path = "../litz-chip-conformance" }
-litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
-litz-fixture = { version = "0.1.0", path = "../litz-fixture" }
+litz-board = { workspace = true }
+litz-catalog = { workspace = true }
+litz-chip-conformance = { workspace = true }
+litz-diagram = { workspace = true }
+litz-fixture = { workspace = true }

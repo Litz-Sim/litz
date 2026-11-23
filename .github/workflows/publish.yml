@@ -1,13 +1,15 @@
 name: publish
 
-# Publishing is triggered by a version tag, so the tarball always matches a
-# commit: `git tag v0.1.0 && git push origin v0.1.0`.
+# Publishing is triggered by a version tag, so the tarball and the crates
+# always match a commit: `git tag v0.4.0 && git push origin v0.4.0`. The tag
+# must equal the versions in Cargo.toml and js/package.json; `verify` refuses
+# the release otherwise.
 #
-# The package is published with npm's trusted publishing: GitHub's OIDC token
-# stands in for a long-lived npm token, so there is no secret to rotate and no
-# 2FA prompt. That requires the package to name this workflow as its trusted
-# publisher on npmjs.com (package settings -> Trusted Publisher -> GitHub
-# Actions: owner Litz-Sim, repository litz, workflow publish.yml).
+# Both registries use trusted publishing: GitHub's OIDC token stands in for a
+# long-lived token, so there is no secret to rotate and no 2FA prompt. Each
+# crate must name this workflow as its trusted publisher on crates.io
+# (Settings -> Trusted Publishing: owner Litz-Sim, repository litz, workflow
+# publish.yml); the npm package does the same on npmjs.com.
 
 on:
   push:
@@ -20,14 +22,40 @@ permissions:
   id-token: write
 
 jobs:
-  publish:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that the tag, the crates and npm agree
+        run: |
+          tag=${GITHUB_REF_NAME#v}
+          crates=$(awk '/^\[workspace.package\]/{inside=1; next} /^\[/{inside=0} inside && /^version =/ {gsub(/"/, "", $3); print $3; exit}' Cargo.toml)
+          npm=$(sed -n 's/^  "version": "\([^"]*\)",$/\1/p' js/package.json | head -1)
+          echo "tag $tag, crates $crates, npm $npm"
+          test "$tag" = "$crates"
+          test "$tag" = "$npm"
+
+  crates:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      # The OIDC exchange needs this job to be the trusted publisher for every
+      # crate it publishes. A crate without that configuration is refused
+      # before cargo runs.
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+      - env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: tools/publish-crates.sh
+
+  npm:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -50,12 +78,18 @@ jobs:
           else
             npm publish --provenance --access public
           fi
+
+  release:
+    needs: [crates, npm]
+    runs-on: ubuntu-latest
+    steps:
       # The tag is the release boundary: one GitHub release with generated
       # notes per version. Re-running the workflow reuses an existing release
       # instead of failing on the second create.
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" \

@@ -11,10 +11,10 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-litz-board = { version = "0.1.0", path = "../litz-board" }
-litz-core = { version = "0.1.0", path = "../litz-core" }
+litz-board = { workspace = true }
+litz-core = { workspace = true }
 
 [dev-dependencies]
-litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
-litz-chip-conformance = { version = "0.1.0", path = "../litz-chip-conformance" }
-litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
+litz-catalog = { workspace = true }
+litz-chip-conformance = { workspace = true }
+litz-diagram = { workspace = true }

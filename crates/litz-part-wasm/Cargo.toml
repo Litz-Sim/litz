@@ -6,7 +6,7 @@ categories = ["emulators", "wasm"]
 # 0.1.0 shipped without the WIT contract, so it cannot build from the
 # registry. 0.1.1 carries a copy beside the source; a test in `litz-part-wit`
 # keeps the two identical.
-version = "0.1.1"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
@@ -14,6 +14,6 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-litz-core = { version = "0.1.0", path = "../litz-core" }
-litz-part-wit = { version = "0.1.0", path = "../litz-part-wit" }
+litz-core = { workspace = true }
+litz-part-wit = { workspace = true }
 wasmtime = "50"

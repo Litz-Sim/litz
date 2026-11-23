@@ -11,4 +11,4 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-litz-core = { version = "0.1.0", path = "../litz-core" }
+litz-core = { workspace = true }

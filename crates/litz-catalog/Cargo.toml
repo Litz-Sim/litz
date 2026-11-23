@@ -6,7 +6,7 @@ categories = ["emulators", "embedded"]
 # 0.1.0 shipped the builtin catalog before the bench supply gained its
 # `current_limit` attribute. The manifest data changed, so the patch release
 # carries it; `^0.1.0` requirements pick this up.
-version = "0.1.1"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
@@ -14,7 +14,7 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
+litz-diagram = { workspace = true }
 serde = { version = "1.0.229", features = ["derive"] }
 thiserror = "2.0.21"
 toml = "1.2.1"

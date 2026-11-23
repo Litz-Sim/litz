@@ -11,11 +11,11 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-litz-ble = { version = "0.1.0", path = "../litz-ble" }
-litz-board = { version = "0.1.0", path = "../litz-board" }
-litz-core = { version = "0.1.0", path = "../litz-core" }
-litz-mcu-wit = { version = "0.1.0", path = "../litz-mcu-wit" }
-litz-net = { version = "0.1.0", path = "../litz-net" }
+litz-ble = { workspace = true }
+litz-board = { workspace = true }
+litz-core = { workspace = true }
+litz-mcu-wit = { workspace = true }
+litz-net = { workspace = true }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 thiserror = "2.0.21"
@@ -35,9 +35,9 @@ required-features = ["tooling"]
 tooling = ["dep:wit-component"]
 
 [dev-dependencies]
-litz-catalog = { version = "0.1.0", path = "../litz-catalog" }
-litz-diagram = { version = "0.1.0", path = "../litz-diagram" }
-litz-fixture = { version = "0.1.0", path = "../litz-fixture" }
+litz-catalog = { workspace = true }
+litz-diagram = { workspace = true }
+litz-fixture = { workspace = true }
 
 [dependencies.wit-component]
 version = "0.261.0"
