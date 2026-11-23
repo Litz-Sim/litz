@@ -41,6 +41,9 @@ jobs:
       - run: cargo test --manifest-path examples/sn76489/part/Cargo.toml
       - run: cargo clippy --manifest-path examples/sn76489/part/Cargo.toml --all-targets -- -D warnings
       - run: cargo run -q -p litz-cli -- test examples/sn76489
+      # Verilog rather than Rust, and GPL-3.0: the component is committed, so
+      # the job needs no Verilator or wasi-sdk.
+      - run: cargo run -q -p litz-cli -- test examples/ym2610
       - run: cargo run -q -p litz-cli -- test examples/two-boards
       - run: cargo run -q -p litz-cli -- test examples/signal-generator
 

@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    {
+      "id": "pico",
+      "type": "board-raspberry-pi-pico",
+      "attrs": {}
+    },
+    {
+      "id": "ym",
+      "type": "ym2610",
+      "attrs": {}
+    },
+    {
+      "id": "buzz",
+      "type": "litz-buzzer",
+      "attrs": {
+        "buzzerType": "passive"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "pico:GP2",
+      "ym:D0",
+      "blue",
+      []
+    ],
+    [
+      "pico:GP3",
+      "ym:D1",
+      "blue",
+      []
+    ],
+    [
+      "pico:GP4",
+      "ym:D2",
+      "blue",
+      []
+    ],
+    [
+      "pico:GP5",
+      "ym:D3",
+      "blue",
+      []
+    ],
+    [
+      "pico:GP6",
+      "ym:D4",
+      "blue",
+      []
+    ],
+    [
+      "pico:GP7",
+      "ym:D5",
+      "blue",
+      []
+    ],
+    [
+      "pico:GP8",
+      "ym:D6",
+      "blue",
+      []
+    ],
+    [
+      "pico:GP9",
+      "ym:D7",
+      "blue",
+      []
+    ],
+    [
+      "pico:GP10",
+      "ym:A0",
+      "orange",
+      []
+    ],
+    [
+      "pico:GP11",
+      "ym:A1",
+      "orange",
+      []
+    ],
+    [
+      "pico:GP12",
+      "ym:CS",
+      "yellow",
+      []
+    ],
+    [
+      "pico:GP13",
+      "ym:WR",
+      "green",
+      []
+    ],
+    [
+      "ym:IRQ",
+      "pico:GP14",
+      "purple",
+      []
+    ],
+    [
+      "ym:VCC",
+      "pico:3V3",
+      "red",
+      []
+    ],
+    [
+      "ym:GND",
+      "pico:GND.1",
+      "black",
+      []
+    ],
+    [
+      "ym:AUDIO_L",
+      "buzz:1",
+      "green",
+      []
+    ],
+    [
+      "buzz:2",
+      "pico:GND.1",
+      "black",
+      []
+    ],
+    [
+      "pico:GP0",
+      "$serialMonitor:RX",
+      "",
+      []
+    ]
+  ]
+}

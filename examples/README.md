@@ -82,6 +82,12 @@ cargo run -p litz-cli -- test examples/pico-c-i2c
 cargo run -p litz-cli -- test examples/sn76489
 ```
 
+`ym2610` is the same contract with the chip written in Verilog instead of Rust: `third_party/jt12` vendors jotego's `jt10.v`, Verilator compiles it to a core wasm module, `part/glue.c` presents it as a `litz:part` component, and the RP2040 firmware keys two FM voices and an SSG tone. That RTL is GPL-3.0-or-later, so this example is GPL-3.0-or-later while the rest of the repository stays Apache-2.0.
+
+```sh
+cargo run -p litz-cli -- test examples/ym2610
+```
+
 `micropython-esp32`, `micropython-s3`, `micropython-c3` and `micropython-c6` boot pinned MicroPython images, paste `main.py` over the REPL and assert on the LED. The images and the mask ROMs they need are not vendored; fetch them once:
 
 ```sh

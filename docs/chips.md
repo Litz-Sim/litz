@@ -1,6 +1,6 @@
 # Writing a chip
 
-A chip in Litz is a microcontroller that is itself a WebAssembly component. It is the layer below a schematic part: instead of being wired into the diagram and driven by pin changes, it boots an image, runs a cycle budget, and reaches the rest of the circuit through a small host interface. This page is the authoring guide for such a component. It assumes the reader has a project, a Rust toolchain with the `wasm32-unknown-unknown` target, and either a Litz checkout or the `litz` binary on `PATH`.
+A chip in Litz is a microcontroller that is itself a WebAssembly component. It is the layer below a schematic part: instead of being wired into the diagram and driven by pin changes, it boots an image, runs a cycle budget, and reaches the rest of the circuit through a small host interface. This page is the authoring guide for such a component. It assumes the reader has a project and either a Litz checkout or the `litz` binary on `PATH`, plus a Rust toolchain with the `wasm32-unknown-unknown` target for a guest written in Rust; the Verilog route further down needs Verilator and wasi-sdk instead.
 
 The reference implementation is `crates/litz-chip-rv32`, an RV32IMC core with enough of the ESP32-C3 memory map to run the repository's firmware. The scaffold that `litz catalog new board` writes is a smaller, self-contained example of the same contract.
 
@@ -228,6 +228,82 @@ The crate is named `<id>-sim` and its snake-case form replaces hyphens with unde
 The host links no WASI, no filesystem, no clock and no randomness. The only imports a guest sees are the `litz:mcu/host` calls and the contract's own types interface. Build for `wasm32-unknown-unknown`, as the scaffold does; a component built for a WASI target, or one that pulls in a crate calling `getrandom`, `std::time::SystemTime`, `std::fs`, `std::net` or threads, will fail to instantiate because those imports have no implementation.
 
 The scaffold uses `std` freely for `Vec`, `RefCell`, `thread_local!` and `format!`, and that is fine: `std` itself does not require WASI. What matters is that the guest never asks for an operating system. Time is the cycle count it reports; bytes come from `write-console`; network answers come from the circuit's router; and every peripheral answer is a host call. A guest that respects that boundary runs unchanged on every host.
+
+## When the chip already exists as Verilog
+
+Some devices have a reference implementation in RTL, and rewriting their behaviour by hand is both wasteful and a second place to be wrong. Verilator compiles the RTL to C++, and that C++ compiles to a WebAssembly module the host can wrap like any other guest. `examples/ym2610/` is the worked example: the Yamaha YM2610 (OPNB) FM, SSG and ADPCM generator, from jotego's `jt10.v`, clocked at 8 MHz and driven over its real parallel bus by RP2040 firmware, with a passive buzzer on the analog output.
+
+One distinction first. A block of Verilog is nearly always a peripheral, not an MCU, and in Litz the peripheral contract is `litz:part`. The example therefore ships as a part, placed and wired by `diagram.json`. An RTL CPU that should boot firmware as a board's MCU takes the same pipeline with the MCU glue in place of the part glue: `advance(to-ns)` becomes `run(budget-cycles)`, pin levels become pad inputs and outputs, and everything below about the build still applies.
+
+### The pipeline
+
+The input is the RTL file list, `part/files.f` (jt10's, taken from its own `.qip`). Everything else is a build script around it, in five steps:
+
+1. Generate C bindings for the contract: `wit-bindgen c crates/litz-part-wit/wit --out-dir build/bindings --world component`.
+2. Verilate the top module: `verilator --cc --top-module jt10 -f build/files.f -I... --Mdir build/model --prefix Vjt10 -O2 -Wno-fatal`.
+3. Compile the generated `Vjt10*.cpp`, Verilator's `verilated.cpp`, the runtime stubs, the C ABI shim and the WIT glue for `wasm32-wasip1` with wasi-sdk's clang.
+4. Link a reactor module rather than a command: `-mexec-model=reactor -Wl,--export-memory -Wl,--gc-sections -Wl,--initial-memory=4194304`.
+5. Wrap it: `litz-componentize build/ym2610.core.wasm parts/ym2610.wasm`.
+
+| File | Holds |
+|---|---|
+| `part/files.f` | The RTL file list |
+| `part/model.cpp` | A plain C ABI over the Verilated model: reset, register writes, a cycle target, the audio samples |
+| `part/glue.c` | The `litz:part@0.2.0` glue, against the bindings `wit-bindgen c` writes |
+| `part/runtime_stubs.cpp` | The pieces of Verilator's hosted runtime a wasm component cannot have |
+| `part/build.sh` | The five steps above, with the flags below |
+
+The shim between Verilator and the contract is C rather than Rust, and `wit-bindgen`'s C output is what makes that possible: the glue includes `component.h`, and the build links `component_component_type.o` beside it. `model.cpp` knows nothing about Litz and exposes only integers, so the glue can stay C; the final link goes through `clang++` because the model is C++.
+
+`build.sh` rewrites `files.f` to absolute paths before handing it to Verilator. Verilator resolves a `-f` entry against its own idea of the working directory, not the list file's, so a relative list builds from one directory and fails from another.
+
+### An empty import list is the hard requirement
+
+`litz-componentize` reads the `component-type` custom section that `wit-bindgen` embeds and re-emits the core module as a component. It refuses a module that still imports anything, with `failed to decode world from module`. Verilator's runtime imports a great deal: a pthread thread pool, stdio to print warnings, `getenv` for `+verilator+` switches, a clock, `exit()` on `$fatal`. A part is allowed none of it, which is why the compile flags below exist and why `runtime_stubs.cpp` does.
+
+`verilated.cpp` is compiled with `-DVL_USER_FATAL` (the model calls the provided `vl_fatal` instead of the runtime's), with `VL_PRINTF` defined to nothing, and with `NDEBUG` so the runtime's own `assert` report path is compiled out. The model and the stubs are compiled with `-ffunction-sections -fdata-sections` and linked with `--gc-sections`, so every runtime function that is never entered — and the WASI imports behind it — is dropped. `-fno-exceptions -fno-threadsafe-statics` keep libc++'s unwinder and static guards out.
+
+| What the runtime expects | What the stubs provide |
+|---|---|
+| a thread pool | an empty constructor and destructor |
+| `$fatal`, libc `abort` | a trap, so the host sees a failed call |
+| the environment | `getenv` returning null |
+| stdio, `close`/`dup`, the clock | local no-op definitions, never called |
+| `strtod` and its family | a conversion that parses nothing |
+| mutexes and condition variables | no-ops, since a part runs on one thread |
+| libc++'s abort reporter | a trap |
+
+The result is a core module with an empty import list, which is the only shape the componentizer accepts. If you have `wasm-tools`, `wasm-tools print build/ym2610.core.wasm | grep '(import'` should print nothing.
+
+### Time, fuel and the event cadence
+
+Each call into a part gets a fuel budget of `1 << 24` units, roughly instructions, and a 16 MiB memory ceiling. A hand-written part spends a handful; a Verilated model spends thousands per clock, because `eval()` is the whole netlist. The clocks per `advance` therefore have to be chosen with the budget in mind, not just for realism.
+
+The YM2610 models 8 MHz, one audio frame per 144 clocks. Publishing a level every 8 frames puts 144 µs of simulated time in a call, which fits; the first attempt at 24 frames (432 µs) ran the budget out inside `eval`. The host's fuel, not the chip's timing, is what sets the floor on `next-event`.
+
+`advance(to-ns)` is absolute, so the glue converts once and asks the model to catch up:
+
+```c
+void exports_litz_part_part_advance(uint64_t to_ns) {
+    ym_step_to(to_ns * 8 / 1000);   /* nanoseconds to 8 MHz clocks */
+    refresh_levels();
+    next_at = (to_ns / PUBLISH_NS + 1) * PUBLISH_NS;
+}
+```
+
+`next-event` answers with that same `next_at`. A part that returns a time in the past, or one it did not actually reach, makes the host loop on it. The samples are latched inside the step loop every 144 clocks, so `drive` and `analog` report the state at the requested time rather than a running average.
+
+### Levels, volts and the coupling capacitor
+
+The digital level and the voltage come from the same latched sample: its sign drives `AUDIO_L` and `AUDIO_R` as levels for a passive buzzer, and `analog()` reports it as volts around 1.65 V.
+
+The RTL's mix is unipolar — the SSG is summed unsigned — so testing the raw sample's sign leaves the pin permanently high. The glue tracks a slow average of the two channels and tests each sample against it. That is what a real chip's coupling capacitor does: the pin carries the signal around its own average, and the edge follows the waveform's zero crossings instead of a fixed offset. Do not reach for a DC blocker in the host; the part owns the electrical interpretation of its own output.
+
+### Licensing and what gets committed
+
+`jt12` is GPL-3.0-or-later, so the example and the component built from it are too. The RTL is vendored under `examples/ym2610/third_party/`, the example carries the license, and nothing under `crates/` or the npm package depends on it; the rest of the repository stays Apache-2.0. Check the license before vendoring RTL into a project that is not yours.
+
+The built component and the firmware image are committed, so running the example needs neither Verilator nor wasi-sdk, and CI needs no extra toolchain: `cargo run -p litz-cli -- test examples/ym2610`. Rebuilding is for people changing the part or the RTL. `part/build.sh` needs `verilator` and an unpacked wasi-sdk (`WASI_SDK=/path/to/wasi-sdk-34.0`); `firmware/build.sh` needs `arm-none-eabi-gcc`.
 
 ## Checking and installing
 

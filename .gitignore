@@ -14,6 +14,12 @@ examples/*/firmware/*
 !examples/sn76489/firmware/vectors.S
 !examples/sn76489/firmware/link.ld
 !examples/sn76489/firmware/build.sh
+!examples/ym2610/firmware/ym2610-demo.bin
+!examples/ym2610/firmware/main.c
+!examples/ym2610/firmware/vectors.S
+!examples/ym2610/firmware/link.ld
+!examples/ym2610/firmware/build.sh
+examples/ym2610/part/build/
 !examples/uno-blink/firmware/uno-blink.hex
 !examples/signal-generator/firmware/hello.bin
 !examples/two-boards/firmware/hold-low.bin

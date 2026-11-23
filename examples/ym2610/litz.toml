@@ -1,0 +1,19 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/ym2610-demo.bin"
+flash_size = "2MB"
+
+[[probe]]
+name = "audio"
+point = "ym:AUDIO_L"
+
+# `firmware/build.sh` makes the image: a bare-metal RP2040 program that writes
+# FM and SSG registers. The binary is committed, so the test needs no ARM
+# toolchain.
+[[test]]
+name = "the PSG plays two FM voices and an SSG tone"
+timeout = "1s"
+expect = "done"
+expect_state = "buzz:on"

@@ -1,0 +1,29 @@
+version = 1
+
+[[entry]]
+type = "board-raspberry-pi-pico"
+version = "1.0.0"
+sha256 = "c94a2421c17e1d6f4a46a186b01ff150724963fd625ba8673d484e541178277d"
+
+[[entry]]
+type = "litz-buzzer"
+version = "1.0.0"
+sha256 = "2157938d03b5ef728dda2ba8bbd4206f9b5de3b3accf38876dbe3423b32a587c"
+
+[[entry]]
+type = "litz-led"
+version = "1.0.0"
+sha256 = "a8d86cc557a28cc146c22c549704ca24825cc01053c6445f1511cdfc8396ecad"
+
+[[entry]]
+type = "litz-resistor"
+version = "1.0.0"
+sha256 = "a0fd26342420c3740d19e88a74dc9c3be946d7f57c714deac416a853388dce35"
+
+[[entry]]
+type = "ym2610"
+version = "0.1.0"
+sha256 = "a6a46b8c28f3820e146af5375f6dfc4f1c47391f397841274674cba0e9dcc618"
+
+[firmware]
+sha256 = "c1d95e3fa33b795c1e8b33b3abce1b8a1e54d6e6db8d6fa40e18ed72246dc00d"

@@ -17,7 +17,7 @@ litz test examples/blinky
 | [JavaScript reference](javascript.md) | `@litz-sim/litz` in the browser and under Node |
 | [Building firmware](build.md) | Toolchains, recipes and staging MicroPython or CircuitPython |
 | [Parts and boards](parts.md) | The catalog, part manifests, buses and analog parts |
-| [Writing a chip](chips.md) | A wasm MCU: the board bundle, both ABIs and the host calls |
+| [Writing a chip](chips.md) | A wasm MCU: the board bundle, both ABIs, the host calls, and a chip built from Verilog |
 | [MCP server](mcp.md) | Driving a simulation from an editor over the Model Context Protocol |
 | [Architecture](architecture.md) | How the crates fit together |
 | [File formats](formats.md) | `diagram.json`, `litz.toml`, `litz.lock`, probes, decoders and outputs |

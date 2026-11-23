@@ -1,0 +1,69 @@
+[part]
+id = "ym2610"
+name = "YM2610 OPNB"
+version = "0.1.0"
+description = "Four-operator FM, three-channel SSG and ADPCM sound generator"
+license = "GPL-3.0-or-later"
+
+[pins.A0]
+kind = "digital-in"
+label = "address or data"
+
+[pins.A1]
+kind = "digital-in"
+label = "port select"
+
+[pins.AUDIO_L]
+kind = "digital-out"
+label = "left channel, sign"
+
+[pins.AUDIO_R]
+kind = "digital-out"
+label = "right channel, sign"
+
+[pins.CS]
+kind = "digital-in"
+label = "chip select, active low"
+
+[pins.D0]
+kind = "digital-in"
+
+[pins.D1]
+kind = "digital-in"
+
+[pins.D2]
+kind = "digital-in"
+
+[pins.D3]
+kind = "digital-in"
+
+[pins.D4]
+kind = "digital-in"
+
+[pins.D5]
+kind = "digital-in"
+
+[pins.D6]
+kind = "digital-in"
+
+[pins.D7]
+kind = "digital-in"
+
+[pins.GND]
+kind = "ground"
+
+[pins.IRQ]
+kind = "digital-out"
+label = "interrupt, active low"
+
+[pins.VCC]
+kind = "power"
+
+[pins.WR]
+kind = "digital-in"
+label = "write strobe, active low"
+
+[simulation]
+backend = "wasm"
+module = "ym2610.wasm"
+abi = "litz-part-2"

@@ -548,6 +548,8 @@ installed litz-part-example at /project/parts/part.toml
 
 `add` copies `part.toml` and `part.wasm` together, so the manifest keeps resolving its module. The guest itself is ordinary Rust against `litz-part-sdk`; adjust `src/lib.rs` for real behaviour and rerun `build.sh` before reinstalling.
 
+A part does not have to be written by hand. `examples/ym2610/` builds one from Verilog RTL with Verilator, `wit-bindgen c` and the same `litz:part` contract; [Writing a chip](chips.md#when-the-chip-already-exists-as-verilog) covers that pipeline.
+
 ## Worked example: a wasm board
 
 Create a board bundle in the project, build its component, and check it before a diagram uses it:
