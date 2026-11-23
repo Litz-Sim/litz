@@ -34,9 +34,11 @@ pub const ANALOG_FIRST_GPIO: u8 = 26;
 pub const ANALOG_LAST_GPIO: u8 = 29;
 
 pub fn analog_channel(gpio: u8) -> Option<u8> {
-    (ANALOG_FIRST_GPIO..=ANALOG_LAST_GPIO)
-        .contains(&gpio)
-        .then_some(gpio - ANALOG_FIRST_GPIO)
+    if (ANALOG_FIRST_GPIO..=ANALOG_LAST_GPIO).contains(&gpio) {
+        Some(gpio - ANALOG_FIRST_GPIO)
+    } else {
+        None
+    }
 }
 
 /// One RP2040 and the board it drives.
@@ -458,5 +460,18 @@ impl Chip for Rp2040 {
         self.fault
             .clone()
             .or_else(|| self.machine.fault().map(str::to_string))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::analog_channel;
+
+    #[test]
+    fn only_the_four_adc_pins_have_a_channel() {
+        assert_eq!(analog_channel(15), None, "GP15 is digital, not ADC0-3");
+        assert_eq!(analog_channel(26), Some(0));
+        assert_eq!(analog_channel(29), Some(3));
+        assert_eq!(analog_channel(30), None);
     }
 }
