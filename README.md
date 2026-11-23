@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## JavaScript
 
-The npm package `@litz-sim/litz` (version 0.3.0) is built from `crates/litz-wasm` and `js/`. It loads one WebAssembly module, boots one chip per development board in a shared circuit, and wraps the module's exports in plain objects. There is no DOM code and no runtime dependency.
+The npm package `@litz-sim/litz` (version 0.4.1) is built from `crates/litz-wasm` and `js/`. It loads one WebAssembly module, boots one chip per development board in a shared circuit, and wraps the module's exports in plain objects. There is no DOM code and no runtime dependency.
 
 ```sh
 npm install @litz-sim/litz
@@ -178,7 +178,10 @@ The dependency direction is one way: chip adapters depend on `litz-board`, while
 - [Building firmware](docs/build.md)
 - [MCP server](docs/mcp.md)
 - [Examples](examples/README.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
 ## License
 
-Apache-2.0. The license is declared once in `Cargo.toml` under `[workspace.package]` and inherited by every crate. The crates carry the version declared there; the `0.x` line makes no compatibility promise between minor versions. The esp32sim fork under `vendor/` keeps its upstream MIT license and ships that license file with each vendored crate.
+Apache-2.0. The license is declared once in `Cargo.toml` under `[workspace.package]` and inherited by every crate. Every crate in the workspace and the npm package carry the same version, also declared there; the `0.x` line makes no compatibility promise between minor versions. The esp32sim fork under `vendor/` keeps its upstream MIT license and ships that license file with each vendored crate.
