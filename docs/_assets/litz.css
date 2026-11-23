@@ -92,13 +92,33 @@ body {
 }
 
 .sidebar-toggle {
-  background-color: #ffffff;
-  border: 1px solid var(--border);
+  background-color: transparent;
+  border: 0;
   border-radius: 0;
+  padding: 12px;
 }
 
 .sidebar-toggle span {
   background-color: var(--muted);
+}
+
+/* Below the sidebar breakpoint the toggle floats over the content, so it
+   gets a compact square instead of the transparent desktop strip. */
+@media screen and (max-width: 768px) {
+  .sidebar-toggle {
+    bottom: 12px;
+    left: 12px;
+    padding: 12px 12px 8px;
+    background-color: #ffffff;
+    border: 1px solid var(--border);
+  }
+
+  body.close .sidebar-toggle {
+    bottom: 0;
+    left: 0;
+    border: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+  }
 }
 
 /* Content */
