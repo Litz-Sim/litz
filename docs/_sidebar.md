@@ -15,6 +15,7 @@
 - [File formats](formats.md)
 
 - **Project**
+- [Homepage](https://litzsim.top/)
 - [GitHub](https://github.com/Litz-Sim/litz)
 - [crates.io](https://crates.io/crates/litz)
 - [npm](https://www.npmjs.com/package/@litz-sim/litz)
