@@ -62,6 +62,11 @@ pub const TBMAN: u32 = 0x4006_c000;
 pub const TICKS: u32 = 0x4010_8000;
 pub const XIP_CTRL: u32 = 0x1400_0000;
 pub const XIP_SSI: u32 = 0x1800_0000;
+/// A model-only register block behind the bootrom flash helpers. The real ROM
+/// drives the QSPI controller; this model writes the flash array directly, so
+/// the helpers leave their arguments here and the bus applies the operation.
+pub const FLASH_CTRL: u32 = 0x400f_0000;
+const FLASH_CTRL_LEN: u32 = 0x1000;
 pub const DMA: u32 = 0x5000_0000;
 /// The USB controller's 4 KiB dual-port SRAM. On the silicon this window is
 /// immediately below the register block, not above it.
@@ -71,12 +76,25 @@ pub const USBCTRL: u32 = 0x5011_0000;
 pub const PIO0: u32 = 0x5020_0000;
 pub const PIO1: u32 = 0x5030_0000;
 
+/// Arguments the bootrom flash helpers leave in [`FLASH_CTRL`].
+#[derive(Clone, Copy, Default)]
+struct FlashControl {
+    addr: u32,
+    count: u32,
+    block_size: u32,
+    erase_cmd: u32,
+    op: u32,
+    data: u32,
+    program_len: u32,
+}
+
 /// SRAM, flash and the peripheral blocks.
 pub struct Memory {
     pub rom: Vec<u8>,
     pub flash: Vec<u8>,
     pub sram: Vec<u8>,
     pub periph: Peripherals,
+    flash_control: FlashControl,
 }
 
 impl Default for Memory {
@@ -106,25 +124,27 @@ fn install_bootrom(rom: &mut [u8]) {
     const POPCOUNT32: u16 = 0x0381;
     const REVERSE32: u16 = 0x03a1;
     // The flash helpers change the QSPI controller between boot and XIP
-    // mode. This model reads flash directly, so every one of them is a
-    // return: what the application needs is the entry point, not the
-    // register writes.
+    // mode. This model reads flash directly, so the four that only switch
+    // modes are returns. Range erase and program keep their arguments for
+    // the model's flash-control block.
     const FLASH_NOP: u16 = 0x03c1;
+    const FLASH_ERASE: u16 = 0x0601;
+    const FLASH_PROGRAM: u16 = 0x0621;
     let table: &[(u16, u16)] = &[
-        (0x534d, MEMSET),     // ROM_FUNC_MEMSET
-        (0x434d, MEMCPY),     // ROM_FUNC_MEMCPY
-        (0x3453, MEMSET),     // ROM_FUNC_MEMSET4
-        (0x3443, MEMCPY),     // ROM_FUNC_MEMCPY44
-        (0x334c, CLZ32),      // ROM_FUNC_CLZ32
-        (0x3354, CTZ32),      // ROM_FUNC_CTZ32
-        (0x3350, POPCOUNT32), // ROM_FUNC_POPCOUNT32
-        (0x3352, REVERSE32),  // ROM_FUNC_REVERSE32
-        (0x4649, FLASH_NOP),  // ROM_FUNC_CONNECT_INTERNAL_FLASH
-        (0x5845, FLASH_NOP),  // ROM_FUNC_FLASH_EXIT_XIP
-        (0x4346, FLASH_NOP),  // ROM_FUNC_FLASH_FLUSH_CACHE
-        (0x5843, FLASH_NOP),  // ROM_FUNC_FLASH_ENTER_CMD_XIP
-        (0x4552, FLASH_NOP),  // ROM_FUNC_FLASH_RANGE_ERASE
-        (0x5052, FLASH_NOP),  // ROM_FUNC_FLASH_RANGE_PROGRAM
+        (0x534d, MEMSET),        // ROM_FUNC_MEMSET
+        (0x434d, MEMCPY),        // ROM_FUNC_MEMCPY
+        (0x3453, MEMSET),        // ROM_FUNC_MEMSET4
+        (0x3443, MEMCPY),        // ROM_FUNC_MEMCPY44
+        (0x334c, CLZ32),         // ROM_FUNC_CLZ32
+        (0x3354, CTZ32),         // ROM_FUNC_CTZ32
+        (0x3350, POPCOUNT32),    // ROM_FUNC_POPCOUNT32
+        (0x3352, REVERSE32),     // ROM_FUNC_REVERSE32
+        (0x4649, FLASH_NOP),     // ROM_FUNC_CONNECT_INTERNAL_FLASH
+        (0x5845, FLASH_NOP),     // ROM_FUNC_FLASH_EXIT_XIP
+        (0x4346, FLASH_NOP),     // ROM_FUNC_FLASH_FLUSH_CACHE
+        (0x5843, FLASH_NOP),     // ROM_FUNC_FLASH_ENTER_CMD_XIP
+        (0x4552, FLASH_ERASE),   // ROM_FUNC_FLASH_RANGE_ERASE
+        (0x5052, FLASH_PROGRAM), // ROM_FUNC_FLASH_RANGE_PROGRAM
         (0x0000, 0x0000),
     ];
     // Fixed table at 0x100, lookup at 0x201, the helpers from 0x300. The
@@ -272,6 +292,44 @@ fn install_bootrom(rom: &mut [u8]) {
         0x08, 0x46, // mov r0, r1
         0x70, 0x47, // bx   lr
     ]);
+
+    // void flash_range_erase(addr, count, block_size, erase_cmd)
+    //
+    // The bootrom programs the SSI controller page by page. This model reads
+    // and writes the flash array directly, so the helper leaves its arguments
+    // in FLASH_CTRL and the bus erases the range when the operation lands.
+    // The bootrom API preserves r4-r11, and MicroPython keeps its own function
+    // pointers there across the call, so the scratch register is saved.
+    #[rustfmt::skip]
+    rom[0x600..0x614].copy_from_slice(&[
+        0x10, 0xb4, // push {r4}
+        0x04, 0x4c, // ldr  r4, [pc, #16] ; FLASH_CTRL at 0x614
+        0x20, 0x60, // str  r0, [r4, #0]  ; address
+        0x61, 0x60, // str  r1, [r4, #4]  ; count
+        0xa2, 0x60, // str  r2, [r4, #8]  ; block size
+        0xe3, 0x60, // str  r3, [r4, #12] ; erase command
+        0x01, 0x23, // movs r3, #1
+        0x23, 0x61, // str  r3, [r4, #16] ; op: erase
+        0x10, 0xbc, // pop  {r4}
+        0x70, 0x47, // bx   lr
+    ]);
+    rom[0x614..0x618].copy_from_slice(&FLASH_CTRL.to_le_bytes());
+
+    // void flash_range_program(addr, data, count)
+    #[rustfmt::skip]
+    rom[0x620..0x634].copy_from_slice(&[
+        0x10, 0xb4, // push {r4}
+        0x04, 0x4c, // ldr  r4, [pc, #16] ; FLASH_CTRL at 0x634
+        0x20, 0x60, // str  r0, [r4, #0]  ; address
+        0x61, 0x61, // str  r1, [r4, #20] ; data pointer
+        0xa2, 0x61, // str  r2, [r4, #24] ; count
+        0x02, 0x22, // movs r2, #2
+        0x22, 0x61, // str  r2, [r4, #16] ; op: program
+        0x10, 0xbc, // pop  {r4}
+        0x70, 0x47, // bx   lr
+        0x00, 0x00,
+    ]);
+    rom[0x634..0x638].copy_from_slice(&FLASH_CTRL.to_le_bytes());
 }
 
 impl Memory {
@@ -283,6 +341,88 @@ impl Memory {
             flash: vec![0xff; FLASH_SIZE],
             sram: vec![0; SRAM_SIZE],
             periph: Peripherals::new(),
+            flash_control: FlashControl::default(),
+        }
+    }
+
+    /// Apply the operation the bootrom flash helper queued. The range helpers
+    /// take XIP addresses, as the bootrom does; an offset is accepted too so a
+    /// caller that already subtracted the base still lands in range.
+    fn apply_flash_control(&mut self) {
+        let control = self.flash_control;
+        match control.op {
+            1 => self.erase_flash_range(control.addr, control.count, control.block_size),
+            2 => self.program_flash_range(control.addr, control.data, control.program_len),
+            _ => {}
+        }
+    }
+
+    fn flash_offset(addr: u32) -> usize {
+        // The bootrom takes an offset into flash; accept an XIP address too.
+        if addr >= FLASH_BASE {
+            (addr - FLASH_BASE) as usize
+        } else {
+            addr as usize
+        }
+    }
+
+    fn erase_flash_range(&mut self, addr: u32, count: u32, block_size: u32) {
+        if count == 0 {
+            return;
+        }
+        let block = if block_size == 0 {
+            4096
+        } else {
+            block_size as usize
+        };
+        let start = Self::flash_offset(addr);
+        if start >= self.flash.len() {
+            return;
+        }
+        // A sector erase covers the whole block the address falls in.
+        let first = start - start % block;
+        let last = start.saturating_add(count as usize).min(self.flash.len());
+        let end = last
+            .div_ceil(block)
+            .saturating_mul(block)
+            .min(self.flash.len());
+        if first >= end {
+            return;
+        }
+        for sector in self.flash[first..end].chunks_mut(block) {
+            sector.fill(0xff);
+        }
+    }
+
+    fn program_flash_range(&mut self, addr: u32, data: u32, count: u32) {
+        if count == 0 {
+            return;
+        }
+        let start = Self::flash_offset(addr);
+        if start >= self.flash.len() {
+            return;
+        }
+        let end = start.saturating_add(count as usize).min(self.flash.len());
+        if start >= end {
+            return;
+        }
+        // NOR flash programming can only clear bits, so the new byte is ANDed
+        // into the erased one. The source is normally an SRAM buffer.
+        let bytes: Vec<u8> = (0..end - start)
+            .map(|offset| self.flash_source_byte(data.wrapping_add(offset as u32)))
+            .collect();
+        for (slot, byte) in self.flash[start..end].iter_mut().zip(bytes) {
+            *slot &= byte;
+        }
+    }
+
+    fn flash_source_byte(&self, addr: u32) -> u8 {
+        if (SRAM_BASE..SRAM_BASE + SRAM_SIZE as u32).contains(&addr) {
+            self.sram[(addr - SRAM_BASE) as usize]
+        } else if (FLASH_BASE..FLASH_BASE + FLASH_SIZE as u32).contains(&addr) {
+            self.flash[(addr - FLASH_BASE) as usize]
+        } else {
+            0xff
         }
     }
 
@@ -445,6 +585,19 @@ impl Memory {
         if (USB_DPRAM..USB_DPRAM + 0x1000).contains(&addr) {
             return Ok(self.periph.usb.read_dpram_word(addr - USB_DPRAM));
         }
+        if (FLASH_CTRL..FLASH_CTRL + FLASH_CTRL_LEN).contains(&addr) {
+            let control = &self.flash_control;
+            return Ok(match addr - FLASH_CTRL {
+                0 => control.addr,
+                4 => control.count,
+                8 => control.block_size,
+                12 => control.erase_cmd,
+                16 => control.op,
+                20 => control.data,
+                24 => control.program_len,
+                _ => 0,
+            });
+        }
         if let Some(block) = Memory::block(addr) {
             return Ok(self.periph.block_read(block, addr & 0x3fff));
         }
@@ -470,6 +623,22 @@ impl Memory {
         }
         if (USB_DPRAM..USB_DPRAM + 0x1000).contains(&addr) {
             self.periph.usb.write_dpram_word(addr - USB_DPRAM, value);
+            return Ok(());
+        }
+        if (FLASH_CTRL..FLASH_CTRL + FLASH_CTRL_LEN).contains(&addr) {
+            match addr - FLASH_CTRL {
+                0 => self.flash_control.addr = value,
+                4 => self.flash_control.count = value,
+                8 => self.flash_control.block_size = value,
+                12 => self.flash_control.erase_cmd = value,
+                16 => {
+                    self.flash_control.op = value;
+                    self.apply_flash_control();
+                }
+                20 => self.flash_control.data = value,
+                24 => self.flash_control.program_len = value,
+                _ => {}
+            }
             return Ok(());
         }
         if let Some(block) = Memory::block(addr) {
@@ -587,5 +756,41 @@ mod tests {
             );
         }
         assert_eq!(mem.periph.dma.read(0x08), 0);
+    }
+
+    #[test]
+    fn the_flash_helpers_erase_a_whole_sector() {
+        let mut mem = Memory::new();
+        mem.load_flash(0x1000, &[0x12; 0x1200]).unwrap();
+
+        mem.write_word(FLASH_CTRL, FLASH_BASE + 0x1000).unwrap();
+        mem.write_word(FLASH_CTRL + 4, 4096).unwrap();
+        mem.write_word(FLASH_CTRL + 8, 4096).unwrap();
+        mem.write_word(FLASH_CTRL + 16, 1).unwrap();
+
+        assert!(mem.flash[0x1000..0x2000].iter().all(|byte| *byte == 0xff));
+        // The next sector and the bytes before the first one are untouched.
+        assert_eq!(mem.flash[0x2000], 0x12);
+        assert_eq!(mem.flash[0x0fff], 0xff);
+    }
+
+    #[test]
+    fn the_flash_helpers_program_from_sram() {
+        let mut mem = Memory::new();
+        mem.sram[0x400..0x500].fill(0xf0);
+
+        mem.write_word(FLASH_CTRL, FLASH_BASE + 0x3000).unwrap();
+        mem.write_word(FLASH_CTRL + 20, SRAM_BASE + 0x400).unwrap();
+        mem.write_word(FLASH_CTRL + 24, 256).unwrap();
+        mem.write_word(FLASH_CTRL + 16, 2).unwrap();
+        assert_eq!(mem.flash[0x3000], 0xf0);
+        assert_eq!(mem.flash[0x30ff], 0xf0);
+
+        // Programming clears bits, so a second pass can only take them away.
+        mem.sram[0x400..0x500].fill(0x0f);
+        mem.write_word(FLASH_CTRL + 20, SRAM_BASE + 0x400).unwrap();
+        mem.write_word(FLASH_CTRL + 16, 2).unwrap();
+        assert_eq!(mem.flash[0x3000], 0x00);
+        assert_eq!(mem.flash[0x30ff], 0x00);
     }
 }

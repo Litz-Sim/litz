@@ -592,6 +592,11 @@ pub fn boot_fleet(
                 );
             }
         } else {
+            // A fleet boots each image independently, so each board's runtime is
+            // read from its own bytes. CircuitPython initializes the Bluetooth
+            // controller on boot and stalls without it, whether the session has
+            // one board or several.
+            let python = detect_bytes(Runtime::Native, image.app);
             let mut chip = builtin_chip(
                 &name,
                 image.mac.unwrap_or(options.mac),
@@ -602,7 +607,7 @@ pub fn boot_fleet(
                     network: network.as_ref(),
                     bluetooth: bluetooth.as_ref(),
                     elf: None,
-                    ble_controller: false,
+                    ble_controller: python == PythonRuntime::CircuitPython,
                 },
             )?;
             if info.psram {
