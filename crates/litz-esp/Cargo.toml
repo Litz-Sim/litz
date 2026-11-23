@@ -12,7 +12,7 @@ homepage.workspace = true
 
 [dependencies]
 litz-esp-periph = { version = "0.1.0", path = "../../vendor/esp-periph", optional = true }
-litz-esp-soc = { version = "0.1.0", path = "../../vendor/esp-soc", optional = true }
+litz-esp-soc = { version = "0.1.1", path = "../../vendor/esp-soc", optional = true }
 litz-esp32 = { version = "0.1.0", path = "../../vendor/esp32", optional = true }
 litz-esp32c3 = { version = "0.1.0", path = "../../vendor/esp32c3", optional = true }
 litz-esp32c6 = { version = "0.1.0", path = "../../vendor/esp32c6", optional = true }
@@ -44,7 +44,7 @@ name = "c3_boot"
 required-features = ["esp32c3"]
 
 [dev-dependencies]
-litz-esp-soc = { version = "0.1.0", path = "../../vendor/esp-soc" }
+litz-esp-soc = { version = "0.1.1", path = "../../vendor/esp-soc" }
 litz-board = { workspace = true }
 litz-catalog = { workspace = true }
 litz-chip-conformance = { workspace = true }

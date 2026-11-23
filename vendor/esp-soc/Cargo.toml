@@ -1,6 +1,6 @@
 [package]
 name = "litz-esp-soc"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 description = "Litz fork of esp32sim: The machine around an Espressif SoC: scheduler, device time, console, scripts, web push, loaders, boards — generic over the chip"

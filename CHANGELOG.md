@@ -6,6 +6,13 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-23
+
+### Fixed
+
+- `litz-esp-soc` is 0.1.1 and carries the `Machine::set_breakpoints` and `Machine::step_one` methods that `litz-esp` 0.5.0 calls. 0.5.0 shipped those calls while the registry copy of the vendored crate was still the one without them, so `cargo install --locked litz-cli@0.5.0` failed to compile `litz-esp`; `litz-esp` now requires 0.1.1.
+- The publish workflow runs `tools/install-smoke.sh` against the version it just published, before the GitHub release is created. A registry graph that disagrees with the path graph now fails the release instead of waiting for the scheduled install smoke.
+
 ## [0.5.0] - 2026-11-23
 
 ### Added

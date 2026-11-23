@@ -84,8 +84,21 @@ jobs:
             npm publish --provenance --access public
           fi
 
-  release:
+  smoke:
     needs: [crates, npm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Install the version this tag published, with the lockfile its tarball
+      # ships. The workspace builds against path dependencies, so a vendored
+      # crate that changed without a new registry version passes every unit
+      # test and still fails here.
+      - run: tools/install-smoke.sh --version "${GITHUB_REF_NAME#v}"
+
+  release:
+    needs: [crates, npm, smoke]
     runs-on: ubuntu-latest
     steps:
       # The tag is the release boundary: one GitHub release with generated

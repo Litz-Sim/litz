@@ -66,19 +66,21 @@ Every crate in the workspace and the npm package share one version. A release is
 2. Set the version in one place:
 
    ```sh
-   tools/set-version.sh 0.5.0
+   tools/set-version.sh 0.5.1
    ```
 
    The script updates `[workspace.package]` and the npm package, and relaxes `[workspace.dependencies]` to the compatible `0.5` range. A patch release (`0.4.1`) keeps the range.
 3. Commit and tag:
 
    ```sh
-   git commit -am "Release 0.5.0"
-   git tag v0.5.0
-   git push origin main v0.5.0
+   git commit -am "Release 0.5.1"
+   git tag v0.5.1
+   git push origin main v0.5.1
    ```
 
-4. The tag runs `.github/workflows/publish.yml`: it verifies the versions, publishes the crates in dependency order, publishes the npm package, and creates the GitHub release. Both registries use trusted publishing, so no token is stored in the repository.
+   A vendored crate under `vendor/` that changed since its registry version needs its own version bump and a publish of that version before the tag: the workflow publishes `crates/*` only, and the path dependencies hide the drift locally. The workflow's install smoke catches a registry graph that still disagrees, and the release is not created until it passes.
+
+4. The tag runs `.github/workflows/publish.yml`: it verifies the versions, publishes the crates in dependency order, publishes the npm package, installs the published CLI, and creates the GitHub release. Both registries use trusted publishing, so no token is stored in the repository.
 
 Trusted publishing is configured once per crate on crates.io, under Settings → Trusted Publishing, with owner `Litz-Sim`, repository `litz` and workflow `publish.yml`. `tools/publish-crates.sh --list` prints the current set of crates to configure. The npm package is configured the same way on npmjs.com.
 
