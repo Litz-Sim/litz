@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "author": "Litz",
+  "editor": "litz",
+  "parts": [
+    { "id": "pico", "type": "board-raspberry-pi-pico", "attrs": {} },
+    { "id": "psg", "type": "sn76489", "attrs": {} },
+    { "id": "buzz", "type": "litz-buzzer", "attrs": { "buzzerType": "passive" } }
+  ],
+  "connections": [
+    ["pico:GP2", "psg:D0", "blue", []],
+    ["pico:GP3", "psg:D1", "blue", []],
+    ["pico:GP4", "psg:D2", "blue", []],
+    ["pico:GP5", "psg:D3", "blue", []],
+    ["pico:GP6", "psg:D4", "blue", []],
+    ["pico:GP7", "psg:D5", "blue", []],
+    ["pico:GP8", "psg:D6", "blue", []],
+    ["pico:GP9", "psg:D7", "blue", []],
+    ["pico:GP10", "psg:WE", "orange", []],
+    ["psg:CE", "pico:GND.1", "black", []],
+    ["psg:VCC", "pico:3V3", "red", []],
+    ["psg:GND", "pico:GND.1", "black", []],
+    ["psg:AUDIO", "buzz:1", "green", []],
+    ["buzz:2", "pico:GND.1", "black", []],
+    ["pico:GP0", "$serialMonitor:RX", "", []]
+  ]
+}

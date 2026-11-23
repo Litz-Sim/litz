@@ -8,6 +8,12 @@ examples/*/firmware/*
 !examples/pico-blink/firmware/pico-blink.bin
 !examples/pico-c-systick/firmware/pico-c-systick.bin
 !examples/pico-c-i2c/firmware/pico-c-i2c.bin
+!examples/sn76489/firmware/sn76489-demo.bin
+# This example's firmware is C, so its sources live beside the image.
+!examples/sn76489/firmware/main.c
+!examples/sn76489/firmware/vectors.S
+!examples/sn76489/firmware/link.ld
+!examples/sn76489/firmware/build.sh
 !examples/uno-blink/firmware/uno-blink.hex
 !examples/signal-generator/firmware/hello.bin
 !examples/two-boards/firmware/hold-low.bin

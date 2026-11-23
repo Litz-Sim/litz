@@ -1,0 +1,71 @@
+[part]
+id = "sn76489"
+name = "SN76489 PSG"
+version = "0.1.0"
+description = "Three-tone plus noise programmable sound generator with an 8-bit write bus"
+license = "Apache-2.0"
+
+[pins.AUDIO]
+kind = "digital-out"
+number = 7
+label = "mixed audio"
+
+[pins.CE]
+kind = "digital-in"
+number = 6
+label = "chip enable, active low"
+
+# Data-bus names are LSB first here, the convention the wiring tables use.
+# The TI data sheet numbers the same pins the other way round, so its D0 is
+# this part's D7 (pin 3) and its D7 is this part's D0 (pin 10).
+[pins.D0]
+kind = "digital-in"
+number = 10
+label = "least significant data bit"
+
+[pins.D1]
+kind = "digital-in"
+number = 11
+
+[pins.D2]
+kind = "digital-in"
+number = 12
+
+[pins.D3]
+kind = "digital-in"
+number = 13
+
+[pins.D4]
+kind = "digital-in"
+number = 15
+
+[pins.D5]
+kind = "digital-in"
+number = 1
+
+[pins.D6]
+kind = "digital-in"
+number = 2
+
+[pins.D7]
+kind = "digital-in"
+number = 3
+label = "most significant data bit"
+
+[pins.GND]
+kind = "ground"
+number = 8
+
+[pins.VCC]
+kind = "power"
+number = 16
+
+[pins.WE]
+kind = "digital-in"
+number = 5
+label = "write enable, rising edge"
+
+[simulation]
+backend = "wasm"
+module = "sn76489.wasm"
+abi = "litz-part-2"

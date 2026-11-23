@@ -36,6 +36,11 @@ jobs:
       - run: cargo run -q -p litz-cli -- test examples/pico-blink
       - run: cargo run -q -p litz-cli -- test examples/pico-c-systick
       - run: cargo run -q -p litz-cli -- test examples/pico-c-i2c
+      # The custom part has its own workspace, so the chip's unit tests are
+      # outside `cargo test --workspace`.
+      - run: cargo test --manifest-path examples/sn76489/part/Cargo.toml
+      - run: cargo clippy --manifest-path examples/sn76489/part/Cargo.toml --all-targets -- -D warnings
+      - run: cargo run -q -p litz-cli -- test examples/sn76489
       - run: cargo run -q -p litz-cli -- test examples/two-boards
       - run: cargo run -q -p litz-cli -- test examples/signal-generator
 

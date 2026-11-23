@@ -1,0 +1,25 @@
+[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/sn76489-demo.bin"
+flash_size = "2MB"
+
+# The chip's mixed output, so a run prints the frequency the buzzer hears.
+[[probe]]
+name = "audio"
+point = "psg:AUDIO"
+
+# `build.sh` in firmware/ makes the image: a bare-metal RP2040 program that
+# writes tone and noise commands to the chip. The binary is committed, so the
+# test itself needs no ARM toolchain.
+[[test]]
+name = "the firmware prints the note it programs"
+timeout = "100ms"
+expect = "N=254 f=440"
+
+[[test]]
+name = "the PSG plays four notes and a noise burst"
+timeout = "1s"
+expect = "done"
+expect_state = "buzz:on"

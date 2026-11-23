@@ -76,6 +76,12 @@ cargo run -p litz-cli -- test examples/pico-c-systick
 cargo run -p litz-cli -- test examples/pico-c-i2c
 ```
 
+`sn76489` is a custom part rather than a builtin one: `parts/sn76489.toml` names a WebAssembly component that models the chip's registers, tone dividers, noise shift register and mixer, and a bare-metal RP2040 firmware writes tones and a noise burst over its 8-bit bus. The source sits in `part/` and builds with `part/build.sh`; the component is committed.
+
+```sh
+cargo run -p litz-cli -- test examples/sn76489
+```
+
 `micropython-esp32`, `micropython-s3`, `micropython-c3` and `micropython-c6` boot pinned MicroPython images, paste `main.py` over the REPL and assert on the LED. The images and the mask ROMs they need are not vendored; fetch them once:
 
 ```sh

@@ -1,0 +1,21 @@
+[package]
+name = "sn76489-part"
+description = "The SN76489 programmable sound generator as a Litz wasm part."
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+
+# The guest lives inside the Litz checkout but is not one of its crates; the
+# empty table makes Cargo treat this directory as its own workspace root.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+litz-part-sdk = { path = "../../../crates/litz-part-sdk" }
+
+[profile.release]
+opt-level = "s"
+lto = true
