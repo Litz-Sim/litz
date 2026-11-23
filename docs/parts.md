@@ -292,7 +292,7 @@ A `backend = "wasm"` part is a WebAssembly component. The world is named `compon
 | `litz-part-1` | `litz:part@0.1.0` | `info`, `set-pin`, `advance`, `next-event`, `drive`, `state`, `press`, `set-control` |
 | `litz-part-2` | `litz:part@0.2.0` | every 0.1 export, plus `analog`, `attributes`, `set-attribute`, `i2c-connect`, `i2c-read`, `i2c-write`, `i2c-stop`, `spi-select`, `spi-transfer`, `uart-receive`, `uart-poll`, `framebuffer`, `draw`, `damage` |
 
-The current WIT is [crates/litz-part-wit/wit/litz-part.wit](../crates/litz-part-wit/wit/litz-part.wit); the unchanged 0.1 package is [crates/litz-part-wit/wit-legacy/litz-part.wit](../crates/litz-part-wit/wit-legacy/litz-part.wit). Pins are `u16` indices into the part's own pin table, assigned once when the board is flattened, and time is `u64` nanoseconds since the simulation started. There is no WASI: 0.1 has no host imports, and 0.2 adds only `log` and `rom`.
+The current WIT is [crates/litz-part-wit/wit/litz-part.wit](https://github.com/Litz-Sim/litz/blob/main/crates/litz-part-wit/wit/litz-part.wit); the unchanged 0.1 package is [crates/litz-part-wit/wit-legacy/litz-part.wit](https://github.com/Litz-Sim/litz/blob/main/crates/litz-part-wit/wit-legacy/litz-part.wit). Pins are `u16` indices into the part's own pin table, assigned once when the board is flattened, and time is `u64` nanoseconds since the simulation started. There is no WASI: 0.1 has no host imports, and 0.2 adds only `log` and `rom`.
 
 A 0.1 module keeps running against the 0.2 host. The 0.2-only calls are answered with their empty defaults, so a pins-only guest never has to implement the bus, attribute or framebuffer groups.
 
@@ -305,7 +305,7 @@ The MCU contract has the same naming rule:
 | `litz-mcu-1` | `litz:mcu@0.1.0` | `simulator` |
 | `litz-mcu-2` | `litz:mcu@0.2.0` | `simulator` |
 
-`litz-mcu-1` is the default when a board manifest omits `abi`. The current WIT is [crates/litz-mcu-wit/wit-v2/litz-mcu.wit](../crates/litz-mcu-wit/wit-v2/litz-mcu.wit); the 0.1 package is [crates/litz-mcu-wit/wit/litz-mcu.wit](../crates/litz-mcu-wit/wit/litz-mcu.wit). A board built from the template uses `litz-mcu-2`.
+`litz-mcu-1` is the default when a board manifest omits `abi`. The current WIT is [crates/litz-mcu-wit/wit-v2/litz-mcu.wit](https://github.com/Litz-Sim/litz/blob/main/crates/litz-mcu-wit/wit-v2/litz-mcu.wit); the 0.1 package is [crates/litz-mcu-wit/wit/litz-mcu.wit](https://github.com/Litz-Sim/litz/blob/main/crates/litz-mcu-wit/wit/litz-mcu.wit). A board built from the template uses `litz-mcu-2`.
 
 ## State codes
 
