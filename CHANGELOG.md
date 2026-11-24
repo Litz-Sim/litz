@@ -6,6 +6,13 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-24
+
+### Fixed
+
+- `litz-mcu-wasm` and `litz-chip-rv32` bind the contract from a copy inside their own package instead of a path into `litz-mcu-wit`, which does not exist for a crate taken from the registry. `cargo install litz-cli@0.6.0` failed to compile `litz-mcu-wasm`; 0.6.1 installs. `crates/litz-mcu-wit/tests/mirrors.rs` fails when any copy stops being byte-identical to `crates/litz-mcu-wit/wit/litz-mcu.wit`.
+- `docs/chips.md` and `docs/architecture.md` describe the one 0.2 contract: the 0.1 ABI is retired and refused by name rather than linked alongside 0.2.
+
 ## [0.6.0] - 2026-11-24
 
 ### Added

@@ -7,9 +7,11 @@
 
 mod bindings {
     wit_bindgen::generate!({
-        // The contract has one home in the workspace; this guest compiles
-        // against it directly rather than carrying a copy.
-        path: "../litz-mcu-wit/wit",
+        // `wit/` beside this crate mirrors `crates/litz-mcu-wit/wit`. A path
+        // outside the package would build here and fail for anyone who takes
+        // this crate from the registry, which is where a guest gets built.
+        // `litz-mcu-wit/tests/mirrors.rs` holds the two byte-identical.
+        path: "wit",
         world: "simulator",
     });
 }

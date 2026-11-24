@@ -30,18 +30,15 @@ A chip may also be installed as a finished bundle, exactly like a part. `litz ca
 
 ## Choosing the ABI
 
-Two contracts are current. The manifest's `abi` field picks one, and that field is the only thing that picks it:
+One contract is current: `litz-mcu-2` is `litz:mcu@0.2.0`, world `simulator`, and it is the default when a board omits `abi`.
 
 | `abi` | WIT package | World | Adds |
 |---|---|---|---|
-| `litz-mcu-1` (default) | `litz:mcu@0.1.0` | `simulator` | pins and console only |
-| `litz-mcu-2` | `litz:mcu@0.2.0` | `simulator` | analog reads, I2C/SPI/UART, Wi-Fi with TCP/UDP, BLE with GATT, and the raw radio medium |
+| `litz-mcu-2` (default) | `litz:mcu@0.2.0` | `simulator` | pins and console, the debug interface, analog reads, I2C/SPI/UART, Wi-Fi with TCP/UDP, BLE with GATT, and the raw radio medium |
 
-The 0.1 contract has one core loop and two host calls; a guest can emit console bytes, drive and read pads, and report a fault, and that is all. The 0.2 contract keeps the same exported `chip` interface and adds the host calls a real peripheral block needs: an ADC that reads the solved node voltage, bus transactions against the parts the diagram wired, the deterministic router's Wi-Fi and sockets, BLE advertising and GATT, and the shared nRF24/SX1276/AT86RF233 packet medium. If the board has an I2C sensor, an analog input or a radio, it needs 0.2.
+The 0.1 package is retired, not merely unsupported: a manifest that still names `litz-mcu-1` is refused before the component is instantiated, and the message says to rebuild against `litz:mcu@0.2.0`.
 
-The version is not inferred from the component. `crates/litz-mcu-wasm/src/lib.rs` links both sets of bindings and builds the one the manifest field names; a typo or an unknown value is refused before the component is instantiated, with a message naming `litz-mcu-1` and `litz-mcu-2`. This is deliberately unlike the part contract, where `WasmPart` reads the component's exported interfaces and selects the version from them. For an MCU the manifest is authoritative, because the two worlds have different import shapes and the host must build a linker before it can look inside.
-
-A board that omits `abi` gets `litz-mcu-1`. The scaffold that `litz catalog new board` writes always uses `litz-mcu-2`; to author a 0.1 chip, copy `crates/litz-mcu-wit/wit/litz-mcu.wit` into the bundle (for example as `wit/litz-mcu.wit`), point the guest's `wit-bindgen` path at it, and set `abi = "litz-mcu-1"`.
+The version is never inferred from the component. `crates/litz-mcu-wasm/src/lib.rs` generates its bindings from the copy of the contract beside it and loads that world for every simulator board; an `abi` this build does not implement is refused before the component is instantiated. This is deliberately unlike the part contract, where `WasmPart` reads the component's exported interfaces and selects the version from them.
 
 ## The scaffold
 
@@ -81,7 +78,7 @@ boards/board-vendor-mcu/
 | `simulator/Cargo.toml` | The guest crate. `crate-type = ["cdylib"]`, one dependency on `wit-bindgen`, and its own empty `[workspace]` so it does not join a parent workspace. |
 | `simulator/src/lib.rs` | The guest. A toy register machine with 4 KiB of RAM, a 64-byte flash window and one byte-instruction per cycle, plus the `litz:mcu` glue at the bottom. Replace the machine, leave the glue. |
 | `simulator/build.sh` | Compiles for `wasm32-unknown-unknown` and wraps the core module in a component, writing `board-vendor-mcu.wasm` next to `board.toml`. |
-| `wit-v2/litz-mcu.wit` | A byte-identical copy of `crates/litz-mcu-wit/wit-v2/litz-mcu.wit`, the contract the guest compiles against. |
+| `wit/litz-mcu.wit` | A byte-identical copy of `crates/litz-mcu-wit/wit/litz-mcu.wit`, the contract the guest compiles against. |
 | `README.md` | Usage notes and the scaffold's opcode-to-host-call table. |
 
 The generated `board.toml` pins are `3V3`, `GND` with `repeat = 2`, `GPIO0` through `GPIO7`, and `RX`/`TX` aliases of GPIO 4 and 5 tagged `functions = ["uart"]`. The aliases carry no traffic on a wasm board — the guest's console is the `host.console` call, not a pad — but they let a diagram written for a real board validate.
@@ -491,8 +488,8 @@ Traps are the failure mode, not invented behaviour. A guest that ignores its bud
 
 ## How this stays stable
 
-The manifest's `abi` field is the compatibility boundary, and the contract versions are additive. A new version is a new WIT package and a new `abi` value; the host keeps linking the old ones. `litz-mcu-wasm` already links both `0.1.0` and `0.2.0`, so a 0.1 guest written before 0.2 existed keeps loading and never sees a 0.2-only call. A future 0.3 will follow the same rule: it adds host calls and leaves the 0.1 and 0.2 worlds loadable.
+The manifest's `abi` field is the compatibility boundary. A new contract version is a new WIT package and a new `abi` value; the host links the one it ships and refuses any other by name, so a guest built against a different contract fails loudly instead of misbehaving. The 0.1 package was removed in 0.6.0, which is why a manifest that still names `litz-mcu-1` is an error rather than a fallback.
 
-Within a version, the exported `chip` interface is fixed and the host calls only grow. An author who builds for 0.2 can rely on every call in the host-call tables above, and an author who builds for 0.1 can ignore everything that came later. Because the manifest selects the version rather than the component's shape, a guest is never silently rebound to a different world: the tuple of module file and `abi` is what runs.
+Within a version, the exported `chip` interface is fixed and the host calls only grow. An author who builds for 0.2 can rely on every call in the host-call tables above. Because the manifest selects the version rather than the component's shape, a guest is never silently rebound to a different world: the tuple of module file and `abi` is what runs.
 
 The catalog id is a separate promise. A diagram names an id and expects the same pins and behaviour; `version` is informational and nothing resolves against it. Never reuse an id for a different device and never change the meaning of a header pin. Use patch versions for fixes, minor for additive changes such as a new optional attribute, and treat a behaviour change as a new id. That keeps an installed board a stable dependency even as the component and the contract move forward.

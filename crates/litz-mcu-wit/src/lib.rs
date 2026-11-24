@@ -4,8 +4,9 @@
 //! This crate is the contract's home rather than its implementation: the
 //! `wit/` directory next to this file is what a chip module is compiled
 //! against, and the host reads the same file when it generates its bindings.
-//! There is no second copy in the workspace, so a guest and a host cannot
-//! drift apart without one of the two failing to build.
+//! There is one definition; the crates that compile it carry a copy because a
+//! published crate cannot reach into a sibling, and `tests/mirrors.rs` fails
+//! the build when a copy stops being byte-identical.
 //!
 //! ```
 //! assert_eq!(litz_mcu_wit::ABI, "litz-mcu-2");

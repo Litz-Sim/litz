@@ -21,12 +21,14 @@
 // native capability: the browser build runs transpiled components through
 // JavaScript instead, so the generated bindings and wasmtime stay out of it.
 //
-// The path is the contract's one home in `litz-mcu-wit`; there is no copy
-// beside this crate to drift from it.
+// `wit/` beside this file mirrors `crates/litz-mcu-wit/wit`; binding to a path
+// outside the package builds in the workspace and fails for anyone installing
+// from the registry, because a published crate carries only its own files.
+// `litz-mcu-wit/tests/mirrors.rs` holds the two byte-identical.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod bindings {
     wasmtime::component::bindgen!({
-        path: "../litz-mcu-wit/wit",
+        path: "wit",
         world: "simulator",
     });
 }
