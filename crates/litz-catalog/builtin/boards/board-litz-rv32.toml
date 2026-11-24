@@ -7,12 +7,12 @@ flash_size = "4MB"
 psram = false
 schematic = "board-litz-rv32.onboard.json"
 
-# The MCU is a WebAssembly component that speaks litz:mcu@0.1.0, not a backend
+# The MCU is a WebAssembly component that speaks litz:mcu@0.2.0, not a backend
 # compiled into the runner. Exactly one of `chip` and this table is allowed.
 [board.simulator]
 kind = "wasm"
 module = "litz-rv32.wasm"
-abi = "litz-mcu-1"
+abi = "litz-mcu-2"
 
 [[pins]]
 name = "3V3"

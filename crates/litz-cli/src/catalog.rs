@@ -508,8 +508,8 @@ const SIMULATOR_SOURCE: &str = include_str!("../templates/board/simulator/src/li
 const SIMULATOR_BUILD: &str = include_str!("../templates/board/simulator/build.sh");
 const BOARD_README: &str = include_str!("../templates/board/README.md");
 /// The contract copy placed next to `simulator/`. The test module keeps it
-/// byte-identical to `crates/litz-mcu-wit/wit-v2`.
-const BOARD_WIT: &str = include_str!("../templates/board/wit-v2/litz-mcu.wit");
+/// byte-identical to `crates/litz-mcu-wit/wit`.
+const BOARD_WIT: &str = include_str!("../templates/board/wit/litz-mcu.wit");
 
 /// Every file of a board bundle, relative to the board directory.
 fn board_files(id: &str, name: &str) -> Vec<(String, String)> {
@@ -529,7 +529,7 @@ fn board_files(id: &str, name: &str) -> Vec<(String, String)> {
         ("simulator/Cargo.toml".into(), render(SIMULATOR_MANIFEST)),
         ("simulator/src/lib.rs".into(), render(SIMULATOR_SOURCE)),
         ("simulator/build.sh".into(), render(SIMULATOR_BUILD)),
-        ("wit-v2/litz-mcu.wit".into(), render(BOARD_WIT)),
+        ("wit/litz-mcu.wit".into(), render(BOARD_WIT)),
         ("README.md".into(), render(BOARD_README)),
     ]
 }
@@ -1204,7 +1204,7 @@ module = "{module}"
             "simulator/Cargo.toml",
             "simulator/src/lib.rs",
             "simulator/build.sh",
-            "wit-v2/litz-mcu.wit",
+            "wit/litz-mcu.wit",
             "README.md",
         ] {
             assert!(board.join(relative).is_file(), "{relative} is missing");
@@ -1221,6 +1221,10 @@ module = "{module}"
         );
         let simulator = info.simulator.as_ref().expect("a wasm MCU");
         assert_eq!(simulator.abi, "litz-mcu-2");
+        assert!(
+            !board.join("wit-v2").exists(),
+            "the scaffold has one contract folder, wit/"
+        );
         assert_eq!(simulator.module, "board-vendor-mcu.wasm");
 
         // The Cargo package and the core module derive from the same id.
@@ -1264,8 +1268,8 @@ module = "{module}"
         // one the host is built against.
         assert_eq!(
             BOARD_WIT,
-            include_str!("../../litz-mcu-wit/wit-v2/litz-mcu.wit"),
-            "templates/board/wit-v2 must mirror crates/litz-mcu-wit/wit-v2"
+            include_str!("../../litz-mcu-wit/wit/litz-mcu.wit"),
+            "templates/board/wit must mirror crates/litz-mcu-wit/wit"
         );
 
         let scratch = TempDir::new("new-board-template");
@@ -1283,7 +1287,7 @@ module = "{module}"
             ("simulator/Cargo.toml", SIMULATOR_MANIFEST),
             ("simulator/src/lib.rs", SIMULATOR_SOURCE),
             ("simulator/build.sh", SIMULATOR_BUILD),
-            ("wit-v2/litz-mcu.wit", BOARD_WIT),
+            ("wit/litz-mcu.wit", BOARD_WIT),
             ("README.md", BOARD_README),
         ] {
             let written = std::fs::read_to_string(path.join(relative)).unwrap();

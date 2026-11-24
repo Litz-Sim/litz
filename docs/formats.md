@@ -75,8 +75,10 @@ Host devices and rails do not need a `parts` entry. They are the only `$` names 
 | Name | Meaning |
 |---|---|
 | `$serialMonitor` | host serial endpoint accepted for compatibility; the runner reads the chip's UART0 directly, so a wire to it is decorative |
-| `$gnd` | global ground |
-| `$v33`, `$v5`, `$vin` | global power rails |
+| `$gnd` | global ground, shared by every board |
+| `$v33`, `$v5`, `$vin` | a shared external supply |
+
+A board's own supply pins are not the global rails: `pico:3V3` is the Pico's regulator output and `nano:5V` is the Nano's, so wiring two boards' `3V3` pins together joins those two supplies instead of naming one global net. Wiring `pico:VSYS` to `nano:5V` powers the Pico from the Nano. Each board also accepts a `power` boolean attribute (default `true`) for whether its own switch is on.
 
 ## 2. Part — `part.toml`
 
@@ -317,7 +319,7 @@ A board instance is flattened before the netlist is built, with names that canno
 | `esp:GND.1` | `$gnd` |
 | `esp/led_pwr:A` | child part `esp/led_pwr`, pin `A` |
 
-The onboard schematic uses one reserved type, `$chip`, for the MCU. It exposes exactly `GPIO<n>` for every header pin with `gpio = n`; power comes from the global rails. Expansion consumes the `$chip` part: it never becomes a leaf part, and a header pin is represented by the chip endpoint it names (with a board index once a second board is present), not by a materialised `esp/chip` part. Child part ids are prefixed with `<instance>/`, so an onboard `led_pwr` is reachable but never collides with a top-level `led_pwr`.
+The onboard schematic uses one reserved type, `$chip`, for the MCU. It exposes exactly `GPIO<n>` for every header pin with `gpio = n`; its `$v33`/`$v5`/`$vin` wires name that board's own supply and `$gnd` is the shared ground. Expansion consumes the `$chip` part: it never becomes a leaf part, and a header pin is represented by the chip endpoint it names (with a board index once a second board is present), not by a materialised `esp/chip` part. Child part ids are prefixed with `<instance>/`, so an onboard `led_pwr` is reachable but never collides with a top-level `led_pwr`.
 
 Expansion is depth-first and deterministic. A board inside another board's schematic is an error: a nested board's chip pins would have no second board index to name them, and its firmware no second entry to hide behind.
 
@@ -349,7 +351,7 @@ serial = "status\n"
 
 [[probe]]
 name = "pwm"
-point = "esp:GPIO8"         # <board>:<GPIO> or <part>:<pin>, e.g. led1:A
+point = "esp:GPIO8"         # <board>:<pin> or <part>:<pin>, e.g. led1:A
 
 [[probe]]
 name = "tx"
@@ -429,7 +431,7 @@ For a CI consumer there are two machine-readable forms, both derived from the sa
 
 ### 4.1 Probes and the scope
 
-A probe names one point in the circuit and records what happens there. The point is `<board>:<GPIO>` with a board instance id and a GPIO number (`esp:GPIO8`, `b:4`) or `<part>:<pin>` with a part id and a catalog pin name (`led1:A`, `esp/led_pwr:A`); a point that is not wired to anything, a part that is not in the diagram and a pin the part does not have are all refused before the firmware boots. `[[probe]]` in `litz.toml` names the channel with `name` (default: the point text), and `--probe` adds one for a single run.
+A probe names one point in the circuit and records what happens there. The point is `<board>:<pin>` with a board instance id and any header pin — a GPIO (`esp:GPIO8`, `b:4`) or a supply pin (`esp:3V3`, `esp:VSYS`, `esp:GND`) — or `<part>:<pin>` with a part id and a catalog pin name (`led1:A`, `esp/led_pwr:A`). A pin nothing is wired to is still a point and reads high impedance; a part that is not in the diagram and a pin the part does not have are refused before the firmware boots. `[[probe]]` in `litz.toml` names the channel with `name` (default: the point text), and `--probe` adds one for a single run.
 
 A channel is a step waveform, not a fixed-rate sampling grid: the digital part is every net transition since recording started, and the analog part is the solved voltage at every settle. A value therefore holds between changes and no sample falls between two states the circuit was never in. Volts only appear when analog co-simulation is on (`--analog`); the level channel is recorded either way.
 
@@ -801,7 +803,7 @@ steps:
 | `write-serial` | text, a list of byte values, or `{value: ...}` | send bytes to the console. |
 | `wait-pin` | `{part-id, name?, value, timeout?}` | wait until the pin reaches the level (`name` selects a pin; without it the level is on the part's chip pin). |
 | `expect-pin` | `{part-id, name?, value}` | assert the pin's level; `name` is the pin, `value`/`expected` is `0`, `1`, `low`, `high`, `true` or `false`. |
-| `set-control` | `{part-id, name?, control?, value}` | set a named control; `name` and `control` are synonyms. |
+| `set-control` | `{part-id, name?, control?, value}` | set a named control; `name` and `control` are synonyms. `part-id` names a board to throw its `power` switch. |
 | `take-screenshot` | a path, `{path, board, expected}`, or `{part-id, save-to, compare-with, tolerance?}` | write a PNG at this point and optionally compare it pixel by pixel. |
 | `touch` | `{x, y, down}` or `{x, y, duration?, wait?, board?, part-id?}` or `"x,y"` | press or release a panel; without `down` it is a tap that releases after `duration` (default 50 ms). |
 | `touch-press` | `{x, y, board?, part-id?}` or `"x,y"` | press without releasing. |
@@ -824,6 +826,21 @@ steps:
 
 `litz_scope_json` returns one object with `ms` and two arrays. Each `probes` entry is `{name, point, net, edges, high_ns, low_ns, frequency_hz, duty, min_volts, max_volts, digital, volts}`, where `digital` is a list of `[time_ns, code]` pairs with code `0` low, `1` high and `2` floating, and `volts` is a list of `[time_ns, volts]` pairs. Measurements that do not exist are `null`. Each `decodes` entry is `{spec, kind, name, frames}`, and each frame is `{at, end, text, error}` with `error` either `null` or a string.
 
-### 15.4 Packet captures
+### 15.4 Sigrok session
+
+`--sr FILE` writes a session archive (`FILE.sr`) that PulseView and `sigrok-cli` open directly. The archive is a stored zip with three entries: `version` holding `2`; `metadata`, an INI file naming the capture and its channels; and `logic-1`, the samples. The metadata has a `[global]` section with `sigrok version=0.5.3` and one `[device 1]` section:
+
+```ini
+capturefile=logic-1
+total probes=2
+samplerate=2000000
+probe1=esp:GPIO6
+probe2=pico:GPIO4
+unitsize=1
+```
+
+`unitsize` is one byte per eight probes. `logic-1` holds one little-endian sample per tick of the samplerate, with bit 0 the first probe and bit `n` the `(n+1)`th. The record is edge-timed, so the writer picks a sampling instant and holds each channel at its last transition; a channel that is high impedance has no level and is recorded low. The series starts at the first digital tick of the probe record and ends at the last, so the archive is byte-for-byte deterministic for a given run. `--sr-rate` chooses the samplerate; 2 MHz oversamples a 115 200 baud UART about 17 times per bit.
+
+### 15.5 Packet captures
 
 `--pcap FILE` writes the simulated network's traffic at the end of the run as a nanosecond-resolution pcap (magic `0xa1b23c4d`, version 2.4, snaplen 65535, link type 1). The frames are synthetic Ethernet II carrying IPv4, TCP, UDP and DNS; TLS records appear as ciphertext. `--pcap-air FILE` records every 802.11 frame the radio carries as a link-type-105 pcap, and `--pcap-eth FILE` records the station's Ethernet frames as a link-type-1 pcap; both are written as the run goes and require a backend with that radio.

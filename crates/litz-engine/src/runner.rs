@@ -79,6 +79,13 @@ pub struct Options {
     pub probes: Vec<String>,
     /// Write every probe's record here as a CSV at the end of the run.
     pub scope: Option<PathBuf>,
+    /// Write every probe as a sigrok session archive (`.sr`) for PulseView
+    /// or `sigrok-cli`. The samples come from the same record the scope
+    /// writes, held at each channel's last transition.
+    pub sr: Option<PathBuf>,
+    /// The samplerate for the sigrok archive, in Hz. `None` uses
+    /// [`litz_board::sigrok::DEFAULT_RATE_HZ`].
+    pub sr_rate: Option<u64>,
     /// Start the scope's window at a logic-analyzer trigger instead of at
     /// time zero. The trigger names a probe the run already watches.
     pub trigger: Option<litz_board::probe::Trigger>,
@@ -113,6 +120,9 @@ pub struct Options {
     /// Save the image of every SPI microSD card the guest wrote, after the
     /// run. One card writes to the path; several treat it as a directory.
     pub sd_export: Option<PathBuf>,
+    /// Save the MCU's own flash after the run, so a firmware that wrote a
+    /// config sector or a filesystem hands it to the next run.
+    pub flash_export: Option<PathBuf>,
 }
 
 /// `--interactive[=BOARD]`: whose console receives what is typed.
@@ -1131,6 +1141,7 @@ fn start_recording(mcu: &mut Fleet, options: &Options, prepared: &Prepared) {
     // recording a VCD does.
     let wants_trace = options.vcd.is_some()
         || options.scope.is_some()
+        || options.sr.is_some()
         || !prepared.config.probes.is_empty()
         || !prepared.config.decodes.is_empty()
         || !options.probes.is_empty()
@@ -1156,6 +1167,16 @@ fn finish_recording(
     if let Some(path) = &options.sd_export {
         board.borrow_mut().save_sd_images(path)?;
     }
+    board.borrow_mut().save_storage_images()?;
+    if let Some(path) = &options.flash_export {
+        let image = mcu.flash_image().ok_or_else(|| {
+            format!(
+                "{}: this board's chip has no readable flash",
+                path.display()
+            )
+        })?;
+        std::fs::write(path, image).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
     if let Some(path) = &options.scope {
         let channels = board.borrow().scope();
         let csv = match &options.trigger {
@@ -1166,6 +1187,18 @@ fn finish_recording(
             None => probe::to_csv(&channels),
         };
         std::fs::write(path, csv).map_err(|e| format!("{}: {e}", path.display()))?;
+    }
+    if let Some(path) = &options.sr {
+        let channels = board.borrow().scope();
+        let clipped = match &options.trigger {
+            Some(trigger) => probe::triggered(&channels, trigger)?,
+            None => channels,
+        };
+        let rate = options
+            .sr_rate
+            .unwrap_or(litz_board::sigrok::DEFAULT_RATE_HZ);
+        let archive = litz_board::sigrok::to_sr(&clipped, rate)?;
+        std::fs::write(path, archive).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     Ok(())
 }
@@ -2228,6 +2261,11 @@ impl Fleet {
         }
     }
 
+    /// The first chip's flash, as the run left it.
+    fn flash_image(&self) -> Option<Vec<u8>> {
+        self.chips.first()?.flash_image()
+    }
+
     /// Ask the first chip for the firmware's free heap.
     fn sample_heap(&mut self) -> Result<u32, String> {
         match self.chips.first_mut() {
@@ -2298,29 +2336,34 @@ impl Fleet {
     }
 
     fn state(&self, part: &str) -> Option<PartState> {
-        self.chips.first()?.state(part)
+        self.chips.iter().find_map(|chip| chip.state(part))
     }
 
     fn press(&mut self, part: &str, pressed: bool) -> bool {
-        self.chips
-            .first_mut()
-            .is_some_and(|chip| chip.press(part, pressed))
+        self.chips.iter_mut().any(|chip| chip.press(part, pressed))
     }
 
     fn set_control(&mut self, part: &str, value: u16) -> bool {
+        // Part ids are unique to the circuit, so only the board that holds the
+        // part answers; the rest report that they have no such control.
         self.chips
-            .first_mut()
-            .is_some_and(|chip| chip.set_control(part, value))
+            .iter_mut()
+            .any(|chip| chip.set_control(part, value))
     }
 
     fn set_named_control(&mut self, part: &str, name: &str, value: &str) -> bool {
+        // A board instance is a control target of its own: `set-control` on a
+        // board id throws that board's power switch, which is how a scenario
+        // lets one board power another.
         self.chips
-            .first_mut()
-            .is_some_and(|chip| chip.set_named_control(part, name, value))
+            .iter_mut()
+            .any(|chip| chip.set_named_control(part, name, value))
     }
 
     fn part_pin_level(&self, part: &str, pin: Option<&str>) -> Option<Level> {
-        self.chips.first()?.part_pin_level(part, pin)
+        self.chips
+            .iter()
+            .find_map(|chip| chip.part_pin_level(part, pin))
     }
 
     fn gpio_level(&self, board: usize, gpio: u8) -> Option<Level> {

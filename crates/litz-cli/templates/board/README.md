@@ -3,7 +3,7 @@
 A community MCU board scaffold. Its MCU is the WebAssembly component in
 `simulator/`, built against `litz:mcu@0.2.0` (`abi = "litz-mcu-2"`).
 `board.toml` is the catalog entry, `{{id}}.onboard.json` is the board's
-internal schematic, and `wit-v2/` is the contract copy the guest compiles
+internal schematic, and `wit/` is the contract copy the guest compiles
 against.
 
 `litz catalog new board` created this directory. Edit `board.toml` for the
@@ -69,8 +69,9 @@ The 0.2 host interface is the whole point of a custom chip. A program can:
 | `4 21` | `radio-receive` | print frames that finished and reached this station |
 
 `spi-transfer`, `wifi-resolve`, `udp-*` and `wifi-leave` have the same shape
-in `wit-v2/litz-mcu.wit`; call them from your own machine when a program needs
-them. Nothing reaches a real file, clock or socket: the router the circuit
+in `wit/litz-mcu.wit`; call them from your own machine when a program needs
+them. The same file's `debug` interface is what a debugger uses: `pc`,
+`registers`, `read`, `disassemble`, `set-breakpoints` and `step`. Nothing reaches a real file, clock or socket: the router the circuit
 places answers every network call, and the bus devices the diagram wires
 answer every transaction. A BLE connection is plain simulated state: the
 advertiser's table answers discovery, reads and writes, and a peripheral that

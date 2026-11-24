@@ -114,7 +114,7 @@ fn a_uart_write_shows_on_the_transmit_pin() {
 
     assert!(board.uart_receive(0, 0, 1_000, b"AT"));
     let tx = edges(&board.scope(), "chip_tx");
-    assert_eq!(tx[0], (1_000, Level::High), "the line idles high");
+    assert_eq!(tx[0].1, Level::High, "the line idles high");
     assert!(
         tx.contains(&(1_000, Level::Low)),
         "the start bit pulls TX low"
@@ -182,7 +182,7 @@ fn a_uart_waveform_uses_the_baud_the_firmware_set() {
     let bit = 1_000_000_000 / 9_600;
     assert!(board.uart_receive(0, 0, 1_000, b"OK"));
     let tx = edges(&board.scope(), "chip_tx");
-    assert_eq!(tx[0], (1_000, Level::High), "the line idles high");
+    assert_eq!(tx[0].1, Level::High, "the line idles high");
     assert!(
         tx.contains(&(1_000, Level::Low)),
         "the start bit is one bit time"

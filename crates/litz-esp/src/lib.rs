@@ -196,6 +196,13 @@ pub mod backend {
         /// The controller's scan list as this adapter last gave it, so a peer
         /// added while the simulation runs can be appended to it.
         ble_peers: Vec<litz_ble::Beacon>,
+        /// Whether the board supplies this chip. A chip with no board has no
+        /// switch to ask and is always powered.
+        powered: bool,
+        /// Simulated nanoseconds the board spent switched off. The machine's
+        /// clock does not run then, and the clock the runner watches must not
+        /// fall behind the board that is still on.
+        off_ns: u64,
         /// Reads and writes the USB Serial/JTAG console on chips that have one.
         /// A firmware built for USB CDC (CircuitPython, TinyUSB, HWCDC) prints
         /// there and not on UART0, so the console has to follow both.
@@ -247,6 +254,8 @@ pub mod backend {
                 gdb: None,
                 guest_call: None,
                 board_index: 0,
+                powered: true,
+                off_ns: 0,
                 net_clock: Rc::new(Cell::new(0)),
                 ble_attached: false,
                 ble_seen: 0,
@@ -506,6 +515,12 @@ pub mod backend {
         /// 0x8000, application at 0x10000, matching the ESP-IDF layout).
         pub fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
             self.machine.write_flash(offset, data)
+        }
+
+        /// The flash array as the firmware left it, for a host that keeps what
+        /// the guest wrote (a settings partition, a filesystem, a boot count).
+        pub fn flash_image(&self) -> Option<&[u8]> {
+            self.machine.bus.flash_image()
         }
 
         /// Start the application at `app_off` the way the second-stage
@@ -881,9 +896,40 @@ pub mod backend {
             self.machine.bus.enable_ble_full(observe)
         }
 
-        /// Simulated seconds since reset.
+        /// Simulated seconds since reset, including time spent switched off.
         pub fn seconds(&self) -> f64 {
-            self.machine.seconds()
+            self.machine.seconds() + self.off_ns as f64 / 1e9
+        }
+
+        /// Whether the board supplies this chip.
+        pub fn board_power(&self) -> bool {
+            match &self.board {
+                Some(board) => board.borrow().board_powered(self.board_index),
+                None => true,
+            }
+        }
+
+        /// Start the firmware the way a power-on does: the bootloader path
+        /// re-enters the ROM, a direct image is entered at its app offset.
+        fn boot_after_power(&mut self) -> Result<u32, String> {
+            if self.bootloader_loaded {
+                self.machine.reboot();
+                Ok(0)
+            } else {
+                let app = litz_board::Chip::info(self).flash.app as usize;
+                self.boot_app(app)
+            }
+        }
+
+        /// The chip lost power: stop driving the board's lines.
+        fn power_off(&mut self) {
+            self.powered = false;
+            if let Some(board) = &self.board {
+                let now = (self.seconds() * 1e9) as u64;
+                board
+                    .borrow_mut()
+                    .release_chip_outputs(self.board_index, now);
+            }
         }
 
         /// Run at most `steps` scheduling steps; the stop condition says why it ended.
@@ -1785,12 +1831,18 @@ pub mod backend {
         }
 
         fn uses_uart_pins(&self) -> bool {
-            self.board
-                .borrow()
+            let board = self.board.borrow();
+            if board
                 .buses()
                 .uart
                 .keys()
                 .any(|&(owner, _)| owner == self.index)
+            {
+                return true;
+            }
+            // A pad wired straight to another chip is a UART link with no
+            // part on the bus, so the ports have to be watched too.
+            board.flat().has_chip_to_chip_wire(self.index)
         }
 
         /// A byte the chip transmitted reaches the peer on `route.port`. The
@@ -1803,6 +1855,8 @@ pub mod backend {
                 .unwrap_or(litz_board::runtime::OBSERVED_UART_BAUD);
             let mut board = self.board.borrow_mut();
             board.set_uart_baud(self.index, port, baud);
+            // The pads are what a wire to another chip is found through.
+            board.set_uart_pins(self.index, port, route.tx_pins, route.rx_pin);
             board.uart_receive(self.index, port, now, &[byte]);
             drop(board);
             if let Some(pin) = route.rx_pin {
@@ -1821,21 +1875,26 @@ pub mod backend {
             for (&port, &(_, baud)) in &self.uart_routes {
                 board.set_uart_baud(self.index, port, baud);
             }
-            let ports: Vec<(u8, Option<(u8, u32)>)> = board
-                .buses()
-                .uart
-                .keys()
-                .filter(|(owner, _)| *owner == self.index)
-                .map(|&(_, port)| {
-                    let wired = board
+            // A port wired to another chip has no bus entry, so the chip's own
+            // routes are the starting set; a bus-only port is added beside it.
+            let mut ports: BTreeMap<u8, Option<(u8, u32)>> = self
+                .uart_routes
+                .iter()
+                .map(|(&port, &route)| (port, Some(route)))
+                .collect();
+            for &(owner, port) in board.buses().uart.keys() {
+                if owner != self.index {
+                    continue;
+                }
+                ports.entry(port).or_insert_with(|| {
+                    board
                         .flat()
                         .buses
                         .uart
                         .get(&(self.index, port))
-                        .map(|bus| (bus.chip_rx, 115_200));
-                    (port, self.uart_routes.get(&port).copied().or(wired))
-                })
-                .collect();
+                        .map(|bus| (bus.chip_rx, 115_200))
+                });
+            }
             let mut inputs = Vec::new();
             for (port, route) in ports {
                 let Some((pin, baud)) = route else { continue };
@@ -1921,7 +1980,17 @@ pub mod backend {
             EspChip::set_psram_size(self, bytes)
         }
 
+        fn flash_image(&self) -> Option<Vec<u8>> {
+            EspChip::flash_image(self).map(<[u8]>::to_vec)
+        }
+
         fn boot(&mut self) -> Result<u32, String> {
+            self.powered = self.board_power();
+            if !self.powered {
+                // The board is off: the firmware waits for its power pin. The
+                // images are loaded, so the first powered run boots them.
+                return Ok(0);
+            }
             if self.bootloader_loaded {
                 // The bootloader finds the application itself; starting the app
                 // directly would skip it.
@@ -1959,6 +2028,30 @@ pub mod backend {
         }
 
         fn run(&mut self, budget_cycles: u64) -> litz_board::RunResult {
+            if !EspChip::board_power(self) {
+                if self.powered {
+                    self.power_off();
+                }
+                // Time passes while the board is off; the machine's own clock
+                // stands still, so account for it here.
+                let cycles = u128::from(budget_cycles) * 1_000_000_000;
+                let cpu_hz = u128::from(litz_board::Chip::info(self).cpu_hz.max(1));
+                self.off_ns = self.off_ns.saturating_add((cycles / cpu_hz) as u64);
+                return litz_board::RunResult {
+                    cycles: budget_cycles,
+                    stop: litz_board::Stop::Idle,
+                };
+            }
+            if !self.powered {
+                // Power arrived: start the firmware from its reset vector.
+                if self.boot_after_power().is_err() {
+                    return litz_board::RunResult {
+                        cycles: 0,
+                        stop: litz_board::Stop::Trap,
+                    };
+                }
+                self.powered = true;
+            }
             let stop = match EspChip::run(self, budget_cycles) {
                 esp_soc::Stop::MaxInsns => litz_board::Stop::Budget,
                 esp_soc::Stop::Halted => litz_board::Stop::Halted,

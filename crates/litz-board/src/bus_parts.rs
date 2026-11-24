@@ -14,9 +14,11 @@
 use crate::bus::{I2cDevice, SpiDevice, UartPeer};
 use crate::displays::Hd44780;
 use crate::flatten::FlatPart;
+use crate::storage::{attr, read_image, relative_image_path};
 use litz_core::{Level, Part, PinId, Tick};
 use std::any::Any;
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 // ------------------------------------------------------------------ SSD1306
 
@@ -1379,7 +1381,7 @@ impl I2cDevice for Sh1106 {
 
 // ------------------------------------------------------------------ W25Q32
 
-/// A Winbond W25Q32 SPI NOR flash, 4 MiB.
+/// A Winbond-style SPI NOR flash, 4 MiB by default.
 ///
 /// The model is a plain byte array, so a firmware can program a page and read
 /// it back through the part exactly as it would on real silicon. The command
@@ -1392,30 +1394,148 @@ impl I2cDevice for Sh1106 {
 /// clear; a driver's poll therefore succeeds on the first attempt. The
 /// write-enable latch (bit 1) is cleared when a program or erase completes,
 /// which is the datasheet's behaviour.
+///
+/// A diagram can change the capacity (`size`, a power of two from 64 KiB to
+/// 16 MiB; the device id follows the Winbond code for that size), load an
+/// image, put files on a FAT volume, and name a `save` path the board writes
+/// back when the guest programmed or erased the array.
 pub struct W25Q32 {
     memory: Vec<u8>,
     status: u8,
     selected: bool,
+    /// The Winbond capacity code: `0x16` for 4 MiB, one step per doubling.
+    device_id: u8,
+    save: Option<PathBuf>,
+    dirty: bool,
 }
 
 impl W25Q32 {
-    /// 4 MiB, the part's array size.
+    /// 4 MiB, the W25Q32's array size.
     pub const CAPACITY: usize = 4 * 1024 * 1024;
     /// The Winbond manufacturer id `0x90` and `0x9F` report.
     pub const MANUFACTURER_ID: u8 = 0xef;
-    /// The W25Q32 device id.
-    pub const DEVICE_ID: u8 = 0x15;
+    /// The device id of the 4 MiB part; smaller and larger arrays step the
+    /// code down and up.
+    pub const DEVICE_ID: u8 = 0x16;
+    /// The smallest array the model accepts, a W25Q512's: 64 KiB.
+    pub const MIN_CAPACITY: usize = 64 * 1024;
+    /// The largest array 24-bit addressing reaches: 16 MiB.
+    pub const MAX_CAPACITY: usize = 16 * 1024 * 1024;
 
     pub fn new() -> Self {
+        Self::with_capacity(Self::CAPACITY)
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            memory: vec![0xff; Self::CAPACITY],
+            memory: vec![0xff; capacity],
             status: 0,
             selected: false,
+            device_id: Self::capacity_code(capacity),
+            save: None,
+            dirty: false,
         }
+    }
+
+    /// Build a part from a manifest: `size`, `image`, `files` and `save`.
+    pub fn from_attrs(part: &FlatPart) -> Result<Self, String> {
+        let image_text = attr(part, "image");
+        let files_text = attr(part, "files");
+        let size_text = attr(part, "size");
+        if !image_text.is_empty() && !files_text.is_empty() {
+            return Err("`image` and `files` are exclusive: load an image or build one".into());
+        }
+        let capacity = if size_text.is_empty() {
+            Self::CAPACITY
+        } else {
+            crate::block::parse_size(size_text)
+                .map_err(|error| format!("size {size_text:?}: {error}"))?
+        };
+        if !(Self::MIN_CAPACITY..=Self::MAX_CAPACITY).contains(&capacity) {
+            return Err(format!(
+                "size {capacity} is outside the {}..={} byte range of a 24-bit addressed part",
+                Self::MIN_CAPACITY,
+                Self::MAX_CAPACITY
+            ));
+        }
+        if !capacity.is_power_of_two() {
+            return Err(format!(
+                "size {capacity} is not a power of two, so no Winbond part matches it"
+            ));
+        }
+        let mut flash = Self::with_capacity(capacity);
+        if !image_text.is_empty() {
+            let bytes = read_image(&relative_image_path(image_text)?)
+                .map_err(|error| format!("image {image_text:?}: {error}"))?;
+            if bytes.len() > capacity {
+                return Err(format!(
+                    "image {image_text:?} is {} bytes, larger than the {capacity}-byte part",
+                    bytes.len()
+                ));
+            }
+            flash.memory[..bytes.len()].copy_from_slice(&bytes);
+        } else if !files_text.is_empty() {
+            // An erased flash reads 0xFF; the formatter writes the volume's
+            // own sectors and leaves the rest of the array erased.
+            let mut image = crate::block::Image::blank(capacity, 0xff);
+            let tree = crate::fat::read_tree(Path::new(files_text))
+                .map_err(|error| format!("files {files_text:?}: {error}"))?;
+            let files: Vec<crate::fat::File<'_>> = tree
+                .iter()
+                .map(|(path, data)| crate::fat::File {
+                    path,
+                    data: data.as_slice(),
+                })
+                .collect();
+            crate::fat::format(&mut image, &files)
+                .map_err(|error| format!("files {files_text:?}: {error}"))?;
+            flash.memory = image.to_vec();
+        }
+        if let Some(text) = part.attrs.get("save").map(String::as_str).map(str::trim)
+            && !text.is_empty()
+        {
+            flash.save = Some(relative_image_path(text)?);
+        }
+        Ok(flash)
+    }
+
+    /// The JEDEC capacity code: the base-2 logarithm of the byte count, which
+    /// is how Winbond names its arrays (`0x16` is 2^22 bytes, the W25Q32).
+    fn capacity_code(capacity: usize) -> u8 {
+        (usize::BITS - capacity.leading_zeros() - 1) as u8
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.memory.len()
     }
 
     pub fn memory(&self) -> &[u8] {
         &self.memory
+    }
+
+    /// Whether the guest programmed or erased anything since construction.
+    pub fn dirty(&self) -> bool {
+        self.dirty
+    }
+
+    /// The file the diagram asked the board to write at the end of a run.
+    pub fn save_target(&self) -> Option<&Path> {
+        self.save.as_deref()
+    }
+
+    pub fn save_to(&self, path: &Path) -> std::io::Result<()> {
+        std::fs::write(path, &self.memory)
+    }
+
+    /// Save only when the array changed, so a runner can call it
+    /// unconditionally.
+    pub fn save_changed(&mut self, path: &Path) -> std::io::Result<bool> {
+        if !self.dirty {
+            return Ok(false);
+        }
+        self.save_to(path)?;
+        self.dirty = false;
+        Ok(true)
     }
 
     pub fn write_in_progress(&self) -> bool {
@@ -1452,8 +1572,9 @@ impl SpiDevice for W25Q32 {
             // Read data: three address bytes, then the array streams out.
             0x03 => {
                 if let Some(mut address) = Self::address(tx) {
+                    let capacity = self.memory.len();
                     for slot in out.iter_mut().skip(4) {
-                        *slot = self.memory[address % Self::CAPACITY];
+                        *slot = self.memory[address % capacity];
                         address = address.wrapping_add(1);
                     }
                 }
@@ -1470,11 +1591,13 @@ impl SpiDevice for W25Q32 {
             0x02 => {
                 if self.status & 0x02 != 0 {
                     if let Some(address) = Self::address(tx) {
+                        let capacity = self.memory.len();
                         let page = address & !0xff;
                         for (offset, &byte) in tx.iter().skip(4).enumerate() {
                             let target = page | ((address + offset) & 0xff);
-                            self.memory[target % Self::CAPACITY] = byte;
+                            self.memory[target % capacity] = byte;
                         }
+                        self.dirty = true;
                     }
                     self.status &= !0x02;
                 }
@@ -1483,34 +1606,36 @@ impl SpiDevice for W25Q32 {
             0x20 => {
                 if self.status & 0x02 != 0 {
                     if let Some(address) = Self::address(tx) {
+                        let capacity = self.memory.len();
                         let start = address & !0x0fff;
-                        let end = (start + 0x1000).min(Self::CAPACITY);
+                        let end = (start + 0x1000).min(capacity);
                         self.memory[start..end].fill(0xff);
+                        self.dirty = true;
                     }
                     self.status &= !0x02;
                 }
             }
-            // Manufacturer/device id: three address bytes then 0xEF 0x15.
+            // Manufacturer/device id: three address bytes then 0xEF <id>.
             0x90 => {
                 if out.len() > 4 {
                     out[4] = Self::MANUFACTURER_ID;
                 }
                 if out.len() > 5 {
-                    out[5] = Self::DEVICE_ID;
+                    out[5] = self.device_id;
                 }
             }
-            // Release power-down / device id: three dummy bytes then 0x15.
+            // Release power-down / device id: three dummy bytes then the id.
             0xab => {
                 if out.len() > 4 {
-                    out[4] = Self::DEVICE_ID;
+                    out[4] = self.device_id;
                 }
             }
             // JEDEC id: manufacturer, memory type, capacity.
             0x9f => {
-                for (slot, byte) in out
-                    .iter_mut()
-                    .skip(1)
-                    .zip([Self::MANUFACTURER_ID, 0x40, 0x16])
+                for (slot, byte) in
+                    out.iter_mut()
+                        .skip(1)
+                        .zip([Self::MANUFACTURER_ID, 0x40, self.device_id])
                 {
                     *slot = byte;
                 }
@@ -2057,6 +2182,86 @@ mod tests {
         assert_eq!(oled.framebuffer().2, 64);
     }
 
+    fn flash_part(attrs: &[(&str, &str)]) -> FlatPart {
+        FlatPart {
+            id: "flash".into(),
+            type_key: "litz-w25q32".into(),
+            engine: crate::flatten::Engine::Builtin("w25q32".into()),
+            pins: Vec::new(),
+            pin_kinds: Vec::new(),
+            attrs: attrs
+                .iter()
+                .map(|(name, value)| (name.to_string(), value.to_string()))
+                .collect(),
+            buses: Vec::new(),
+            device: None,
+        }
+    }
+
+    #[test]
+    fn a_flash_part_takes_its_size_and_names_the_matching_winbond() {
+        let flash = W25Q32::from_attrs(&flash_part(&[("size", "8MB")])).unwrap();
+        assert_eq!(flash.capacity(), 8 << 20);
+        assert_eq!(flash.device_id, 0x17, "8 MiB is a W25Q64");
+        let mut flash = flash;
+        flash.select(true);
+        let id = flash.transfer(&[0x9f, 0x00, 0x00, 0x00], 4);
+        assert_eq!(&id[1..4], &[0xef, 0x40, 0x17]);
+    }
+
+    #[test]
+    fn a_flash_size_that_no_part_has_is_refused() {
+        for text in ["48MB", "32KB", "128MB"] {
+            let error = W25Q32::from_attrs(&flash_part(&[("size", text)]))
+                .err()
+                .unwrap_or_else(|| panic!("{text:?} should be refused"));
+            assert!(!error.is_empty());
+        }
+    }
+
+    #[test]
+    fn files_land_on_a_flash_volume() {
+        let dir = Path::new("build").join(format!("flash-files-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("notes.txt"), b"remember\n").unwrap();
+        let flash = W25Q32::from_attrs(&flash_part(&[
+            ("files", dir.to_str().unwrap()),
+            ("size", "1MB"),
+        ]))
+        .unwrap();
+        // Sector zero is the FAT boot sector; the erased rest still reads 0xFF.
+        assert_eq!(&flash.memory()[..3], &[0xeb, 0x3c, 0x90]);
+        assert_eq!(&flash.memory()[510..512], &[0x55, 0xaa]);
+        let image = crate::block::Image::from_bytes(flash.memory().to_vec());
+        let files = crate::fat::read_files(&image).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].0, "notes.txt");
+        assert_eq!(files[0].1, b"remember\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_program_marks_the_flash_dirty_until_it_is_saved() {
+        let mut flash = W25Q32::new();
+        assert!(!flash.dirty());
+        flash.select(true);
+        flash.transfer(&[0x06], 0);
+        flash.transfer(&[0x02, 0x00, 0x00, 0x10, b'x'], 0);
+        assert!(flash.dirty());
+        let dir = Path::new("build").join(format!("flash-save-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("flash.bin");
+        assert!(flash.save_changed(&path).unwrap());
+        assert_eq!(std::fs::read(&path).unwrap()[0x10], b'x');
+        assert!(!flash.dirty(), "a save clears the flag");
+        assert!(
+            !flash.save_changed(&path).unwrap(),
+            "a clean array is not rewritten"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn a_w25q32_programs_a_page_and_reads_it_back() {
         let mut flash = W25Q32::new();
@@ -2074,10 +2279,11 @@ mod tests {
         let read = flash.transfer(&[0x03, 0x00, 0x00, 0x10, 0x00, 0x00], 6);
         assert_eq!(&read[4..6], b"Hi");
 
+        // 0x16 is 2^22 bytes, the W25Q32's 4 MiB array.
         let id = flash.transfer(&[0x90, 0x00, 0x00, 0x00, 0x00, 0x00], 6);
-        assert_eq!((id[4], id[5]), (0xef, 0x15));
+        assert_eq!((id[4], id[5]), (0xef, 0x16));
         let id = flash.transfer(&[0xab, 0x00, 0x00, 0x00, 0x00], 5);
-        assert_eq!(id[4], 0x15);
+        assert_eq!(id[4], 0x16);
 
         flash.transfer(&[0x06], 0);
         flash.transfer(&[0x20, 0x00, 0x00, 0x00], 0);

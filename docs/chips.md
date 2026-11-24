@@ -121,7 +121,7 @@ gpio = 0
 functions = ["adc"]
 ```
 
-`gpio` names a chip pad by number; the chip's `set-inputs` and `take-outputs` use that number. `fixed` is one of `gnd`, `3v3`, `5v` or `vin`, and reaches a global rail rather than a pad. `repeat` says how many physical contacts share the name, so a repeated pin is addressed as `GND.1` and `GND.2` from a diagram. `functions` is free-form description (`adc`, `pwm`, `i2c`, `uart`, `spi`) and does not change behaviour. Names must be unique; GPIO numbers need not be, which is how the scaffold's `RX` and `TX` alias GPIO 4 and 5.
+`gpio` names a chip pad by number; the chip's `set-inputs` and `take-outputs` use that number. `fixed` is one of `gnd`, `3v3`, `5v` or `vin`, and reaches that board's supply (or the shared ground) rather than a pad. `repeat` says how many physical contacts share the name, so a repeated pin is addressed as `GND.1` and `GND.2` from a diagram. `functions` is free-form description (`adc`, `pwm`, `i2c`, `uart`, `spi`) and does not change behaviour. Names must be unique; GPIO numbers need not be, which is how the scaffold's `RX` and `TX` alias GPIO 4 and 5.
 
 The pin names are load-bearing in two places: the onboard schematic wires `$chip` pins by header name, and a diagram wires `mcu:<name>`. Renaming a header pin is a breaking change to every diagram that used it.
 
@@ -159,7 +159,7 @@ The `$chip` id is local (`chip` by convention) and the expansion consumes it: it
 }
 ```
 
-Power pseudo-parts are `$gnd`, `$v33`, `$v5` and `$vin`, and they join the board's global rails. A wire to `chip:GPIO0` addresses chip GPIO 0; because the scaffold names its header pins `GPIO0` and so on, the two spellings coincide there. A board that names a header pin `D13`, as the built-in Uno does, wires `chip:D13`. A `$chip` pin that is not a header name is refused when the board is flattened, and a child part that is itself a board is refused too: a board may not contain a board.
+Power pseudo-parts are `$gnd`, `$v33`, `$v5` and `$vin` (the Pico schematic's `$v3` is accepted as `$v33`). In a board's own schematic they name that board's supply, so `$v33` there is the board's regulator output, live only while the board is powered; `$gnd` is the one node every board shares. A top-level `$v33`/`$v5`/`$vin` wire in `diagram.json` is a shared external supply instead. A wire to `chip:GPIO0` addresses chip GPIO 0; because the scaffold names its header pins `GPIO0` and so on, the two spellings coincide there. A board that names a header pin `D13`, as the built-in Uno does, wires `chip:D13`. A `$chip` pin that is not a header name is refused when the board is flattened, and a child part that is itself a board is refused too: a board may not contain a board.
 
 Child part ids are prefixed with the board instance id when the board is expanded, so `led_pwr` inside `mcu` is reachable as `mcu/led_pwr` and cannot collide with a top-level `led_pwr`.
 

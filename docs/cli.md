@@ -109,15 +109,20 @@ A missing `litz.lock` is written automatically. Without `--update-lock`, an exis
 | `--pcap-eth FILE` | Writes the station's Ethernet frames as a link-type-1 pcap. |
 | `--probe [NAME=]POINT` | Watches a point for one run; repeatable. |
 | `--scope FILE` | Writes every probe's record as a CSV when the run ends. |
+| `--sr FILE` | Writes every probe as a sigrok session archive for PulseView. |
+| `--sr-rate HZ` | Samplerate for the sigrok session; defaults to 2 000 000. |
 | `--trigger SPEC` | Starts the scope window at a logic-analyzer trigger. |
 | `--decode SPEC` | Reads a protocol off probe channels; repeatable. |
 | `--sd-export PATH` | Saves the image of every microSD card the guest wrote. |
+| `--flash-export FILE` | Saves the MCU's own flash as the firmware left it. |
 
-A probe point is `<board>:<GPIO>` (`esp:GPIO8`) or `<part>:<pin>` (`led1:A`). `NAME=` names the channel; a bare point keeps its own text as the name. A point that is not wired, a part that is not in the diagram and a pin the part does not have are refused before the firmware boots. `--scope` writes `time_ns` followed by one column per channel, one row per time any channel changes, with values held between changes and levels written `1`, `0` or `z`; a channel with analog samples also gets a `<name>_volts` column. `--trigger` takes `CHANNEL=high|low[,pre=DURATION][,post=DURATION]`, where the durations use the same syntax as a scenario delay (`250us`, `2ms`) and an absent `post` runs the window to the end of the record.
+A probe point is `<board>:<pin>` (`esp:GPIO8`, `esp:GP0`, `esp:3V3`, `esp:VSYS`, `esp:GND`) or `<part>:<pin>` (`led1:A`). Any header pin is a point, including the supply pins, and an unwired pad reads high impedance rather than being refused; a part that is not in the diagram and a pin the part does not have are still refused before the firmware boots. `NAME=` names the channel; a bare point keeps its own text as the name. The number of channels is not limited. `--scope` writes `time_ns` followed by one column per channel, one row per time any channel changes, with values held between changes and levels written `1`, `0` or `z`; a channel with analog samples also gets a `<name>_volts` column. `--trigger` takes `CHANNEL=high|low[,pre=DURATION][,post=DURATION]`, where the durations use the same syntax as a scenario delay (`250us`, `2ms`) and an absent `post` runs the window to the end of the record.
 
 `--decode` takes `uart:rx=CHANNEL[,baud=N]`, `i2c:sda=CHANNEL,scl=CHANNEL` or `spi:sck=CHANNEL,mosi=CHANNEL,cs=CHANNEL[,miso=CHANNEL][,mode=N]`, optionally with a `name=` entry. Every channel must already be a probe channel, because a decoder reads the probe record and nothing else. Decoding is a report and never changes the run.
 
-`--pcap` needs a simulated network: a `litz-wifi-router` part in the diagram or a `[sim.wifi]` table. The file has nanosecond timestamps and is byte-identical across runs of the same firmware. `--pcap-air` and `--pcap-eth` attach to the first Wi-Fi chip. `--sd-export` writes to the path directly for one card and treats it as a directory for several.
+`--sr` writes the same record as a sigrok session, the `.sr` archive PulseView and `sigrok-cli` open. It samples every probe at `--sr-rate` and holds each channel at its last transition between samples; a high-impedance line is recorded low. The trigger window from `--trigger` applies the same way as it does to `--scope`.
+
+`--pcap` needs a simulated network: a `litz-wifi-router` part in the diagram or a `[sim.wifi]` table. The file has nanosecond timestamps and is byte-identical across runs of the same firmware. `--pcap-air` and `--pcap-eth` attach to the first Wi-Fi chip. `--sd-export` writes to the path directly for one card and treats it as a directory for several; storage parts with a `save` attribute write their own image at the end of the run without it. `--flash-export` writes the whole internal array (the RP2040's 2 MiB XIP array, the ESP32 family's flash), so a firmware that stored settings in flash hands them to the next run.
 
 ### Simulation and radio
 

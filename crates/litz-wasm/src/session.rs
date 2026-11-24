@@ -835,6 +835,37 @@ mod driven {
         assert!(s.part_pin_level("nope", None).is_none());
     }
 
+    /// The browser debug calls, answered by two different backends through the
+    /// same ABI: a RISC-V ESP32-C3 and the RP2040. A page that talks to one
+    /// talks to the other.
+    #[test]
+    fn the_debug_abi_answers_on_the_esp_and_the_pico() {
+        let pico = Session::new(PICO, &[], &[], &[], &litz_fixture::pico_blink(15, 50))
+            .expect("pico session");
+        for mut s in [session(BUTTON), pico] {
+            assert!(s.debug_available(0), "every backend answers the debug call");
+            let pc = s.debug_pc(0).expect("a stopped core has a pc");
+            let file = s.debug_registers(0).expect("the register file is 33 words");
+            assert_eq!(file[32], pc, "the pc is repeated last");
+            assert_eq!(
+                s.debug_memory(0, pc, 4).map(|bytes| bytes.len()),
+                Some(4),
+                "the pc is in memory the core can read"
+            );
+            assert!(
+                s.debug_disassemble(0, pc, 2)
+                    .is_some_and(|text| text.contains(':')),
+                "a listing names the address it decodes"
+            );
+            assert!(
+                s.debug_set_breakpoints(0, &[pc]),
+                "the backend takes the breakpoint set"
+            );
+            s.debug_set_breakpoints(0, &[]);
+            assert!(s.debug_step(0).is_some(), "one step reports why it ended");
+        }
+    }
+
     #[test]
     fn a_stop_is_reported_for_the_last_run() {
         let mut s = session(BLINKY);

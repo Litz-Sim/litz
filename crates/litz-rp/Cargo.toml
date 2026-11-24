@@ -16,5 +16,7 @@ litz-board = { workspace = true }
 litz-mcu = { workspace = true }
 
 [dev-dependencies]
+litz-catalog = { workspace = true }
 litz-chip-conformance = { workspace = true }
+litz-diagram = { workspace = true }
 litz-fixture = { workspace = true }

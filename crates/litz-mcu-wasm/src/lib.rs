@@ -1,14 +1,13 @@
 //! A microcontroller that is a WebAssembly component.
 //!
-//! Two contracts are loadable. `litz:mcu@0.1.0`
-//! (`crates/litz-mcu-wit/wit`) is pins and console: a module from a pull
-//! request can emit serial bytes and report a fault, and nothing else.
-//! `litz:mcu@0.2.0` (`crates/litz-mcu-wit/wit-v2`) adds the calls a real MCU
-//! peripheral block needs — analog reads, I2C/SPI/UART transactions, Wi-Fi
-//! with TCP/UDP, and BLE scanning and advertising. A board's `board.toml` names the `.wasm`
-//! file and the `abi` it speaks; the runner loads it here, and everything above
-//! this crate — nets, parts, tests — cannot tell it apart from the built-in
-//! ESP32-C3 backend.
+//! There is one contract, `litz:mcu@0.2.0` (`crates/litz-mcu-wit/wit`). It
+//! carries pins and console, the calls a real MCU peripheral block needs —
+//! analog reads, I2C/SPI/UART transactions, Wi-Fi with TCP/UDP, and BLE
+//! scanning and advertising — and a `debug` interface that mirrors the host's
+//! `Chip` debug surface. A board's `board.toml` names the `.wasm` file and the
+//! `abi` it speaks; the runner loads it here, and everything above this crate
+//! — nets, parts, tests — cannot tell it apart from the built-in ESP32-C3
+//! backend.
 //!
 //! What a guest gets: no WASI, no clock, no filesystem, no randomness. Every
 //! peripheral and network answer comes from the circuit the host built, so the
@@ -21,26 +20,18 @@
 // generated names cannot collide with this crate's. Component loading is a
 // native capability: the browser build runs transpiled components through
 // JavaScript instead, so the generated bindings and wasmtime stay out of it.
+//
+// The path is the contract's one home in `litz-mcu-wit`; there is no copy
+// beside this crate to drift from it.
 #[cfg(not(target_arch = "wasm32"))]
 pub mod bindings {
     wasmtime::component::bindgen!({
-        path: "wit",
+        path: "../litz-mcu-wit/wit",
         world: "simulator",
     });
 }
 
-/// The 0.2 world. It is a different package version, so it is a different
-/// component type: a 0.1 module and a 0.2 module cannot share a linker, and
-/// the manifest's `abi` says which one to build.
-#[cfg(not(target_arch = "wasm32"))]
-pub mod bindings_v2 {
-    wasmtime::component::bindgen!({
-        path: "wit-v2",
-        world: "simulator",
-    });
-}
-
-/// The host answers a 0.2 guest asks for. Shared by the native loader and the
+/// The host answers a guest's asks for. Shared by the native loader and the
 /// browser bridge.
 mod host;
 
@@ -66,7 +57,9 @@ impl litz_board::host::GuestHost for HostState {
 #[cfg(not(target_arch = "wasm32"))]
 use bindings::Simulator;
 #[cfg(not(target_arch = "wasm32"))]
-use bindings::litz::mcu::types::{Image, Level as WitLevel, PinInput, Stop as WitStop};
+use bindings::litz::mcu::types::{
+    Image, Level as WitLevel, PinInput, Register as WitRegister, Stop as WitStop,
+};
 #[cfg(not(target_arch = "wasm32"))]
 use litz_board::chip::{Chip, ChipInfo, FlashLayout, ImageKind, Input, RunResult, Stop};
 #[cfg(not(target_arch = "wasm32"))]
@@ -74,7 +67,7 @@ use litz_board::{Board, Conflict};
 #[cfg(not(target_arch = "wasm32"))]
 use litz_core::{Drive, Level, PartState};
 #[cfg(not(target_arch = "wasm32"))]
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 #[cfg(not(target_arch = "wasm32"))]
@@ -118,22 +111,6 @@ impl bindings::litz::mcu::host::Host for HostState {
             self.fault = Some(detail);
         }
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl bindings_v2::litz::mcu::types::Host for HostState {}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl bindings_v2::litz::mcu::host::Host for HostState {
-    fn console(&mut self, bytes: Vec<u8>) {
-        self.console.extend_from_slice(&bytes);
-    }
-
-    fn fault(&mut self, detail: String) {
-        if self.fault.is_none() {
-            self.fault = Some(detail);
-        }
-    }
 
     fn analog_read(&mut self, pin: u8) -> Option<u32> {
         HostState::analog_read(self, pin)
@@ -167,10 +144,10 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         self.uart_read(port)
     }
 
-    fn wifi_scan(&mut self) -> Vec<bindings_v2::litz::mcu::types::WifiNetwork> {
+    fn wifi_scan(&mut self) -> Vec<bindings::litz::mcu::types::WifiNetwork> {
         self.wifi_scan()
             .into_iter()
-            .map(|network| bindings_v2::litz::mcu::types::WifiNetwork {
+            .map(|network| bindings::litz::mcu::types::WifiNetwork {
                 ssid: network.ssid,
                 channel: network.channel,
                 rssi: network.rssi,
@@ -184,9 +161,9 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         &mut self,
         ssid: String,
         psk: Option<String>,
-    ) -> Result<bindings_v2::litz::mcu::types::WifiLease, String> {
+    ) -> Result<bindings::litz::mcu::types::WifiLease, String> {
         let lease = self.wifi_join(&ssid, psk.as_deref())?;
-        Ok(bindings_v2::litz::mcu::types::WifiLease {
+        Ok(bindings::litz::mcu::types::WifiLease {
             ip: lease.ip,
             gateway: lease.gateway,
             dns: lease.dns,
@@ -239,10 +216,10 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         self.udp_close(id);
     }
 
-    fn ble_scan(&mut self) -> Vec<bindings_v2::litz::mcu::types::BleAdvertisement> {
+    fn ble_scan(&mut self) -> Vec<bindings::litz::mcu::types::BleAdvertisement> {
         self.ble_scan()
             .into_iter()
-            .map(|beacon| bindings_v2::litz::mcu::types::BleAdvertisement {
+            .map(|beacon| bindings::litz::mcu::types::BleAdvertisement {
                 address: beacon.address,
                 name: beacon.name,
                 rssi: beacon.rssi,
@@ -267,7 +244,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
 
     fn ble_set_gatt(
         &mut self,
-        services: Vec<bindings_v2::litz::mcu::types::GattService>,
+        services: Vec<bindings::litz::mcu::types::GattService>,
     ) -> Result<(), String> {
         self.ble_set_gatt(services.into_iter().map(gatt_service_in).collect())
     }
@@ -283,7 +260,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
     fn ble_discover(
         &mut self,
         handle: u16,
-    ) -> Result<Vec<bindings_v2::litz::mcu::types::GattService>, String> {
+    ) -> Result<Vec<bindings::litz::mcu::types::GattService>, String> {
         Ok(self
             .ble_discover(handle)?
             .into_iter()
@@ -323,11 +300,11 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
     fn ble_notifications(
         &mut self,
         handle: u16,
-    ) -> Vec<bindings_v2::litz::mcu::types::GattNotification> {
+    ) -> Vec<bindings::litz::mcu::types::GattNotification> {
         self.ble_notifications(handle)
             .into_iter()
             .map(
-                |notification| bindings_v2::litz::mcu::types::GattNotification {
+                |notification| bindings::litz::mcu::types::GattNotification {
                     service: notification.service,
                     characteristic: notification.characteristic,
                     value: notification.value,
@@ -336,10 +313,10 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
             .collect()
     }
 
-    fn ble_take_writes(&mut self) -> Vec<bindings_v2::litz::mcu::types::GattWrite> {
+    fn ble_take_writes(&mut self) -> Vec<bindings::litz::mcu::types::GattWrite> {
         self.ble_take_writes()
             .into_iter()
-            .map(|write| bindings_v2::litz::mcu::types::GattWrite {
+            .map(|write| bindings::litz::mcu::types::GattWrite {
                 service: write.service,
                 characteristic: write.characteristic,
                 value: write.value,
@@ -374,10 +351,10 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
         self.radio_send(&bytes, to.as_deref(), airtime_ns)
     }
 
-    fn radio_receive(&mut self) -> Vec<bindings_v2::litz::mcu::types::RadioFrame> {
+    fn radio_receive(&mut self) -> Vec<bindings::litz::mcu::types::RadioFrame> {
         self.radio_receive()
             .into_iter()
-            .map(|frame| bindings_v2::litz::mcu::types::RadioFrame {
+            .map(|frame| bindings::litz::mcu::types::RadioFrame {
                 sender: frame.sender,
                 to: frame.to,
                 bytes: frame.bytes,
@@ -390,7 +367,7 @@ impl bindings_v2::litz::mcu::host::Host for HostState {
 
 /// WIT table → the crate's table.
 #[cfg(not(target_arch = "wasm32"))]
-fn gatt_service_in(service: bindings_v2::litz::mcu::types::GattService) -> GattService {
+fn gatt_service_in(service: bindings::litz::mcu::types::GattService) -> GattService {
     GattService {
         uuid: service.uuid,
         characteristics: service
@@ -407,14 +384,14 @@ fn gatt_service_in(service: bindings_v2::litz::mcu::types::GattService) -> GattS
 
 /// The crate's table → the WIT table.
 #[cfg(not(target_arch = "wasm32"))]
-fn gatt_service_out(service: GattService) -> bindings_v2::litz::mcu::types::GattService {
-    bindings_v2::litz::mcu::types::GattService {
+fn gatt_service_out(service: GattService) -> bindings::litz::mcu::types::GattService {
+    bindings::litz::mcu::types::GattService {
         uuid: service.uuid,
         characteristics: service
             .characteristics
             .into_iter()
             .map(
-                |characteristic| bindings_v2::litz::mcu::types::GattCharacteristic {
+                |characteristic| bindings::litz::mcu::types::GattCharacteristic {
                     uuid: characteristic.uuid,
                     access: characteristic.access,
                     value: characteristic.value,
@@ -424,20 +401,11 @@ fn gatt_service_out(service: GattService) -> bindings_v2::litz::mcu::types::Gatt
     }
 }
 
-/// Which contract version a loaded component speaks. A 0.1 module has only
-/// pins and console bytes; a 0.2 module also has the peripheral and wireless
-/// host calls.
-#[cfg(not(target_arch = "wasm32"))]
-enum Instance {
-    V1(Simulator),
-    V2(bindings_v2::Simulator),
-}
-
 /// A loaded chip module, ready to drive a board.
 #[cfg(not(target_arch = "wasm32"))]
 pub struct WasmChip {
     store: Store<HostState>,
-    instance: Instance,
+    instance: Simulator,
     board: Option<Rc<RefCell<Board>>>,
     /// Which development-board instance on the diagram these pads belong to.
     board_index: u16,
@@ -448,6 +416,17 @@ pub struct WasmChip {
     /// Host actions waiting for their time, sorted by `at_ns`.
     pending: Vec<(u64, Input)>,
     last_conflicts: Vec<Conflict>,
+    /// The guest's answer to `debug.available`, asked once at load.
+    debug_available: bool,
+    /// Whether a debugger has asked about this chip. Until it has, a run does
+    /// not spend two extra guest calls keeping a register snapshot warm.
+    debug_active: Cell<bool>,
+    /// The stopped core's file, cached because `Chip::debug_pc` and
+    /// `Chip::debug_register_file` take `&self` and a wasmtime call does not.
+    last_pc: u32,
+    last_registers: [u32; 33],
+    /// Whether the board supplies this chip. A chip with no board is always on.
+    powered: bool,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -459,24 +438,32 @@ impl WasmChip {
     }
 
     /// Load a component already in memory (a builtin board carries its module
-    /// inside the binary), naming it in any error. The default contract is the
-    /// one every existing board used.
+    /// inside the binary), naming it in any error.
     pub fn from_bytes(bytes: &[u8], label: &str) -> Result<Self, String> {
-        Self::from_bytes_with_abi(bytes, label, "litz-mcu-1")
+        Self::from_bytes_with_abi(bytes, label, litz_mcu_wit::ABI)
     }
 
     /// Load a component that speaks `abi`, which a board manifest names.
+    ///
+    /// Only the unified contract is understood. A manifest that still names
+    /// the retired 0.1 world fails here with an explanation rather than
+    /// against a linker that no longer exists.
     pub fn from_bytes_with_abi(bytes: &[u8], label: &str, abi: &str) -> Result<Self, String> {
-        let v2 = match abi {
-            "litz-mcu-1" | "litz-mcu-0.1" | "0.1" => false,
-            "litz-mcu-2" | "litz-mcu-0.2" | "0.2" => true,
+        match abi {
+            "litz-mcu-1" | "litz-mcu-0.1" | "0.1" => {
+                return Err(format!(
+                    "{label}: ABI {abi:?} is retired. The 0.1 contract was removed; \
+                     rebuild the guest against litz:mcu@0.2.0 and set abi = \"litz-mcu-2\""
+                ));
+            }
+            "litz-mcu-2" | "litz-mcu-0.2" | "0.2" => {}
             other => {
                 return Err(format!(
                     "{label}: ABI {other:?} is not one this build understands; \
-                     use litz-mcu-1 or litz-mcu-2"
+                     use litz-mcu-2"
                 ));
             }
-        };
+        }
 
         let mut config = Config::new();
         // The component model is what makes the WIT boundary possible; fuel is
@@ -493,55 +480,45 @@ impl WasmChip {
         store.limiter(|state| &mut state.limits);
         store.set_fuel(FUEL_PER_CALL).map_err(|e| e.to_string())?;
 
-        let (instance, name, cpu_hz, flash) = if v2 {
-            let mut linker: Linker<HostState> = Linker::new(&engine);
-            bindings_v2::Simulator::add_to_linker::<HostState, HostState>(&mut linker, |state| {
-                state
-            })
+        let mut linker: Linker<HostState> = Linker::new(&engine);
+        Simulator::add_to_linker::<HostState, HostState>(&mut linker, |state| state)
             .map_err(|e| e.to_string())?;
-            let instance = bindings_v2::Simulator::instantiate(&mut store, &component, &linker)
-                .map_err(|e| format!("{label}: {e}"))?;
-            let info = instance
-                .litz_mcu_chip()
-                .call_info(&mut store)
-                .map_err(|e| format!("{label}: info(): {e}"))?;
-            let flash = FlashLayout {
-                size: info.flash.size,
-                bootloader: info.flash.bootloader,
-                partition_table: info.flash.partition_table,
-                app: info.flash.app,
-            };
-            (Instance::V2(instance), info.name, info.cpu_hz, flash)
-        } else {
-            let mut linker: Linker<HostState> = Linker::new(&engine);
-            Simulator::add_to_linker::<HostState, HostState>(&mut linker, |state| state)
-                .map_err(|e| e.to_string())?;
-            let instance = Simulator::instantiate(&mut store, &component, &linker)
-                .map_err(|e| format!("{label}: {e}"))?;
-            let info = instance
-                .litz_mcu_chip()
-                .call_info(&mut store)
-                .map_err(|e| format!("{label}: info(): {e}"))?;
-            let flash = FlashLayout {
-                size: info.flash.size,
-                bootloader: info.flash.bootloader,
-                partition_table: info.flash.partition_table,
-                app: info.flash.app,
-            };
-            (Instance::V1(instance), info.name, info.cpu_hz, flash)
+        let instance = Simulator::instantiate(&mut store, &component, &linker)
+            .map_err(|e| format!("{label}: {e}"))?;
+        let info = instance
+            .litz_mcu_chip()
+            .call_info(&mut store)
+            .map_err(|e| format!("{label}: info(): {e}"))?;
+        let flash = FlashLayout {
+            size: info.flash.size,
+            bootloader: info.flash.bootloader,
+            partition_table: info.flash.partition_table,
+            app: info.flash.app,
         };
+        // The debug interface is a required export, so instantiation above
+        // already proved it exists. Ask whether the core can answer it now,
+        // rather than on every browser probe.
+        let debug_available = instance
+            .litz_mcu_debug()
+            .call_available(&mut store)
+            .unwrap_or(false);
 
         Ok(Self {
             store,
             instance,
             board: None,
-            cpu_hz: cpu_hz.max(1),
+            cpu_hz: info.cpu_hz.max(1),
             flash,
-            name,
+            name: info.name,
             cycles: 0,
             board_index: 0,
             pending: Vec::new(),
             last_conflicts: Vec::new(),
+            debug_available,
+            debug_active: Cell::new(false),
+            last_pc: 0,
+            last_registers: [0; 33],
+            powered: true,
         })
     }
 
@@ -611,42 +588,18 @@ impl WasmChip {
         self.store.data().fault.clone()
     }
 
-    // The two contract versions have different generated types, so each call
-    // the board makes is a two-arm match that converts on the way in and out.
-
     fn call_set_inputs(&mut self, inputs: &[PinInput]) -> Result<(), String> {
-        match &self.instance {
-            Instance::V1(instance) => instance
-                .litz_mcu_chip()
-                .call_set_inputs(&mut self.store, inputs)
-                .map_err(|e| e.to_string()),
-            Instance::V2(instance) => {
-                let inputs: Vec<bindings_v2::litz::mcu::types::PinInput> = inputs
-                    .iter()
-                    .map(|input| bindings_v2::litz::mcu::types::PinInput {
-                        pin: input.pin,
-                        level: wit_level_v2(input.level),
-                    })
-                    .collect();
-                instance
-                    .litz_mcu_chip()
-                    .call_set_inputs(&mut self.store, &inputs)
-                    .map_err(|e| e.to_string())
-            }
-        }
+        self.instance
+            .litz_mcu_chip()
+            .call_set_inputs(&mut self.store, inputs)
+            .map_err(|e| e.to_string())
     }
 
     fn call_write_console(&mut self, bytes: &[u8]) -> Result<(), String> {
-        match &self.instance {
-            Instance::V1(instance) => instance
-                .litz_mcu_chip()
-                .call_write_console(&mut self.store, bytes)
-                .map_err(|e| e.to_string()),
-            Instance::V2(instance) => instance
-                .litz_mcu_chip()
-                .call_write_console(&mut self.store, bytes)
-                .map_err(|e| e.to_string()),
-        }
+        self.instance
+            .litz_mcu_chip()
+            .call_write_console(&mut self.store, bytes)
+            .map_err(|e| e.to_string())
     }
 
     fn call_load_image(
@@ -655,78 +608,165 @@ impl WasmChip {
         offset: u64,
         bytes: &[u8],
     ) -> Result<(), String> {
-        let outcome = match &self.instance {
-            Instance::V1(instance) => instance.litz_mcu_chip().call_load_image(
-                &mut self.store,
-                wit_image(kind),
-                offset,
-                bytes,
-            ),
-            Instance::V2(instance) => instance.litz_mcu_chip().call_load_image(
-                &mut self.store,
-                wit_image_v2(kind),
-                offset,
-                bytes,
-            ),
-        };
-        outcome
+        self.instance
+            .litz_mcu_chip()
+            .call_load_image(&mut self.store, wit_image(kind), offset, bytes)
             .map_err(|e| e.to_string())?
             .map_err(|e| format!("load-image: {e}"))
     }
 
     fn call_boot(&mut self) -> Result<u32, String> {
-        let outcome = match &self.instance {
-            Instance::V1(instance) => instance.litz_mcu_chip().call_boot(&mut self.store),
-            Instance::V2(instance) => instance.litz_mcu_chip().call_boot(&mut self.store),
-        };
-        outcome
+        self.instance
+            .litz_mcu_chip()
+            .call_boot(&mut self.store)
             .map_err(|e| e.to_string())?
             .map_err(|e| format!("boot: {e}"))
     }
 
+    /// Reset the guest core. `mac` is the station address a network-capable
+    /// chip keeps across a reset; empty means the host has no opinion.
+    fn call_reset(&mut self, mac: &[u8]) -> Result<(), String> {
+        self.instance
+            .litz_mcu_chip()
+            .call_reset(&mut self.store, mac)
+            .map_err(|e| e.to_string())
+    }
+
+    /// Whether the board supplies this chip.
+    fn board_power(&self) -> bool {
+        match &self.board {
+            Some(board) => board.borrow().board_powered(self.board_index),
+            None => true,
+        }
+    }
+
     /// Returns the cycles the guest reported and why it stopped.
     fn call_run(&mut self, budget_cycles: u64) -> Result<(u64, Stop), String> {
-        match &self.instance {
-            Instance::V1(instance) => {
-                let result = instance
-                    .litz_mcu_chip()
-                    .call_run(&mut self.store, budget_cycles)
-                    .map_err(|e| e.to_string())?;
-                Ok((result.cycles, wit_stop(result.stop)))
-            }
-            Instance::V2(instance) => {
-                let result = instance
-                    .litz_mcu_chip()
-                    .call_run(&mut self.store, budget_cycles)
-                    .map_err(|e| e.to_string())?;
-                Ok((result.cycles, wit_stop_v2(result.stop)))
-            }
-        }
+        let result = self
+            .instance
+            .litz_mcu_chip()
+            .call_run(&mut self.store, budget_cycles)
+            .map_err(|e| e.to_string())?;
+        Ok((result.cycles, wit_stop(result.stop)))
     }
 
     /// Pads the guest reports as changed, with levels in the board's terms.
     fn call_take_outputs(&mut self) -> Result<Vec<(u8, Level, bool)>, String> {
-        match &self.instance {
-            Instance::V1(instance) => instance
-                .litz_mcu_chip()
-                .call_take_outputs(&mut self.store)
-                .map(|outputs| {
-                    outputs
-                        .into_iter()
-                        .map(|output| (output.pin, our_level(output.level), output.enabled))
-                        .collect()
-                })
-                .map_err(|e| e.to_string()),
-            Instance::V2(instance) => instance
-                .litz_mcu_chip()
-                .call_take_outputs(&mut self.store)
-                .map(|outputs| {
-                    outputs
-                        .into_iter()
-                        .map(|output| (output.pin, our_level_v2(output.level), output.enabled))
-                        .collect()
-                })
-                .map_err(|e| e.to_string()),
+        self.instance
+            .litz_mcu_chip()
+            .call_take_outputs(&mut self.store)
+            .map(|outputs| {
+                outputs
+                    .into_iter()
+                    .map(|output| (output.pin, our_level(output.level), output.enabled))
+                    .collect()
+            })
+            .map_err(|e| e.to_string())
+    }
+
+    // ------------------------------------------------------------- debugging
+
+    fn call_debug_pc(&mut self) -> Result<u32, String> {
+        self.instance
+            .litz_mcu_debug()
+            .call_pc(&mut self.store)
+            .map_err(|e| e.to_string())
+    }
+
+    fn call_debug_registers(&mut self) -> Result<(Vec<WitRegister>, u32), String> {
+        let registers = self
+            .instance
+            .litz_mcu_debug()
+            .call_registers(&mut self.store)
+            .map_err(|e| e.to_string())?;
+        let pc = self.call_debug_pc()?;
+        Ok((registers, pc))
+    }
+
+    fn call_debug_read(&mut self, addr: u32, len: usize) -> Result<Vec<u8>, String> {
+        let len = u32::try_from(len).unwrap_or(u32::MAX);
+        self.instance
+            .litz_mcu_debug()
+            .call_read(&mut self.store, addr, len)
+            .map_err(|e| e.to_string())?
+            .map_err(|e| format!("read: {e}"))
+    }
+
+    fn call_debug_disassemble(&mut self, addr: u32, count: usize) -> Result<String, String> {
+        let count = u32::try_from(count).unwrap_or(u32::MAX);
+        self.instance
+            .litz_mcu_debug()
+            .call_disassemble(&mut self.store, addr, count)
+            .map_err(|e| e.to_string())
+    }
+
+    fn call_debug_set_breakpoints(&mut self, pcs: &[u32]) -> Result<(), String> {
+        self.instance
+            .litz_mcu_debug()
+            .call_set_breakpoints(&mut self.store, pcs)
+            .map_err(|e| e.to_string())
+    }
+
+    fn call_debug_step(&mut self) -> Result<(u64, Stop), String> {
+        let result = self
+            .instance
+            .litz_mcu_debug()
+            .call_step(&mut self.store)
+            .map_err(|e| e.to_string())?;
+        Ok((result.cycles, wit_stop(result.stop)))
+    }
+
+    /// Fold the guest's report into the host: advance the cycle clock, let the
+    /// board run to the new time, and apply the pads the guest reports. Shared
+    /// by `run` and `debug_step` so a debugger step moves time exactly as a
+    /// run does.
+    fn absorb(&mut self, cycles: u64, reported: Stop) -> RunResult {
+        self.cycles = self.cycles.saturating_add(cycles);
+
+        let now_ns = self.now_ns();
+        let outputs = self.call_take_outputs().unwrap_or_default();
+        let mut conflicts = Vec::new();
+        if let Some(board) = &self.board {
+            let mut board = board.borrow_mut();
+            // The board's clock follows the guest, as it does for the AVR and
+            // ESP adapters: a part with scheduled work runs before the guest's
+            // new pin levels are applied, and host calls that share a medium
+            // (the radio) see a clock that has moved.
+            board.advance_to(now_ns);
+            for (pin, level, enabled) in outputs {
+                let drive = if enabled {
+                    match level {
+                        Level::Low => Drive::strong(Level::Low),
+                        Level::High => Drive::strong(Level::High),
+                        Level::HighZ => Drive::HIGH_Z,
+                    }
+                } else {
+                    Drive::HIGH_Z
+                };
+                board.set_chip_output_on(self.board_index, pin, drive, now_ns);
+            }
+            conflicts = board.conflicts().to_vec();
+        }
+        self.last_conflicts = conflicts;
+
+        let stop = if self.store.data().fault.is_some() {
+            Stop::Trap
+        } else {
+            reported
+        };
+        if self.debug_active.get() {
+            self.refresh_debug_cache();
+        }
+        RunResult { cycles, stop }
+    }
+
+    /// Ask the guest where it is and what its registers hold. Called after a
+    /// run or a step once a debugger has shown interest; the values are served
+    /// from the cache to the `&self` half of the `Chip` debug surface.
+    fn refresh_debug_cache(&mut self) {
+        if let Ok((registers, pc)) = self.call_debug_registers() {
+            self.last_pc = pc;
+            self.last_registers = register_file(&registers, pc);
         }
     }
 }
@@ -757,6 +797,7 @@ fn wit_stop(stop: WitStop) -> Stop {
         WitStop::Halted => Stop::Halted,
         WitStop::Trap => Stop::Trap,
         WitStop::Reset => Stop::Reset,
+        WitStop::Breakpoint(pc) => Stop::Breakpoint(pc),
     }
 }
 
@@ -770,45 +811,44 @@ fn wit_image(kind: ImageKind) -> Image {
     }
 }
 
+/// Map the guest's named registers onto the host's fixed file.
+///
+/// The host debug surface is `[u32; 33]`: 32 integer registers then the pc.
+/// A guest that names its registers the RISC-V way (the reference core does)
+/// lands each one in its canonical slot; any other guest is read in list
+/// order, and a short list leaves the tail zeroed. Positional fallback is
+/// deliberate rather than clever: a debugger showing the wrong names would be
+/// worse than showing none.
+/// The RISC-V integer register names, in file order.
 #[cfg(not(target_arch = "wasm32"))]
-fn wit_level_v2(level: WitLevel) -> bindings_v2::litz::mcu::types::Level {
-    match level {
-        WitLevel::Low => bindings_v2::litz::mcu::types::Level::Low,
-        WitLevel::High => bindings_v2::litz::mcu::types::Level::High,
-        WitLevel::Floating => bindings_v2::litz::mcu::types::Level::Floating,
-    }
-}
+const RISCV_REGISTERS: [&str; 32] = [
+    "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3", "a4",
+    "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4",
+    "t5", "t6",
+];
 
 #[cfg(not(target_arch = "wasm32"))]
-fn our_level_v2(level: bindings_v2::litz::mcu::types::Level) -> Level {
-    match level {
-        bindings_v2::litz::mcu::types::Level::Low => Level::Low,
-        bindings_v2::litz::mcu::types::Level::High => Level::High,
-        bindings_v2::litz::mcu::types::Level::Floating => Level::HighZ,
+fn register_file(registers: &[WitRegister], pc: u32) -> [u32; 33] {
+    let named = registers
+        .iter()
+        .any(|register| RISCV_REGISTERS.contains(&register.name.as_str()));
+    let mut file = [0u32; 33];
+    if named {
+        for (index, want) in RISCV_REGISTERS.iter().enumerate() {
+            if let Some(register) = registers
+                .iter()
+                .find(|register| register.name.as_str() == *want)
+            {
+                file[index] = register.value;
+            }
+        }
+    } else {
+        for (index, register) in registers.iter().take(32).enumerate() {
+            file[index] = register.value;
+        }
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn wit_stop_v2(stop: bindings_v2::litz::mcu::types::Stop) -> Stop {
-    use bindings_v2::litz::mcu::types::Stop;
-    match stop {
-        Stop::Budget => self::Stop::Budget,
-        Stop::Idle => self::Stop::Idle,
-        Stop::Halted => self::Stop::Halted,
-        Stop::Trap => self::Stop::Trap,
-        Stop::Reset => self::Stop::Reset,
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn wit_image_v2(kind: ImageKind) -> bindings_v2::litz::mcu::types::Image {
-    use bindings_v2::litz::mcu::types::Image;
-    match kind {
-        ImageKind::Rom => Image::Rom,
-        ImageKind::Bootloader => Image::Bootloader,
-        ImageKind::PartitionTable => Image::PartitionTable,
-        ImageKind::Firmware => Image::Firmware,
-    }
+    file[32] = pc;
+    file
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -826,7 +866,18 @@ impl Chip for WasmChip {
     }
 
     fn boot(&mut self) -> Result<u32, String> {
-        self.call_boot()
+        self.powered = self.board_power();
+        if !self.powered {
+            // The board is off; the guest boots when power arrives.
+            return Ok(0);
+        }
+        let entry = self.call_boot()?;
+        // One snapshot at boot means a debugger that asks for the pc before
+        // its first run sees the entry point rather than zero.
+        if self.debug_available {
+            self.refresh_debug_cache();
+        }
+        Ok(entry)
     }
 
     fn schedule(&mut self, inputs: Vec<Input>) -> Result<(), String> {
@@ -844,6 +895,55 @@ impl Chip for WasmChip {
     }
 
     fn run(&mut self, budget_cycles: u64) -> RunResult {
+        if !self.board_power() {
+            if self.powered {
+                self.powered = false;
+                // Stop the guest from holding any pad, and give it the reset
+                // its power loss is.
+                if let Err(e) = self.call_reset(&[]) {
+                    self.store.data_mut().fault.get_or_insert(e);
+                }
+                if let Some(board) = &self.board {
+                    let now = (self.cycles as u128 * 1_000_000_000 / u128::from(self.cpu_hz.max(1)))
+                        as u64;
+                    board
+                        .borrow_mut()
+                        .release_chip_outputs(self.board_index, now);
+                }
+            }
+            // Time passes on the board that is still on; the guest's clock is
+            // the adapter's, so it moves even though no code runs.
+            self.cycles = self.cycles.saturating_add(budget_cycles);
+            return RunResult {
+                cycles: budget_cycles,
+                stop: Stop::Idle,
+            };
+        }
+        if !self.powered {
+            // Power arrived: reset, then start the firmware from its entry.
+            if let Err(e) = self.call_reset(&[]) {
+                self.store.data_mut().fault.get_or_insert(e);
+                return RunResult {
+                    cycles: 0,
+                    stop: Stop::Trap,
+                };
+            }
+            let entry = match self.call_boot() {
+                Ok(entry) => entry,
+                Err(e) => {
+                    self.store.data_mut().fault.get_or_insert(e);
+                    return RunResult {
+                        cycles: 0,
+                        stop: Stop::Trap,
+                    };
+                }
+            };
+            self.powered = true;
+            let _ = entry;
+            if self.debug_available {
+                self.refresh_debug_cache();
+            }
+        }
         if let Err(message) = self.pump_inputs() {
             self.store.data_mut().fault.get_or_insert(message);
             return RunResult {
@@ -894,40 +994,7 @@ impl Chip for WasmChip {
                 };
             }
         };
-        self.cycles = self.cycles.saturating_add(cycles);
-
-        let now_ns = self.now_ns();
-        let outputs = self.call_take_outputs().unwrap_or_default();
-        let mut conflicts = Vec::new();
-        if let Some(board) = &self.board {
-            let mut board = board.borrow_mut();
-            // The board's clock follows the guest, as it does for the AVR and
-            // ESP adapters: a part with scheduled work runs before the guest's
-            // new pin levels are applied, and host calls that share a medium
-            // (the radio) see a clock that has moved.
-            board.advance_to(now_ns);
-            for (pin, level, enabled) in outputs {
-                let drive = if enabled {
-                    match level {
-                        Level::Low => Drive::strong(Level::Low),
-                        Level::High => Drive::strong(Level::High),
-                        Level::HighZ => Drive::HIGH_Z,
-                    }
-                } else {
-                    Drive::HIGH_Z
-                };
-                board.set_chip_output_on(self.board_index, pin, drive, now_ns);
-            }
-            conflicts = board.conflicts().to_vec();
-        }
-        self.last_conflicts = conflicts;
-
-        let stop = if self.store.data().fault.is_some() {
-            Stop::Trap
-        } else {
-            reported
-        };
-        RunResult { cycles, stop }
+        self.absorb(cycles, reported)
     }
 
     fn seconds(&self) -> f64 {
@@ -1015,5 +1082,71 @@ impl Chip for WasmChip {
             .as_ref()
             .map(|board| board.borrow().vcd())
             .unwrap_or_default()
+    }
+
+    fn break_at(&mut self, pc: u32) {
+        self.debug_active.set(true);
+        if let Err(e) = self.call_debug_set_breakpoints(&[pc]) {
+            self.store.data_mut().fault.get_or_insert(e);
+        }
+    }
+
+    fn registers(&self) -> String {
+        let mut out = String::new();
+        for (name, value) in RISCV_REGISTERS.iter().zip(&self.last_registers) {
+            out.push_str(&format!("{name:>4} {value:#010x}\n"));
+        }
+        out.push_str(&format!("  pc {:#010x}\n", self.last_pc));
+        out
+    }
+
+    fn debug_available(&self) -> bool {
+        // A browser or the CLI asks this before anything else, which is the
+        // earliest signal that a run should keep its register snapshot fresh.
+        self.debug_active.set(true);
+        self.debug_available
+    }
+
+    fn debug_pc(&self) -> Option<u32> {
+        self.debug_active.set(true);
+        Some(self.last_pc)
+    }
+
+    fn debug_register_file(&self) -> Option<[u32; 33]> {
+        self.debug_active.set(true);
+        Some(self.last_registers)
+    }
+
+    fn debug_read_memory(&mut self, addr: u32, len: usize) -> Vec<u8> {
+        self.debug_active.set(true);
+        self.call_debug_read(addr, len).unwrap_or_default()
+    }
+
+    fn debug_disassemble(&mut self, addr: u32, count: usize) -> String {
+        self.debug_active.set(true);
+        self.call_debug_disassemble(addr, count).unwrap_or_default()
+    }
+
+    fn debug_set_breakpoints(&mut self, pcs: &[u32]) {
+        self.debug_active.set(true);
+        if let Err(e) = self.call_debug_set_breakpoints(pcs) {
+            self.store.data_mut().fault.get_or_insert(e);
+        }
+    }
+
+    fn debug_step(&mut self) -> Option<Stop> {
+        self.debug_active.set(true);
+        let _ = self.store.set_fuel(FUEL_PER_CALL);
+        // A step advances simulated time like a run, so the board and the
+        // host clock must move with it.
+        let host_now = self.store.data().now_ns.max(self.now_ns());
+        self.store.data_mut().now_ns = host_now;
+        match self.call_debug_step() {
+            Ok((cycles, reported)) => Some(self.absorb(cycles, reported).stop),
+            Err(e) => {
+                self.store.data_mut().fault.get_or_insert(e);
+                Some(Stop::Trap)
+            }
+        }
     }
 }

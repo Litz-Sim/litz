@@ -43,7 +43,7 @@ pub struct BoardInfo {
 /// A board whose MCU is a wasm component.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Simulator {
-    /// Contract version, from the manifest's `abi` (default `litz-mcu-1`).
+    /// Contract version, from the manifest's `abi` (default `litz-mcu-2`).
     pub abi: String,
     /// Module path as written in the manifest, relative to the manifest's
     /// directory. Never absolute and never containing `..`.
@@ -1321,7 +1321,16 @@ impl BoardFile {
             description: self.board.description,
             license: None,
             pins,
-            attrs: Vec::new(),
+            // Every board has a power switch. Whether it is on when the run
+            // starts is the diagram's choice; a board can also be switched on
+            // by another board wired to its supply pin, which is why this is
+            // an attribute of the instance and not the catalog.
+            attrs: vec![AttrDef {
+                name: "power".into(),
+                kind: AttrType::Bool,
+                values: Vec::new(),
+                default: Some(AttrValue::Bool(true)),
+            }],
             simulation: Simulation::Builtin {
                 engine: "board".into(),
             },
@@ -1374,8 +1383,18 @@ fn check_simulator(
                 ));
             }
             let SimulatorKindSpec::Wasm = spec.kind;
-            let abi = spec.abi.unwrap_or_else(|| "litz-mcu-1".into());
+            let abi = spec.abi.unwrap_or_else(|| WASM_MCU_ABI.into());
             if !WASM_MCU_ABIS.contains(&abi.as_str()) {
+                // The 0.1 package is gone rather than merely unsupported, so
+                // say what happened to a manifest that still names it.
+                if matches!(abi.as_str(), "litz-mcu-1" | "litz-mcu-0.1" | "0.1") {
+                    return Err(format!(
+                        "board-simulator: board {board:?} module {:?} names the retired abi \
+                         {abi:?}; the 0.1 contract was removed. Rebuild the guest against \
+                         litz:mcu@0.2.0 and use abi = \"{WASM_MCU_ABI}\"",
+                        spec.module
+                    ));
+                }
                 return Err(format!(
                     "board-simulator: board {board:?} names abi {abi:?}; this build \
                      implements {}",
@@ -1390,10 +1409,12 @@ fn check_simulator(
     }
 }
 
-/// The MCU ABIs the runner can load. `litz-mcu-1` is the pin-and-console
-/// contract; `litz-mcu-2` adds analog, buses and the simulated wireless
-/// services. A manifest's `abi` defaults to the first.
-const WASM_MCU_ABIS: &[&str] = &["litz-mcu-1", "litz-mcu-2"];
+/// The MCU ABIs the runner can load. There is one unified contract now:
+/// `litz-mcu-2` is `litz:mcu@0.2.0` with the pins, console, peripherals and
+/// debug interface. The old `litz-mcu-1` is retired. A manifest's `abi`
+/// defaults to the current one.
+const WASM_MCU_ABIS: &[&str] = &["litz-mcu-2"];
+const WASM_MCU_ABI: &str = "litz-mcu-2";
 
 /// The part ABIs this build implements, from `litz-part-wit`.
 ///
@@ -1726,7 +1747,26 @@ gpio = 0
         assert!(info.chip.is_none());
         let simulator = info.simulator.as_ref().unwrap();
         assert_eq!(simulator.module, "chip.wasm");
-        assert_eq!(simulator.abi, "litz-mcu-1");
+        assert_eq!(simulator.abi, "litz-mcu-2");
+    }
+
+    #[test]
+    fn the_retired_0_1_abi_is_refused_with_an_explanation() {
+        let board = r#"
+[board]
+id = "b"
+name = "B"
+[board.simulator]
+kind = "wasm"
+module = "chip.wasm"
+abi = "litz-mcu-1"
+[[pins]]
+name = "GPIO0"
+gpio = 0
+"#;
+        let error = Registry::new().insert_text(board).unwrap_err();
+        assert!(error.contains("retired"), "{error}");
+        assert!(error.contains("litz-mcu-2"), "{error}");
     }
 
     fn wasm_part(module: &str, abi: &str) -> String {

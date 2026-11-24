@@ -1,16 +1,24 @@
-// The 0.2 contract between Litz and a microcontroller that is itself a
-// WebAssembly component.
+// The contract between Litz and a microcontroller that is itself a WebAssembly
+// component.
 //
-// 0.1 could only exchange pin levels and console bytes. That was enough for a
-// retro CPU, but not for a board with I2C sensors, an ADC or a radio: the
-// guest could wiggle pins and nothing on the bus fabric would answer. 0.2
-// adds the host calls a real MCU peripheral block needs, plus the simulated
-// wireless services the native chips already have.
+// A `board.toml` may name a wasm module instead of one of the chips built into
+// Litz; this world is everything that module has to provide and everything it
+// is allowed to do. The guest is loaded with no WASI, no filesystem and no
+// clock: the only way in or out is what is declared here.
 //
-// Everything is still a host call, not a file or a socket. The guest has no
-// WASI, no clock and no randomness; time is the cycle count it reports, and
-// every network answer comes from the deterministic router the circuit
-// configured.
+// Two shapes are deliberate:
+//
+//   * `run` takes a budget and runs many instructions per cross-component
+//     call. A per-instruction `step` would spend more time in the boundary
+//     than in the chip. `debug.step` exists for the debugger, where exactly
+//     one instruction is the point.
+//   * Inputs are pushed before a run and outputs pulled after it. The chip
+//     never asks the board what is wired to it, so the same module works on
+//     any carrier board.
+//
+// The exported `debug` interface mirrors the host's `Chip` debug surface one
+// call at a time: the browser and CLI debugger ask every backend the same
+// questions, and a custom chip answers them in its own terms.
 package litz:mcu@0.2.0;
 
 interface types {
@@ -69,7 +77,7 @@ interface types {
     enabled: bool,
   }
 
-  enum stop {
+  variant stop {
     /// The cycle budget ran out; run again to continue.
     budget,
     /// The chip has nothing to do until the host changes an input.
@@ -80,12 +88,22 @@ interface types {
     trap,
     /// The chip asked for its own reset.
     reset,
+    /// The core reached an armed breakpoint at this address.
+    breakpoint(u32),
   }
 
   record run-result {
     /// Device cycles consumed, measured at `chip-info.cpu-hz`.
     cycles: u64,
     stop: stop,
+  }
+
+  /// One integer register of the stopped core. The name is the core's own
+  /// (`ra`, `sp`, `x7`); a host that knows a register naming scheme maps by
+  /// name and otherwise uses the list order.
+  record register {
+    name: string,
+    value: u32,
   }
 
   /// One access point a scan hears. `joined` is true for the network the
@@ -359,7 +377,9 @@ interface chip {
 
   /// Execute for at most `budget-cycles` device cycles, or until the core has
   /// nothing left to do. Never loops past the budget: an infinite firmware
-  /// loop has to come back to the host so it can advance its own clock.
+  /// loop has to come back to the host so it can advance its own clock. When
+  /// an armed breakpoint is reached, the run stops there and reports
+  /// `stop.breakpoint(pc)`.
   run: func(budget-cycles: u64) -> run-result;
 
   /// Pads whose drive changed since the last call.
@@ -369,13 +389,43 @@ interface chip {
   /// serial monitor's input box, a scripted `write-serial`). A chip without a
   /// console ignores it.
   write-console: func(bytes: list<u8>);
+}
 
-  /// Debug read of the address space; an unmapped range is an error, not
-  /// zeroes.
+/// The debugger surface. A host that asks these calls sees the same answers a
+/// native backend gives through the host's `Chip` debug methods.
+interface debug {
+  use types.{run-result, register};
+
+  /// Whether the core can answer the rest of this interface. A host that sees
+  /// false reports the chip as having no debug surface rather than calling it.
+  available: func() -> bool;
+
+  /// The stopped core's program counter.
+  pc: func() -> u32;
+
+  /// The integer registers of the stopped core, excluding the pc. Names are
+  /// the core's own; a host with a register naming scheme maps by name.
+  registers: func() -> list<register>;
+
+  /// Bytes readable at `addr`. An unmapped range is an error, not zeroes.
   read: func(addr: u32, len: u32) -> result<list<u8>, string>;
+
+  /// `count` instructions at `addr`, in the core's disassembly format. A core
+  /// with no decoder may return a raw listing, but must not invent mnemonics.
+  disassemble: func(addr: u32, count: u32) -> string;
+
+  /// Replace the armed breakpoint set. An empty list clears every breakpoint.
+  /// `chip.run` honours the set and stops with `stop.breakpoint(pc)`.
+  set-breakpoints: func(pcs: list<u32>);
+
+  /// Execute exactly one instruction and report the cycles and why execution
+  /// ended. Stepping past a breakpoint at the current pc executes the
+  /// instruction rather than re-triggering the breakpoint.
+  step: func() -> run-result;
 }
 
 world simulator {
   import host;
   export chip;
+  export debug;
 }

@@ -221,6 +221,9 @@ impl esp_soc::SocBus for SocBus {
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
         SocBus::write_flash(self, offset, data)
     }
+    fn flash_image(&self) -> Option<&[u8]> {
+        Some(&self.flash)
+    }
     /// Copy the RAM segments and map the flash-resident ones through the flash MMU, as the
     /// 2nd-stage bootloader would. The clocks and caches it would have set up are not.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {

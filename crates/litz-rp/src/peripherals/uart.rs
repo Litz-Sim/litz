@@ -54,7 +54,8 @@ pub mod cr {
     pub const RXE: u32 = 1 << 9;
 }
 
-/// The 125 MHz peripheral clock the modelled UART is fed from.
+/// The 125 MHz peripheral clock the unit tests feed the divider.
+#[cfg(test)]
 const PERI_HZ: u64 = 125_000_000;
 /// Both FIFOs hold 16 bytes in this model.
 const FIFO_DEPTH: usize = 16;
@@ -72,6 +73,11 @@ pub struct Uart {
     /// when their condition changes; error bits are not modelled and stay low.
     ris: u32,
     ims: u32,
+    /// A byte left the transmit FIFO since the interrupt was last
+    /// acknowledged. The transmit interrupt is an event, not a level: a
+    /// driver that leaves `TXIM` enabled with an empty FIFO (MicroPython
+    /// does) must not be interrupted on every cycle.
+    tx_ready: bool,
 }
 
 impl Default for Uart {
@@ -90,6 +96,7 @@ impl Uart {
             fbrd: 0,
             ris: 0,
             ims: 0,
+            tx_ready: false,
         }
     }
 
@@ -122,11 +129,15 @@ impl Uart {
         word
     }
 
-    /// Recompute the transmit half of `RIS`. The PL011 asserts it while there
-    /// is room in the FIFO, so a driver that enables `TXIM` must either keep
-    /// writing or mask it again.
+    /// Recompute the transmit half of `RIS`.
+    ///
+    /// The condition is "a byte has shifted out since the last
+    /// acknowledgement", not "the FIFO has room". The difference matters for
+    /// a driver that leaves the transmit interrupt enabled with nothing to
+    /// send: a level would re-interrupt on every instruction, while the PL011
+    /// reports one event per byte and expects the driver to clear it.
     fn refresh_tx(&mut self) {
-        if self.tx_enabled() && self.tx.len() < FIFO_DEPTH {
+        if self.tx_enabled() && self.tx_ready {
             self.ris |= irq::TXIM;
         } else {
             self.ris &= !irq::TXIM;
@@ -174,6 +185,10 @@ impl Uart {
                 if self.tx_enabled() && self.tx.len() < FIFO_DEPTH {
                     self.tx.push(value as u8);
                 }
+                if self.tx.len() >= FIFO_DEPTH {
+                    // Nothing more fits, so there is no room event to report.
+                    self.tx_ready = false;
+                }
                 self.refresh_tx();
             }
             // Writing `ECR` clears the error bits named by the write.
@@ -192,7 +207,14 @@ impl Uart {
                 self.refresh_rx();
                 self.refresh_tx();
             }
-            reg::ICR => self.ris &= !(value & irq::ALL),
+            reg::ICR => {
+                // Acknowledging the transmit event also consumes it, so the
+                // next `tick` does not raise it again with an empty FIFO.
+                if value & irq::TXIM != 0 {
+                    self.tx_ready = false;
+                }
+                self.ris &= !(value & irq::ALL);
+            }
             reg::RIS | reg::MIS => {}
             off => self.regs.write(off, value),
         }
@@ -225,22 +247,45 @@ impl Uart {
         self.refresh_rx();
     }
 
-    /// The line rate implied by `IBRD`/`FBRD` and the 125 MHz peripheral
-    /// clock, rounded to the nearest integer.
-    pub fn baud_hz(&self) -> u32 {
-        // baud = 125e6 / (16 * (IBRD + FBRD/64)); multiply through to keep
-        // the division in integers.
+    /// A byte has left the transmit FIFO. The machine calls this once it has
+    /// taken the byte, which is the moment the space became available.
+    pub fn tx_shifted(&mut self) {
+        self.tx_ready = true;
+        self.refresh_tx();
+    }
+
+    /// The line rate implied by `IBRD`/`FBRD` at `peri_hz`, rounded to the
+    /// nearest integer.
+    ///
+    /// The divisor is a ratio of the peripheral clock, not of 125 MHz:
+    /// MicroPython parks `clk_peri` at 48 MHz so the line rate does not move
+    /// with the CPU clock, and a model that assumes the system clock would
+    /// report a waveform 2.6 times too fast.
+    pub fn baud_hz(&self, peri_hz: u64) -> u32 {
+        // baud = peri / (16 * (IBRD + FBRD/64)); multiply through to keep the
+        // division in integers.
         let divisor = 64 * u64::from(self.ibrd) + u64::from(self.fbrd & 0x3f);
         if divisor == 0 {
             return 0;
         }
-        let numerator = PERI_HZ * 4;
+        let numerator = peri_hz * 4;
         ((numerator + divisor / 2) / divisor) as u32
     }
 
     /// Whether the UART is enabled at all, for the chip adapter.
     pub fn enabled_state(&self) -> bool {
         self.enabled()
+    }
+
+    /// Whether the receiver is on, so a delivered byte is kept rather than
+    /// dropped.
+    pub fn receiver_enabled(&self) -> bool {
+        self.rx_enabled()
+    }
+
+    /// How many bytes the receive FIFO takes before it is full.
+    pub fn receive_room(&self) -> usize {
+        FIFO_DEPTH.saturating_sub(self.rx.len())
     }
 }
 
@@ -321,11 +366,23 @@ mod tests {
         // 115200 baud: IBRD 67, FBRD 52.
         uart.write(reg::IBRD, 67);
         uart.write(reg::FBRD, 52);
-        let baud = uart.baud_hz();
+        let baud = uart.baud_hz(PERI_HZ);
         assert!((baud as i64 - 115_200).abs() < 20, "got {baud}");
         // 125 MHz / (16 * 1) = 7.8125 Mbaud.
         uart.write(reg::IBRD, 1);
         uart.write(reg::FBRD, 0);
-        assert_eq!(uart.baud_hz(), 7_812_500);
+        assert_eq!(uart.baud_hz(PERI_HZ), 7_812_500);
+    }
+
+    #[test]
+    fn the_divisor_follows_the_peripheral_clock() {
+        // MicroPython asks for 115 200 with clk_peri at 48 MHz, which is IBRD
+        // 26 and FBRD 3. Reading it against the system clock instead would
+        // report 299 940 baud and draw every edge 2.6 times too close.
+        let mut uart = Uart::new();
+        uart.write(reg::IBRD, 26);
+        uart.write(reg::FBRD, 3);
+        let baud = uart.baud_hz(48_000_000);
+        assert!((baud as i64 - 115_200).abs() < 60, "got {baud}");
     }
 }

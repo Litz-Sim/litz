@@ -7,15 +7,19 @@
 
 mod bindings {
     wit_bindgen::generate!({
-        path: "wit",
+        // The contract has one home in the workspace; this guest compiles
+        // against it directly rather than carrying a copy.
+        path: "../litz-mcu-wit/wit",
         world: "simulator",
     });
 }
 
 use crate::machine::{DRAM_BASE, DRAM_LEN, Machine, RAM_BASE, RAM_LEN};
 use bindings::exports::litz::mcu::chip::Guest;
+use bindings::exports::litz::mcu::debug::Guest as DebugGuest;
 use bindings::litz::mcu::types::{
-    ChipInfo, FlashLayout, Image, Level, MemoryRegion, PinInput, PinOutput, RunResult, Stop,
+    ChipInfo, FlashLayout, Image, Level, MemoryRegion, PinInput, PinOutput, Register, RunResult,
+    Stop,
 };
 use std::cell::RefCell;
 
@@ -118,10 +122,10 @@ impl Guest for Chip {
     }
 
     fn run(budget_cycles: u64) -> RunResult {
-        let (cycles, fault) = with_machine(|machine| {
-            let cycles = machine.run(budget_cycles);
+        let (cycles, breakpoint, fault) = with_machine(|machine| {
+            let (cycles, breakpoint) = machine.run(budget_cycles);
             flush_console(machine);
-            (cycles, machine.halted.clone())
+            (cycles, breakpoint, machine.halted.clone())
         });
         match fault {
             Some(detail) => {
@@ -133,7 +137,10 @@ impl Guest for Chip {
             }
             None => RunResult {
                 cycles,
-                stop: Stop::Budget,
+                stop: match breakpoint {
+                    Some(pc) => Stop::Breakpoint(pc),
+                    None => Stop::Budget,
+                },
             },
         }
     }
@@ -155,6 +162,29 @@ impl Guest for Chip {
     fn write_console(bytes: Vec<u8>) {
         with_machine(|machine| machine.push_console(&bytes));
     }
+}
+
+impl DebugGuest for Chip {
+    fn available() -> bool {
+        true
+    }
+
+    fn pc() -> u32 {
+        with_machine(|machine| machine.cpu.pc)
+    }
+
+    fn registers() -> Vec<Register> {
+        with_machine(|machine| {
+            machine
+                .registers()
+                .into_iter()
+                .map(|(name, value)| Register {
+                    name: name.into(),
+                    value,
+                })
+                .collect()
+        })
+    }
 
     fn read(addr: u32, len: u32) -> Result<Vec<u8>, String> {
         with_machine(|machine| {
@@ -166,6 +196,53 @@ impl Guest for Chip {
             }
             Ok(out)
         })
+    }
+
+    fn disassemble(addr: u32, count: u32) -> String {
+        // The core has no disassembler: it decodes an instruction to execute
+        // it and throws the reading away. Rather than invent mnemonics, this
+        // reports the words it would execute. A chip crate with a decoder can
+        // return real text here.
+        use crate::cpu::Memory;
+        with_machine(|machine| {
+            let mut out = String::new();
+            for index in 0..count {
+                let at = addr.wrapping_add(index.wrapping_mul(4));
+                match machine.read32(at) {
+                    Ok(word) => out.push_str(&format!("{at:#010x}: {word:#010x}\n")),
+                    Err(_) => {
+                        out.push_str(&format!("{at:#010x}: <unmapped>\n"));
+                        break;
+                    }
+                }
+            }
+            out
+        })
+    }
+
+    fn set_breakpoints(pcs: Vec<u32>) {
+        with_machine(|machine| machine.set_breakpoints(pcs));
+    }
+
+    fn step() -> RunResult {
+        let (cycles, fault) = with_machine(|machine| {
+            let cycles = machine.step_one();
+            flush_console(machine);
+            (cycles, machine.halted.clone())
+        });
+        match fault {
+            Some(detail) => {
+                bindings::litz::mcu::host::fault(&detail);
+                RunResult {
+                    cycles,
+                    stop: Stop::Trap,
+                }
+            }
+            None => RunResult {
+                cycles,
+                stop: Stop::Budget,
+            },
+        }
     }
 }
 

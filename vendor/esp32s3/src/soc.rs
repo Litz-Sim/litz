@@ -223,6 +223,9 @@ impl esp_soc::SocBus for SocBus {
         self.note_written(SRC_FLASH, offset, data.len());
         Ok(())
     }
+    fn flash_image(&self) -> Option<&[u8]> {
+        Some(&self.flash)
+    }
     /// Copy IRAM/DRAM segments, map IROM/DROM through the MMU, as the 2nd-stage bootloader would.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {
         let image = self.flash.get(app_off..).ok_or("app offset beyond flash")?;

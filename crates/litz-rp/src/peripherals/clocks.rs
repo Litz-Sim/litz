@@ -9,7 +9,7 @@
 //! because all the modelled sources are already stable.
 //!
 //! The one number other blocks depend on is [`Clocks::clk_peri_hz`], the UART,
-//! SPI and I2C clock. It divides the 125 MHz system clock by `CLK_PERI_DIV`.
+//! SPI and I2C clock: the `CLK_PERI` auxiliary mux divided by `CLK_PERI_DIV`.
 //! [`Clocks::clk_sys_hz`] is fixed at 125 MHz, the Pico's stock system clock.
 
 use super::RegisterFile;
@@ -60,6 +60,13 @@ pub mod ctrl {
 
 /// The 125 MHz the model runs the system clock at.
 pub const SYS_HZ: u64 = 125_000_000;
+/// The 48 MHz USB PLL. The Pico SDK routes the peripheral clock through it by
+/// default so a UART, SPI or I2C rate survives a change of system clock.
+pub const PLL_USB_HZ: u64 = 48_000_000;
+/// The 12 MHz crystal, the reference every PLL and `clk_ref` starts from.
+pub const XOSC_HZ: u64 = 12_000_000;
+/// The ring oscillator's nominal rate, used before the crystal is stable.
+pub const ROSC_HZ: u64 = 6_500_000;
 
 #[derive(Clone, Copy, Debug)]
 struct Clock {
@@ -152,20 +159,33 @@ impl Clocks {
         SYS_HZ as u32
     }
 
-    /// The peripheral clock, `CLK_PERI_DIV` into 125 MHz. A zero integer part
-    /// means the clock is stopped, as on the hardware.
+    /// The peripheral clock: the `CLK_PERI` auxiliary mux divided by
+    /// `CLK_PERI_DIV`. A zero integer part means the clock is stopped, as on
+    /// the hardware.
+    ///
+    /// The mux matters. The SDK's `set_sys_clock_pll` leaves `clk_peri` on
+    /// the 48 MHz USB PLL, not on the 125 MHz system clock, so a divisor read
+    /// against the system clock reports every UART 2.6 times too fast.
     pub fn clk_peri_hz(&self) -> u32 {
         let clock = &self.clocks[index::PERI];
         if clock.ctrl & ctrl::ENABLE == 0 {
             return 0;
         }
+        let source = match (clock.ctrl & ctrl::AUXSRC_MASK) >> ctrl::AUXSRC_SHIFT {
+            0 | 1 => SYS_HZ, // clk_sys, then the system PLL
+            2 => PLL_USB_HZ, // the USB PLL
+            3 => ROSC_HZ,
+            4 => XOSC_HZ,
+            // GPIN0/1 are external clocks this model does not have.
+            _ => return 0,
+        };
         let integer = u64::from(clock.div >> 8);
         let fraction = u64::from(clock.div & 0xff);
         if integer == 0 {
             return 0;
         }
         let denominator = integer * 256 + fraction;
-        ((SYS_HZ * 256 + denominator / 2) / denominator) as u32
+        ((source * 256 + denominator / 2) / denominator) as u32
     }
 }
 
@@ -205,6 +225,16 @@ mod tests {
         assert_eq!(clocks.clk_peri_hz(), 62_500_000);
         clocks.write(reg::PERI_CTRL, 0);
         assert_eq!(clocks.clk_peri_hz(), 0);
+    }
+
+    #[test]
+    fn the_peripheral_clock_follows_the_usb_pll() {
+        // What the Pico SDK programs after `set_sys_clock_pll`: auxiliary
+        // source 2 is the 48 MHz USB PLL, at divisor 1.0.
+        let mut clocks = Clocks::new();
+        clocks.write(reg::PERI_CTRL, ctrl::ENABLE | (2 << ctrl::AUXSRC_SHIFT));
+        clocks.write(reg::PERI_CTRL + 4, 1 << 8);
+        assert_eq!(clocks.clk_peri_hz(), 48_000_000);
     }
 
     #[test]

@@ -33,7 +33,12 @@ pub fn uart(rx: &[(Tick, Level)], baud: Option<u32>) -> Vec<Frame> {
             continue;
         }
         let frame = decode_frame(&wave, start, bit);
-        next_start = frame.end;
+        // The next frame cannot start before this one's stop bit, but the
+        // sender's clock is never exactly the nominal baud: a divisor that
+        // lands a fraction of a percent high makes every frame a few ticks
+        // shorter than ten nominal bit times. Ending the skip half a bit
+        // early keeps the decoder from stepping over the next start edge.
+        next_start = start.saturating_add(bit.saturating_mul(19) / 2);
         frames.push(frame);
     }
 
@@ -161,6 +166,33 @@ mod tests {
         assert_eq!(byte_text(b'"'), "\"\\\"\"");
         assert_eq!(byte_text(b'\\'), "\"\\\\\"");
         assert_eq!(byte_text(0x00), "0x00");
+    }
+
+    #[test]
+    fn a_sender_clock_a_hair_fast_still_decodes_at_the_nominal_baud() {
+        // A chip programs a divisor, not a frequency: asking for 115 200 Hz
+        // lands on 115 220, so ten bits are 8 679 ticks rather than the
+        // nominal 8 680. The decoder must not step over the next start edge.
+        let fast: Tick = 8_679;
+        let mut wave = vec![(0, Level::High)];
+        let mut tick: Tick = 0;
+        for &byte in b"hello" {
+            tick += fast;
+            hold(&mut wave, &mut tick, Level::Low, fast);
+            for n in 0..8 {
+                let level = if byte >> n & 1 == 1 {
+                    Level::High
+                } else {
+                    Level::Low
+                };
+                hold(&mut wave, &mut tick, level, fast);
+            }
+            hold(&mut wave, &mut tick, Level::High, fast);
+        }
+        let frames = uart(&wave, Some(115_200));
+        let bytes: Vec<u8> = frames.iter().map(|frame| frame.bytes[0]).collect();
+        assert_eq!(bytes, b"hello");
+        assert!(frames.iter().all(|frame| frame.error.is_none()));
     }
 
     #[test]

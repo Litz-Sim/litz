@@ -90,6 +90,41 @@ fn the_board_sees_the_pin_the_firmware_drives() {
     assert!(saw_lit, "the LED on the board never lit");
 }
 
+/// The reference chip answers the same debug questions as the native ESP32
+/// backend: its pc, its register file, memory, a breakpoint stop and a step.
+#[test]
+fn the_component_answers_the_debug_interface() {
+    use litz_board::chip::Stop;
+
+    let mut chip = booted();
+    assert!(chip.debug_available());
+    let entry = chip.debug_pc().expect("a pc at boot");
+    assert_ne!(entry, 0, "the fixture image has an entry point");
+
+    // The host maps the guest's named registers into the RISC-V file order and
+    // puts the pc in slot 32.
+    let file = chip.debug_register_file().expect("a register file");
+    assert_eq!(file[32], entry);
+
+    assert_eq!(chip.debug_read_memory(entry, 4).len(), 4);
+    assert!(
+        chip.debug_disassemble(entry, 2).contains("0x"),
+        "the core reports raw instruction words"
+    );
+
+    // A breakpoint at the pc stops before the instruction runs.
+    chip.debug_set_breakpoints(&[entry]);
+    let result = chip.run(1_000);
+    assert_eq!(result.cycles, 0);
+    assert_eq!(result.stop, Stop::Breakpoint(entry));
+
+    // Stepping executes the instruction at the same pc rather than
+    // re-triggering the breakpoint.
+    let stop = chip.debug_step().expect("a step");
+    assert_eq!(stop, Stop::Budget);
+    assert_ne!(chip.debug_pc().unwrap(), entry, "the pc advanced");
+}
+
 #[test]
 fn a_module_that_is_not_a_component_is_refused() {
     let error = match WasmChip::from_bytes(b"\0asm\x01\0\0\0", "junk.wasm") {

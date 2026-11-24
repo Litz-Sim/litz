@@ -116,12 +116,61 @@ fn a_module_that_names_an_unknown_abi_is_refused_before_it_runs() {
     assert!(error.contains("litz-mcu-2"), "{error}");
 }
 
+/// The scaffold's toy core exposes the debug surface too: pc, the program
+/// window, its own one-byte disassembly, breakpoints and a single step.
 #[test]
-fn a_v1_guest_still_loads_through_the_same_door() {
+fn the_toy_core_answers_the_debug_interface() {
+    use litz_board::chip::Stop;
+
+    let circuit = Circuit::from_json(
+        r#"{"version":1,"parts":[{"id":"mcu","type":"board-v2-fixture","attrs":{}}],"connections":[]}"#,
+    )
+    .unwrap();
+    let flat = FlatBoard::build(&circuit, &registry()).unwrap();
+    let board = Board::new(flat).unwrap();
+    let mut chip = WasmChip::from_bytes_with_abi(MODULE, "board-v2.wasm", "litz-mcu-2")
+        .unwrap()
+        .with_board(board);
+
+    // emit 'x', halt.
+    chip.load_image(ImageKind::Firmware, 0, &[1, b'x', 0])
+        .unwrap();
+    chip.boot().unwrap();
+    assert!(chip.debug_available());
+    assert_eq!(chip.debug_pc(), Some(0));
+    assert_eq!(
+        chip.debug_register_file(),
+        Some([0u32; 33]),
+        "this core has no registers; the host reports the pc only"
+    );
+
+    // The program window is readable and disassembles with the core's own
+    // opcode names.
+    assert_eq!(chip.debug_read_memory(0x2000, 2), vec![1, b'x']);
+    let text = chip.debug_disassemble(0, 2);
+    assert!(text.contains("emit 0x78"), "{text}");
+    assert!(text.contains("halt"), "{text}");
+
+    // `emit` is two bytes, so the halt instruction the core stops in front of
+    // is at pc 2, after the emit has run.
+    chip.debug_set_breakpoints(&[2]);
+    let result = chip.run(100);
+    assert_eq!(result.stop, Stop::Breakpoint(2));
+    assert_eq!(result.cycles, 1);
+    assert_eq!(chip.take_console(), b"x");
+
+    assert_eq!(chip.debug_step(), Some(Stop::Halted));
+    assert_eq!(chip.debug_pc(), Some(3));
+}
+
+#[test]
+fn the_retired_0_1_abi_is_refused_before_instantiation() {
     let module = include_bytes!("../../litz-catalog/builtin/boards/litz-rv32.wasm");
-    let chip = WasmChip::from_bytes_with_abi(module, "litz-rv32.wasm", "litz-mcu-1")
-        .expect("the reference chip is a 0.1 guest");
-    assert_eq!(chip.name(), "litz-rv32");
+    let error = WasmChip::from_bytes_with_abi(module, "litz-rv32.wasm", "litz-mcu-1")
+        .err()
+        .expect("the 0.1 contract is gone");
+    assert!(error.contains("retired"), "{error}");
+    assert!(error.contains("litz-mcu-2"), "{error}");
 }
 
 /// One chip's advertisement is heard by another station on the same board,

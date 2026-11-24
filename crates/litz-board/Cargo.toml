@@ -11,6 +11,7 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
+fatfs = { version = "0.3.6", default-features = false, features = ["std", "alloc"] }
 litz-analog = { workspace = true }
 litz-ble = { workspace = true }
 litz-catalog = { workspace = true }

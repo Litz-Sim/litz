@@ -228,8 +228,9 @@ pub(crate) fn solve(
     drives: &BTreeMap<(u16, u8), Drive>,
     parts: &[Box<dyn Part>],
     config: &AnalogConfig,
+    powered: &[bool],
 ) -> Result<AnalogSolution, String> {
-    build_operating(flat, drives, parts, config, false)?.solve_dc(config)
+    build_operating(flat, drives, parts, config, false, powered)?.solve_dc(config)
 }
 
 /// Build the circuit at its operating point, with every regulated source that
@@ -247,10 +248,11 @@ pub(crate) fn build_operating(
     parts: &[Box<dyn Part>],
     config: &AnalogConfig,
     transient: bool,
+    powered: &[bool],
 ) -> Result<Circuit, String> {
     let mut limited = BTreeSet::new();
     loop {
-        let circuit = build(flat, drives, parts, config, transient, &limited)?;
+        let circuit = build(flat, drives, parts, config, transient, &limited, powered)?;
         let solution = circuit.solve_dc(config)?;
         let folded = folded_sources(flat, parts, &solution);
         let grown: BTreeSet<u16> = limited.union(&folded).copied().collect();
@@ -403,7 +405,7 @@ impl Circuit {
                     Endpoint::Part { part, pin } => {
                         solution.pin_volts.insert((part, pin), volts);
                     }
-                    Endpoint::Rail(_) => {}
+                    Endpoint::Rail(_) | Endpoint::BoardRail { .. } => {}
                 }
             }
         }
@@ -424,6 +426,7 @@ pub(crate) fn build(
     config: &AnalogConfig,
     transient: bool,
     limited: &BTreeSet<u16>,
+    powered: &[bool],
 ) -> Result<Circuit, String> {
     let net_count = flat.nets.len();
     let ground = net_count;
@@ -432,23 +435,46 @@ pub(crate) fn build(
     // Rail nets are fixed nodes. `$gnd` is node 0; the other rails are ideal
     // sources to ground, so they are electrically tied to it for the purpose
     // of deciding which components are solvable.
+    //
+    // A board's own supply is a second table: its 3V3 is the regulator output
+    // of that board, and its VSYS/VBUS pins are how an external source enters.
+    // They are ideal sources too, at the rail's voltage when the board is
+    // powered and at 0 V when it is not, so a circuit on a switched-off board
+    // solves instead of floating.
     let mut rail_nets: BTreeMap<Rail, usize> = BTreeMap::new();
+    let mut board_rail_nets: BTreeMap<(u16, Rail), usize> = BTreeMap::new();
     for (net, members) in flat.nets.iter().enumerate() {
         for endpoint in members {
-            if let Endpoint::Rail(rail) = *endpoint {
-                rail_nets.entry(rail).or_insert(net);
+            match *endpoint {
+                Endpoint::Rail(rail) => {
+                    rail_nets.entry(rail).or_insert(net);
+                }
+                Endpoint::BoardRail { board, rail } => {
+                    board_rail_nets.entry((board, rail)).or_insert(net);
+                }
+                _ => {}
             }
         }
     }
-    for net in rail_nets.values() {
+    for net in rail_nets.values().chain(board_rail_nets.values()) {
         sets.union(*net, ground);
     }
+    // A sensor with an unwired VCC pin falls back to 3.3 V. The global rail
+    // wins when the diagram has one; otherwise the first board's regulator is
+    // the supply it is meant.
+    let v33_fallback = rail_nets
+        .get(&Rail::V33)
+        .copied()
+        .or_else(|| board_rail_nets.get(&(0, Rail::V33)).copied());
 
     // Chip drivers are Thevenin sources to ground; a high-impedance pin adds
-    // no path at all. `chip_drive` is keyed by `(board, GPIO)`.
+    // no path at all. `chip_drive` is keyed by `(board, GPIO)`, and a board
+    // that is switched off has no driver at all.
+    let board_on = |board: u16| powered.get(usize::from(board)).copied().unwrap_or(true);
     for (net, members) in flat.nets.iter().enumerate() {
         for endpoint in members {
             if let Some((board, gpio)) = endpoint.chip_pin()
+                && board_on(board)
                 && chip_volts(
                     drives.get(&(board, gpio)).copied().unwrap_or(Drive::HIGH_Z),
                     config,
@@ -462,9 +488,18 @@ pub(crate) fn build(
 
     let mut models = Vec::new();
     for (index, part) in flat.parts.iter().enumerate() {
-        if let Some(model) =
-            part_model(flat, parts, index as u16, part, config, &rail_nets, limited)
-        {
+        if let Some(model) = part_model(
+            flat,
+            parts,
+            index as u16,
+            part,
+            config,
+            &Rails {
+                global: &rail_nets,
+                v33: v33_fallback,
+            },
+            limited,
+        ) {
             model.union(&mut sets, transient);
             models.push(model);
         }
@@ -503,6 +538,7 @@ pub(crate) fn build(
         }
         for endpoint in members {
             if let Some((board, gpio)) = endpoint.chip_pin()
+                && board_on(board)
                 && chip_volts(
                     drives.get(&(board, gpio)).copied().unwrap_or(Drive::HIGH_Z),
                     config,
@@ -539,6 +575,29 @@ pub(crate) fn build(
             })
             .map_err(|e| format!("analog: rail {rail:?}: {e}"))?;
     }
+    // A board's supply: the rail's voltage while it is powered, zero volts
+    // while it is not, so a switched-off board is a dead 0 V rail rather than
+    // an unreferenced floating island.
+    for (&(board, rail), &net) in &board_rail_nets {
+        if rail == Rail::Gnd {
+            continue;
+        }
+        let Some(node) = node_of_net[net] else {
+            continue;
+        };
+        let volts = if powered.get(usize::from(board)).copied().unwrap_or(true) {
+            rail_volts(rail, config)
+        } else {
+            0.0
+        };
+        netlist
+            .add(Element::VoltageSource {
+                p: node,
+                n: 0,
+                volts,
+            })
+            .map_err(|e| format!("analog: board {board} rail {rail:?}: {e}"))?;
+    }
 
     // Driven chip pins: a voltage behind the driver's output resistance.
     for (net, members) in flat.nets.iter().enumerate() {
@@ -549,6 +608,9 @@ pub(crate) fn build(
             let Some((board, gpio)) = endpoint.chip_pin() else {
                 continue;
             };
+            if !board_on(board) {
+                continue;
+            }
             let Some(volts) = chip_volts(
                 drives.get(&(board, gpio)).copied().unwrap_or(Drive::HIGH_Z),
                 config,
@@ -1224,13 +1286,21 @@ fn contact_ohms(closed: bool) -> f64 {
 }
 
 /// Read one part's electrical model from its engine and attributes.
+/// The supply nets a part may be referred to when its own pins leave one
+/// implicit: the diagram's shared rails and the 3.3 V net a sensor takes when
+/// its VCC pin is unwired.
+struct Rails<'a> {
+    global: &'a BTreeMap<Rail, usize>,
+    v33: Option<usize>,
+}
+
 fn part_model(
     flat: &FlatBoard,
     parts: &[Box<dyn Part>],
     index: u16,
     part: &FlatPart,
     config: &AnalogConfig,
-    rail_nets: &BTreeMap<Rail, usize>,
+    rails: &Rails<'_>,
     limited: &BTreeSet<u16>,
 ) -> Option<Model> {
     let Engine::Builtin(engine) = &part.engine else {
@@ -1422,9 +1492,8 @@ fn part_model(
             };
             Some(Model::SensorDivider {
                 ao: net(pin(&["AO"])),
-                reference: net(pin(&["VCC", "V+", "Vdd", "VDD"]))
-                    .or_else(|| rail_net(rail_nets, Rail::V33)),
-                ground: net(pin(&["GND", "G"])).or_else(|| rail_net(rail_nets, Rail::Gnd)),
+                reference: net(pin(&["VCC", "V+", "Vdd", "VDD"])).or(rails.v33),
+                ground: net(pin(&["GND", "G"])).or_else(|| rail_net(rails.global, Rail::Gnd)),
                 fraction,
                 total_ohms: SENSOR_OHMS,
             })
@@ -1438,9 +1507,8 @@ fn part_model(
             };
             Some(Model::SensorDivider {
                 ao: net(pin(&["AO"])),
-                reference: net(pin(&["VCC", "V+", "Vdd", "VDD"]))
-                    .or_else(|| rail_net(rail_nets, Rail::V33)),
-                ground: net(pin(&["GND", "G"])).or_else(|| rail_net(rail_nets, Rail::Gnd)),
+                reference: net(pin(&["VCC", "V+", "Vdd", "VDD"])).or(rails.v33),
+                ground: net(pin(&["GND", "G"])).or_else(|| rail_net(rails.global, Rail::Gnd)),
                 fraction,
                 total_ohms: SENSOR_OHMS,
             })

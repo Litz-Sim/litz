@@ -471,6 +471,12 @@ impl Chip for Atmega328p {
         Ok(0)
     }
 
+    /// Program flash as loaded. A sketch cannot write it, so this is the image
+    /// that went in, padded to the device's full array.
+    fn flash_image(&self) -> Option<Vec<u8>> {
+        Some(self.machine.flash().to_vec())
+    }
+
     fn schedule(&mut self, inputs: Vec<Input>) -> Result<(), String> {
         self.scheduled = inputs;
         self.scheduled.sort_by_key(Self::input_ns);

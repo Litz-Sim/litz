@@ -5,22 +5,25 @@
 //! replace [`Machine`] with your part's peripherals and leave the glue at the
 //! bottom of the file alone.
 //!
-//! `wit-bindgen` resolves `path` against this crate's `Cargo.toml`, so
-//! `../wit-v2` is the copy of the `litz:mcu@0.2.0` world that `litz catalog
-//! new board` placed next to the manifest.
+//! `wit-bindgen` resolves `path` against this crate's `Cargo.toml`, so `../wit`
+//! is the copy of the `litz:mcu@0.2.0` world that `litz catalog new board`
+//! placed next to the manifest.
 
 mod bindings {
     wit_bindgen::generate!({
-        path: "../wit-v2",
+        path: "../wit",
         world: "simulator",
     });
 }
 
 use bindings::exports::litz::mcu::chip::Guest;
+use bindings::exports::litz::mcu::debug::Guest as DebugGuest;
 use bindings::litz::mcu::types::{
-    ChipInfo, FlashLayout, Image, Level, MemoryRegion, PinInput, PinOutput, RunResult, Stop,
+    ChipInfo, FlashLayout, Image, Level, MemoryRegion, PinInput, PinOutput, Register, RunResult,
+    Stop,
 };
 use std::cell::RefCell;
+use std::collections::BTreeSet;
 
 /// The only readable/executable memory region: 4 KiB of RAM.
 const MEMORY_BASE: u32 = 0x0000_0000;
@@ -29,6 +32,10 @@ const MEMORY_LEN: usize = 4096;
 /// A debug window exposing the levels the host holds on each pin, one byte
 /// per pad (0 = floating, 1 = low, 2 = high).
 const INPUT_BASE: u32 = 0x0000_1000;
+
+/// A debug window over the program, so `debug.read` can show the instructions
+/// the pc runs. The core fetches from it directly.
+const FLASH_BASE: u32 = 0x0000_2000;
 
 /// The program window. A real chip has megabytes of flash; 64 bytes is enough
 /// for the instruction set in this file.
@@ -64,6 +71,8 @@ struct Machine {
     outputs: Vec<(u8, bool)>,
     /// The level currently driven on each pad, so only changes are reported.
     drive: [Option<bool>; 256],
+    /// Addresses `debug.set-breakpoints` armed.
+    breakpoints: BTreeSet<u32>,
 }
 
 impl Machine {
@@ -77,6 +86,7 @@ impl Machine {
             inputs: [0; 256],
             outputs: Vec::new(),
             drive: [None; 256],
+            breakpoints: BTreeSet::new(),
         }
     }
 
@@ -118,49 +128,81 @@ impl Machine {
     }
 
     /// Execute up to `budget` instructions, one per cycle, and report them at
-    /// [`CPU_HZ`]. An infinite firmware loop therefore still returns.
+    /// [`CPU_HZ`]. An infinite firmware loop therefore still returns. An armed
+    /// breakpoint at the current pc stops before the instruction runs.
     fn run(&mut self, budget: u64) -> RunResult {
         let mut cycles = 0u64;
         while cycles < budget && !self.halted {
-            let Some(&op) = self.flash.get(self.pc) else {
-                self.halted = true;
-                break;
-            };
-            self.pc += 1;
-            cycles += 1;
-            match op {
-                OP_HALT => self.halted = true,
-                OP_EMIT => match self.flash.get(self.pc).copied() {
-                    Some(byte) => {
-                        self.pc += 1;
-                        self.console.push(byte);
-                    }
-                    None => self.halted = true,
-                },
-                OP_PIN => {
-                    let pin = self.flash.get(self.pc).copied();
-                    let level = self.flash.get(self.pc + 1).copied();
-                    self.pc += 2;
-                    match (pin, level) {
-                        (Some(pin), Some(level)) => {
-                            let high = level != 0;
-                            if self.drive[pin as usize] != Some(high) {
-                                self.drive[pin as usize] = Some(high);
-                                self.outputs.push((pin, high));
-                            }
-                        }
-                        _ => self.halted = true,
-                    }
-                }
-                OP_LOOP => self.pc = 0,
-                OP_HOST => self.host_call(),
-                _ => self.halted = true,
+            let pc = self.pc as u32;
+            if self.breakpoints.contains(&pc) {
+                return RunResult {
+                    cycles,
+                    stop: Stop::Breakpoint(pc),
+                };
             }
+            if !self.execute() {
+                break;
+            }
+            cycles += 1;
         }
         RunResult {
             cycles,
             stop: if self.halted { Stop::Halted } else { Stop::Budget },
         }
+    }
+
+    /// Execute exactly one instruction, ignoring a breakpoint at the current
+    /// pc so the debugger can step off it.
+    fn step(&mut self) -> RunResult {
+        if self.halted {
+            return RunResult {
+                cycles: 0,
+                stop: Stop::Halted,
+            };
+        }
+        let executed = self.execute();
+        RunResult {
+            cycles: u64::from(executed),
+            stop: if self.halted { Stop::Halted } else { Stop::Budget },
+        }
+    }
+
+    /// Run one instruction. False when there was nothing left to execute.
+    fn execute(&mut self) -> bool {
+        let Some(&op) = self.flash.get(self.pc) else {
+            self.halted = true;
+            return false;
+        };
+        self.pc += 1;
+        match op {
+            OP_HALT => self.halted = true,
+            OP_EMIT => match self.flash.get(self.pc).copied() {
+                Some(byte) => {
+                    self.pc += 1;
+                    self.console.push(byte);
+                }
+                None => self.halted = true,
+            },
+            OP_PIN => {
+                let pin = self.flash.get(self.pc).copied();
+                let level = self.flash.get(self.pc + 1).copied();
+                self.pc += 2;
+                match (pin, level) {
+                    (Some(pin), Some(level)) => {
+                        let high = level != 0;
+                        if self.drive[pin as usize] != Some(high) {
+                            self.drive[pin as usize] = Some(high);
+                            self.outputs.push((pin, high));
+                        }
+                    }
+                    _ => self.halted = true,
+                }
+            }
+            OP_LOOP => self.pc = 0,
+            OP_HOST => self.host_call(),
+            _ => self.halted = true,
+        }
+        true
     }
 
     /// The next program byte, or none at the end of the image.
@@ -706,8 +748,8 @@ impl Machine {
             .collect()
     }
 
-    /// Debug read. RAM and the pin window are mapped; anything else is an
-    /// error, not zeroes.
+    /// Debug read. RAM, the pin window and the program window are mapped;
+    /// anything else is an error, not zeroes.
     fn read(&self, addr: u32, len: u32) -> Result<Vec<u8>, String> {
         let mut out = Vec::with_capacity(len as usize);
         for offset in 0..len {
@@ -716,12 +758,62 @@ impl Machine {
                 self.ram[(at - MEMORY_BASE) as usize]
             } else if at >= INPUT_BASE && (at - INPUT_BASE) < self.inputs.len() as u32 {
                 self.inputs[(at - INPUT_BASE) as usize]
+            } else if at >= FLASH_BASE && (at - FLASH_BASE) < FLASH_LEN as u32 {
+                self.flash[(at - FLASH_BASE) as usize]
             } else {
                 return Err(format!("{at:#010x}: unmapped address"));
             };
             out.push(byte);
         }
         Ok(out)
+    }
+
+    /// Disassemble `count` instructions of this toy ISA. Operands are part of
+    /// the instruction, so the walk follows them rather than assuming a fixed
+    /// width.
+    fn disassemble(&self, addr: u32, count: u32) -> String {
+        let mut pc = addr as usize;
+        let mut out = String::new();
+        for _ in 0..count {
+            let Some(&op) = self.flash.get(pc) else {
+                break;
+            };
+            let here = pc;
+            pc += 1;
+            let text = match op {
+                OP_HALT => "halt".to_string(),
+                OP_EMIT => match self.flash.get(pc) {
+                    Some(&byte) => {
+                        pc += 1;
+                        format!("emit {:#04x}", byte)
+                    }
+                    None => "emit <truncated>".to_string(),
+                },
+                OP_PIN => match (self.flash.get(pc), self.flash.get(pc + 1)) {
+                    (Some(&pin), Some(&level)) => {
+                        pc += 2;
+                        format!("pin {pin} {}", if level != 0 { "high" } else { "low" })
+                    }
+                    _ => "pin <truncated>".to_string(),
+                },
+                OP_LOOP => "loop".to_string(),
+                OP_HOST => match self.flash.get(pc) {
+                    Some(&which) => {
+                        pc += 1;
+                        format!("host {which}")
+                    }
+                    None => "host <truncated>".to_string(),
+                },
+                other => format!(".byte {other:#04x}"),
+            };
+            out.push_str(&format!("{here:#06x}: {text}\n"));
+        }
+        out
+    }
+
+    /// Replace the armed breakpoint set.
+    fn set_breakpoints(&mut self, pcs: &[u32]) {
+        self.breakpoints = pcs.iter().copied().collect();
     }
 }
 
@@ -760,11 +852,18 @@ impl Guest for Chip {
             name: "{{id}}".into(),
             description: "A minimal register-machine MCU for {{id}}".into(),
             cpu_hz: CPU_HZ,
-            memory: vec![MemoryRegion {
-                name: "ram".into(),
-                start: MEMORY_BASE,
-                len: MEMORY_LEN as u32,
-            }],
+            memory: vec![
+                MemoryRegion {
+                    name: "ram".into(),
+                    start: MEMORY_BASE,
+                    len: MEMORY_LEN as u32,
+                },
+                MemoryRegion {
+                    name: "flash".into(),
+                    start: FLASH_BASE,
+                    len: FLASH_LEN as u32,
+                },
+            ],
             flash: FlashLayout {
                 size: 4 << 20,
                 bootloader: 0,
@@ -823,9 +922,42 @@ impl Guest for Chip {
         // its UART receive FIFO instead.
         with_machine(|machine| machine.console.extend_from_slice(&bytes));
     }
+}
+
+impl DebugGuest for Chip {
+    fn available() -> bool {
+        true
+    }
+
+    fn pc() -> u32 {
+        with_machine(|machine| machine.pc as u32)
+    }
+
+    fn registers() -> Vec<Register> {
+        // This toy core's whole architectural state is the pc, which the
+        // debugger reads separately. Returning an empty list is honest: the
+        // host shows only the pc rather than zeros dressed up as registers.
+        Vec::new()
+    }
 
     fn read(addr: u32, len: u32) -> Result<Vec<u8>, String> {
         with_machine(|machine| machine.read(addr, len))
+    }
+
+    fn disassemble(addr: u32, count: u32) -> String {
+        with_machine(|machine| machine.disassemble(addr, count))
+    }
+
+    fn set_breakpoints(pcs: Vec<u32>) {
+        with_machine(|machine| machine.set_breakpoints(&pcs));
+    }
+
+    fn step() -> RunResult {
+        with_machine(|machine| {
+            let result = machine.step();
+            flush_console(machine);
+            result
+        })
     }
 }
 

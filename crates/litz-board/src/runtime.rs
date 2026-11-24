@@ -13,11 +13,11 @@ use crate::pixels::Framebuffer;
 use crate::probe::{self, Channel, Probe};
 use crate::waveform;
 use crate::{devices, parts};
-use litz_core::{Drive, Level, Part, PartState, PinId, Strength, Tick};
+use litz_core::{Drive, Level, Part, PartState, PinId, Strength, TICKS_PER_SEC, Tick};
 use litz_diagram::PinKind;
 use litz_radio::{RadioHub, RadioHubHandle};
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::Path;
 
 const MAX_SETTLE_ITERATIONS: usize = 8;
@@ -120,6 +120,9 @@ pub const CONNECTION_INTERVAL_NS: u64 = 30_000_000;
 /// windows, the central's and the peripheral's.
 pub const CONNECTION_EVENT_NS: u64 = 300_000;
 
+/// Bytes waiting for a UART peer, by the port that sent them.
+type UartWire = BTreeMap<(u16, u8), VecDeque<(Tick, Vec<u8>)>>;
+
 pub struct Board {
     flat: FlatBoard,
     parts: Vec<Box<dyn Part>>,
@@ -211,6 +214,35 @@ pub struct Board {
     /// Line rates the backends configured, so a reconstructed waveform follows
     /// the firmware rather than a fixed sample rate.
     bus_rates: BusRates,
+    /// The pads each chip assigned to a UART port. Two boards can be wired
+    /// straight to each other with no part on the bus, so finding the far end
+    /// of a transmission means resolving the sender's TX pads through the
+    /// netlist to another chip's RX pad.
+    uart_pins: BTreeMap<(u16, u8), UartPins>,
+    /// Bytes one board's UART sent onto a wire that ends at another board's
+    /// receiver, stamped with the tick they arrive. The receiver drains them
+    /// the next time it polls.
+    uart_wire: UartWire,
+    /// When each pad's UART line is free again, keyed by `(board, GPIO)`.
+    /// A firmware that writes a burst of bytes hands them over in one call,
+    /// but the line still takes ten bit times per byte; this is what keeps a
+    /// reconstructed waveform from stacking the whole burst at one tick.
+    uart_pin_end: BTreeMap<(u16, u8), Tick>,
+    /// Each board's own power switch, in board order. It starts at the
+    /// diagram's `power` attribute and a host can flip it at runtime.
+    power_switch: Vec<bool>,
+    /// Each board's powered state, recomputed from the switch and from the
+    /// level an external supply holds on the board's VSYS/VBUS pin.
+    powered: Vec<bool>,
+}
+
+/// The pads a chip routed a UART port to, as the firmware configured them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UartPins {
+    /// One bit per GPIO the port transmits on.
+    pub tx: u64,
+    /// The GPIO the port receives on, if one is assigned.
+    pub rx: Option<u8>,
 }
 
 impl Board {
@@ -234,8 +266,11 @@ impl Board {
         let buses = devices::build(&flat)?;
         let network = crate::network_parts::board_network(&flat.parts)?;
         let bluetooth = crate::ble_parts::config(&flat.parts)?;
+        let power_switch = flat.board_power.clone();
         let mut board = Self {
             net_level: vec![Level::HighZ; flat.nets.len()],
+            powered: power_switch.clone(),
+            power_switch,
             flat,
             parts,
             radios,
@@ -268,6 +303,9 @@ impl Board {
             analog_cache: RefCell::new(None),
             analog_transient: None,
             bus_rates: BusRates::default(),
+            uart_pins: BTreeMap::new(),
+            uart_wire: BTreeMap::new(),
+            uart_pin_end: BTreeMap::new(),
         };
         board.settle(0);
         // The first settle produced the board's initial input levels; they are
@@ -1003,6 +1041,7 @@ impl Board {
             &self.parts,
             &self.analog_config,
             true,
+            &self.powered,
         )?;
         let run = litz_analog::Transient::with_zero_state(circuit.netlist())
             .map_err(|e| format!("analog: the transient could not start: {e}"))?;
@@ -1112,6 +1151,7 @@ impl Board {
             &self.chip_drive,
             &self.parts,
             &self.analog_config,
+            &self.powered,
         )?;
         *self.analog_cache.borrow_mut() = Some(solution.clone());
         Ok(solution)
@@ -1121,6 +1161,72 @@ impl Board {
     /// byte by byte uses it to stamp the transaction it is about to describe.
     pub fn now(&self) -> Tick {
         self.now
+    }
+
+    /// Whether development board `board` is running.
+    ///
+    /// A board is powered while its own switch is on, or while an external
+    /// source holds its VSYS/VBUS pin high. An unpowered board's core is
+    /// stopped, its pads stop driving, and its 3V3 pin goes quiet; its flash
+    /// keeps what it held, so powering it back on starts the firmware from its
+    /// reset vector with the same non-volatile contents.
+    ///
+    /// An index that names no board has no switch to turn it off, so it reads
+    /// as powered. That keeps a chip attached to a bare medium — a guest pair
+    /// that only shares a radio, say — running.
+    pub fn board_powered(&self, board: u16) -> bool {
+        self.powered
+            .get(usize::from(board))
+            .copied()
+            .unwrap_or(true)
+    }
+
+    /// Whether board `board`'s own power switch is on.
+    pub fn board_power_switch(&self, board: u16) -> bool {
+        self.power_switch
+            .get(usize::from(board))
+            .copied()
+            .unwrap_or(true)
+    }
+
+    /// The board index a diagram instance id names.
+    pub fn board_index(&self, id: &str) -> Option<u16> {
+        self.flat
+            .board_ids
+            .iter()
+            .position(|candidate| candidate == id)
+            .map(|index| index as u16)
+    }
+
+    /// Turn board `board`'s power switch on or off and settle the circuit.
+    ///
+    /// This is the switch, not the supply: a board wired to another board's
+    /// 5 V pin can still be powered with its switch off, and `board_powered`
+    /// reports that. Returns `false` for a board index the diagram does not
+    /// have.
+    pub fn set_board_power(&mut self, board: u16, on: bool, now: Tick) -> bool {
+        let Some(switch) = self.power_switch.get_mut(usize::from(board)) else {
+            return false;
+        };
+        *switch = on;
+        self.clear_analog();
+        self.settle(now);
+        true
+    }
+
+    /// The pads of `board` stop driving because its chip lost power.
+    ///
+    /// The board keeps a chip's last drive so a settlement does not have to
+    /// ask the chip every pass; a core that is no longer running must not keep
+    /// holding a line. The adapter calls this on the falling power edge.
+    pub fn release_chip_outputs(&mut self, board: u16, now: Tick) {
+        for ((owner, _), drive) in self.chip_drive.iter_mut() {
+            if *owner == board {
+                *drive = Drive::HIGH_Z;
+            }
+        }
+        self.clear_analog();
+        self.settle(now);
     }
 
     /// Record the baud a backend configured for a UART. Reconstructed bytes
@@ -1139,6 +1245,76 @@ impl Board {
             .get(&(board, port))
             .copied()
             .unwrap_or(OBSERVED_UART_BAUD)
+    }
+
+    /// Record the pads a chip routed a UART port to.
+    ///
+    /// A backend reports this from the firmware's own pin assignment, so the
+    /// runtime can follow a wire from one chip's TX pad to another chip's RX
+    /// pad. A port that is unconfigured again (`tx` 0 and no `rx`) is
+    /// forgotten. Calling it again with the same values clears nothing, so a
+    /// backend may report every step without losing an earlier route.
+    pub fn set_uart_pins(&mut self, board: u16, port: u8, tx: u64, rx: Option<u8>) {
+        let key = (board, port);
+        if tx == 0 && rx.is_none() {
+            self.uart_pins.remove(&key);
+        } else {
+            self.uart_pins.insert(key, UartPins { tx, rx });
+        }
+    }
+
+    /// The pads a chip routed a UART port to, if it has reported them.
+    pub fn uart_pins_of(&self, board: u16, port: u8) -> Option<UartPins> {
+        self.uart_pins.get(&(board, port)).copied()
+    }
+
+    /// The tick a batch of UART bytes starts on a pad, and the pad's new
+    /// free time. A burst handed over in one call still leaves at the line
+    /// rate: ten bit times per byte, back to back with the previous batch.
+    fn uart_line_start(&mut self, board: u16, pin: u8, at: Tick, baud: u32, bytes: usize) -> Tick {
+        let bit = (TICKS_PER_SEC / u64::from(baud.max(1))).max(1);
+        let start = at.max(self.uart_pin_end.get(&(board, pin)).copied().unwrap_or(0));
+        self.uart_pin_end.insert(
+            (board, pin),
+            start.saturating_add(bit.saturating_mul(10).saturating_mul(bytes as u64)),
+        );
+        start
+    }
+
+    /// The receiver another board's wire connects `board`'s `port` to.
+    ///
+    /// The search is physical: each TX pad of the sender is looked up in the
+    /// netlist, and any chip pad sharing that net is checked against the
+    /// routes other boards have reported. Only a pad that is another board's
+    /// receive pad counts; a wire into a plain part is not a UART link, and
+    /// that transaction already goes through the bus.
+    fn uart_wire_to(&self, board: u16, port: u8) -> Option<(u16, u8)> {
+        let route = self.uart_pins.get(&(board, port))?;
+        for pin in 0..64u8 {
+            if route.tx >> pin & 1 == 0 {
+                continue;
+            }
+            let Some(&net) = self.flat.endpoint_net.get(&Endpoint::chip(board, pin)) else {
+                continue;
+            };
+            for endpoint in &self.flat.nets[usize::from(net)] {
+                let Some((other_board, other_pin)) = endpoint.chip_pin() else {
+                    continue;
+                };
+                if other_board == board {
+                    continue;
+                }
+                let found = self
+                    .uart_pins
+                    .iter()
+                    .find(|&(&(b, _), route)| b == other_board && route.rx == Some(other_pin))
+                    .map(|(&(b, p), _)| (b, p));
+                if let Some(target) = found {
+                    return Some(target);
+                }
+            }
+        }
+        None
     }
 
     /// Record the SCL rate a backend configured for an I2C controller.
@@ -1232,6 +1408,38 @@ impl Board {
                     written.push(file.display().to_string());
                 }
                 index += 1;
+            }
+        }
+        Ok(written)
+    }
+
+    /// Write back every storage device whose diagram named a `save` path and
+    /// whose guest changed it.
+    ///
+    /// This is the "solidify it" half of a storage part: a run that logged to
+    /// a card or programmed a flash chip leaves the result on the host, and
+    /// the next run can load it with `image`. A part the guest never touched
+    /// is left alone, so a read-only run does not rewrite its image.
+    pub fn save_storage_images(&mut self) -> Result<Vec<String>, String> {
+        let mut written = Vec::new();
+        for spi in self.buses.spi.values_mut() {
+            for select in spi.chip_selects().collect::<Vec<_>>() {
+                if let Some(card) = spi.device_as_mut::<crate::storage::MicroSd>(select)
+                    && let Some(path) = card.save_target().map(Path::to_path_buf)
+                    && card
+                        .save_changed(&path)
+                        .map_err(|error| format!("{}: {error}", path.display()))?
+                {
+                    written.push(path.display().to_string());
+                }
+                if let Some(flash) = spi.device_as_mut::<crate::bus_parts::W25Q32>(select)
+                    && let Some(path) = flash.save_target().map(Path::to_path_buf)
+                    && flash
+                        .save_changed(&path)
+                        .map_err(|error| format!("{}: {error}", path.display()))?
+                {
+                    written.push(path.display().to_string());
+                }
             }
         }
         Ok(written)
@@ -1657,9 +1865,12 @@ impl Board {
         rx
     }
 
-    /// Bytes the chip on `board` transmitted reach the part on `port`. False
-    /// when no part is wired there.
+    /// Bytes the chip on `board` transmitted reach the part on `port`, or the
+    /// other board wired to the chip's TX pad. False when neither is there.
     pub fn uart_receive(&mut self, board: u16, port: u8, at: Tick, bytes: &[u8]) -> bool {
+        if bytes.is_empty() {
+            return false;
+        }
         let wiring = self.flat.buses.uart.get(&(board, port)).cloned();
         let delivered = match self.buses.uart.get_mut(&(board, port)) {
             Some(uart) => uart.receive(port, at, bytes),
@@ -1672,21 +1883,68 @@ impl Board {
             // The chip drives `chip_tx`; the part hears it. The part's own
             // answers are observed when the chip polls them.
             let baud = self.uart_baud(board, port);
-            let edges = waveform::uart(wiring.chip_tx, None, at, baud, bytes, &[]);
-            self.observe(board, at, &[(wiring.chip_tx, Level::High)], &edges);
+            let start = self.uart_line_start(board, wiring.chip_tx, at, baud, bytes.len());
+            let edges = waveform::uart(wiring.chip_tx, None, start, baud, bytes, &[]);
+            let idle = uart_idle_before(start, baud);
+            self.observe(board, idle, &[(wiring.chip_tx, Level::High)], &edges);
         }
-        delivered
+
+        // A wire from this TX pad to another chip's RX pad carries the same
+        // bytes. The receiver polls them on its own schedule, so they wait in
+        // a queue stamped with their arrival.
+        let mut wired = false;
+        if let Some((to_board, to_port)) = self.uart_wire_to(board, port) {
+            self.uart_wire
+                .entry((to_board, to_port))
+                .or_default()
+                .push_back((at, bytes.to_vec()));
+            wired = true;
+            if self.trace.is_some() {
+                let baud = self.uart_baud(board, port);
+                let route = self.uart_pins.get(&(board, port)).copied();
+                let rx = self.uart_pins.get(&(to_board, to_port)).and_then(|r| r.rx);
+                for pin in 0..64u8 {
+                    if route.map(|r| r.tx >> pin & 1 != 0) != Some(true) {
+                        continue;
+                    }
+                    // Both ends see the same byte stream on their own pad.
+                    let start = self.uart_line_start(board, pin, at, baud, bytes.len());
+                    let edges = waveform::uart(pin, None, start, baud, bytes, &[]);
+                    let idle = uart_idle_before(start, baud);
+                    self.observe(board, idle, &[(pin, Level::High)], &edges);
+                    if let Some(rx) = rx {
+                        let start = self.uart_line_start(to_board, rx, at, baud, bytes.len());
+                        let edges = waveform::uart(rx, None, start, baud, bytes, &[]);
+                        let idle = uart_idle_before(start, baud);
+                        self.observe(to_board, idle, &[(rx, Level::High)], &edges);
+                    }
+                }
+            }
+        }
+        delivered || wired
     }
 
-    /// Bytes the part on `board`'s `port` has for the chip.
+    /// Bytes the part on `board`'s `port` has for the chip, followed by bytes
+    /// another board's wire has delivered to it.
     pub fn uart_poll(&mut self, board: u16, port: u8, at: Tick) -> Vec<u8> {
         let wiring = self.flat.buses.uart.get(&(board, port)).cloned();
-        let bytes = self
+        let mut bytes = self
             .buses
             .uart
             .get_mut(&(board, port))
             .map(|uart| uart.poll(port, at))
             .unwrap_or_default();
+        // A wire and a part can both feed the same port; the chip sees one
+        // stream, in arrival order.
+        if let Some(queue) = self.uart_wire.get_mut(&(board, port)) {
+            while let Some((due, chunk)) = queue.front() {
+                if *due > at {
+                    break;
+                }
+                bytes.extend_from_slice(chunk);
+                queue.pop_front();
+            }
+        }
         if self.trace.is_some()
             && !bytes.is_empty()
             && let Some(wiring) = wiring
@@ -1694,8 +1952,15 @@ impl Board {
             {
                 // The part's transmission reaches the chip on `chip_rx`.
                 let baud = self.uart_baud(board, port);
-                let edges =
-                    waveform::uart(wiring.chip_tx, Some(wiring.chip_rx), at, baud, &[], &bytes);
+                let start = self.uart_line_start(board, wiring.chip_rx, at, baud, bytes.len());
+                let edges = waveform::uart(
+                    wiring.chip_tx,
+                    Some(wiring.chip_rx),
+                    start,
+                    baud,
+                    &[],
+                    &bytes,
+                );
                 self.observe(
                     board,
                     at,
@@ -1756,11 +2021,13 @@ impl Board {
                 .get(&net)
                 .copied()
                 .unwrap_or(self.net_level[net as usize]);
-            if known == Level::HighZ {
-                // A bus line no part drives is pulled to its idle level. The
-                // probe sees that before the first start bit or START, and a
-                // decoder needs it to tell the first edge from a level that
-                // was already held.
+            if known != level {
+                // A bus idles at this level, so the first start bit or START
+                // has to fall from it. A pad that was not driving yet reads
+                // high impedance, and one the GPIO block held low before the
+                // pinmux took it over is not what a receiver sees either;
+                // either way the level the protocol names belongs in the
+                // record before the frame, or the first edge is lost.
                 self.observed.push((at, net, level));
                 self.observed_levels.insert(net, level);
             }
@@ -1952,6 +2219,25 @@ impl Board {
     /// The part reads the text in its own units; the board only settles the
     /// nets afterwards so the new value is visible to the chip at `now`.
     pub fn set_named_control(&mut self, id: &str, name: &str, value: &str, now: Tick) -> bool {
+        // A board instance is not a leaf part, so its control is answered
+        // here: `power` is its switch, not a pin level.
+        if let Some(board) = self
+            .flat
+            .board_ids
+            .iter()
+            .position(|candidate| candidate == id)
+        {
+            let on = match value.trim().to_ascii_lowercase().as_str() {
+                "on" | "true" | "1" | "high" => true,
+                "off" | "false" | "0" | "low" => false,
+                _ => return false,
+            };
+            if name != "power" {
+                return false;
+            }
+            self.set_board_power(board as u16, on, now);
+            return true;
+        }
         let Some(index) = self.flat.parts.iter().position(|p| p.id == id) else {
             return false;
         };
@@ -2111,10 +2397,13 @@ impl Board {
 
     /// Watch a point in the circuit.
     ///
-    /// `point` is either `<board>:<GPIO>` with a board instance id and a GPIO
-    /// number (`esp:GPIO8`, `b:4`) or `<part>:<pin>` with a part id and the
-    /// pin name the catalog gives it (`led1:A`, `esp/led_pwr:A`). The name is
-    /// what the host prints and draws, so it has to be unique.
+    /// `point` is either `<board>:<pin>` with a board instance id and any
+    /// header pin — a GPIO by name or number (`esp:GPIO8`, `esp:GP0`, `b:4`)
+    /// or a supply pin (`esp:3V3`, `esp:VSYS`, `esp:GND`) — or `<part>:<pin>`
+    /// with a part id and the pin name the catalog gives it (`led1:A`,
+    /// `esp/led_pwr:A`). The name is what the host prints and draws, so it has
+    /// to be unique. There is no channel limit, and a pin nothing is wired to
+    /// is still a point: it reads high impedance.
     ///
     /// A probe records nothing until [`Board::start_trace`]; registering one
     /// after a run has begun starts its channel empty rather than inventing a
@@ -2124,11 +2413,15 @@ impl Board {
             return Err(format!("probe {name:?} is already defined"));
         }
         let endpoint = self.probe_endpoint(point)?;
-        let net = *self
+        // An unwired pad is still a point a scope can watch: it reads high
+        // impedance, which is what the pin actually is. `u16::MAX` names no
+        // net, so every record lookup misses and the channel stays flat.
+        let net = self
             .flat
             .endpoint_net
             .get(&endpoint)
-            .ok_or_else(|| format!("{point:?} is not wired to anything"))?;
+            .copied()
+            .unwrap_or(u16::MAX);
         self.probes.push(Probe {
             name: name.to_string(),
             point: point.to_string(),
@@ -2154,7 +2447,7 @@ impl Board {
             &recorded,
             self.analog_trace.as_deref().unwrap_or(&[]),
             &self.trace_initial,
-            self.trace_started,
+            self.trace.as_ref().map(|_| self.trace_started),
         )
     }
 
@@ -2181,11 +2474,36 @@ impl Board {
             )
         })?;
         if let Some(board) = self.flat.board_ids.iter().position(|id| id == head) {
+            let board = board as u16;
+            // Any header pin is a point: a GPIO by name (`GP0`) or number
+            // (`GPIO0`, `0`), and a supply pin (`3V3`, `VSYS`, `GND`) too, so
+            // a scope can watch a board being switched on.
+            let info = &self.flat.boards[usize::from(board)];
+            if let Some(endpoint) = crate::flatten::header_endpoint(info, tail, board) {
+                return Ok(endpoint);
+            }
+            if let Some(endpoint) = info
+                .header
+                .iter()
+                .find(|pin| pin.name.eq_ignore_ascii_case(tail))
+                .and_then(|pin| crate::flatten::header_endpoint(info, &pin.name, board))
+            {
+                return Ok(endpoint);
+            }
             let number = tail.strip_prefix("GPIO").unwrap_or(tail);
             let gpio: u8 = number.parse().map_err(|_| {
-                format!("{point:?}: {tail:?} is not a GPIO number on board {head:?}")
+                format!(
+                    "{point:?}: {tail:?} is not a pin of board {head:?}; \
+                     write a header pin ({})",
+                    info.header
+                        .iter()
+                        .take(8)
+                        .map(|pin| pin.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             })?;
-            return Ok(Endpoint::chip(board as u16, gpio));
+            return Ok(Endpoint::chip(board, gpio));
         }
         let Some(part) = self.flat.parts.iter().position(|part| part.id == head) else {
             return Err(format!(
@@ -2307,12 +2625,11 @@ impl Board {
                         flat.pins.get(pin as usize).map_or("?", String::as_str)
                     )
                 }
-                Endpoint::Rail(rail) => match rail {
-                    crate::Rail::Gnd => "gnd".into(),
-                    crate::Rail::V33 => "v33".into(),
-                    crate::Rail::V5 => "v5".into(),
-                    crate::Rail::Vin => "vin".into(),
-                },
+                Endpoint::Rail(rail) => rail.name().into(),
+                // Board 0 keeps the bare rail name so a single-board VCD is
+                // unchanged; a second board is prefixed like its GPIOs.
+                Endpoint::BoardRail { board: 0, rail } => rail.name().into(),
+                Endpoint::BoardRail { board, rail } => format!("b{board}_{}", rail.name()),
             };
             name.push('_');
             name.push_str(&label);
@@ -2340,10 +2657,13 @@ impl Board {
                     net_level,
                     chip_drive,
                     trace,
+                    powered,
+                    power_switch,
                     ..
                 } = self;
                 for (id, members) in flat.nets.iter().enumerate() {
-                    let level = resolve(flat, members, chip_drive, parts).unwrap_or(Level::HighZ);
+                    let level = resolve(flat, members, chip_drive, parts, powered, power_switch)
+                        .unwrap_or(Level::HighZ);
                     if level != net_level[id] {
                         net_level[id] = level;
                         changed = true;
@@ -2357,6 +2677,12 @@ impl Board {
                         }
                     }
                 }
+            }
+            // A board's 3V3 follows its powered state, and its powered state
+            // follows the supply pins this pass just resolved: one more pass
+            // after a power edge, and the loop is settled.
+            if self.recompute_power() {
+                changed = true;
             }
             if !changed {
                 converged = true;
@@ -2372,7 +2698,14 @@ impl Board {
             });
         }
         for (id, members) in self.flat.nets.iter().enumerate() {
-            if let Err(detail) = resolve(&self.flat, members, &self.chip_drive, &self.parts) {
+            if let Err(detail) = resolve(
+                &self.flat,
+                members,
+                &self.chip_drive,
+                &self.parts,
+                &self.powered,
+                &self.power_switch,
+            ) {
                 conflicts.push(Conflict {
                     net: id as u16,
                     detail,
@@ -2398,6 +2731,39 @@ impl Board {
         let unsettled = !self.pending_inputs.is_empty();
         self.sample_analog(now);
         unsettled
+    }
+
+    /// Recompute each board's powered state from its switch and its supply
+    /// pins, and report whether any board changed.
+    ///
+    /// A board is powered when its own switch is on or when an external
+    /// source holds its VSYS or VBUS pin high. The reverse holds too: a board
+    /// whose switch is on drives those pins, so a wire from one board's 5 V
+    /// header to another's VSYS powers the second from the first.
+    fn recompute_power(&mut self) -> bool {
+        let mut changed = false;
+        for board in 0..self.power_switch.len() {
+            let index = board as u16;
+            let external = [crate::Rail::V5, crate::Rail::Vin]
+                .into_iter()
+                .any(|rail| self.rail_level(index, rail) == Some(Level::High));
+            let powered = self.power_switch[board] || external;
+            if powered != self.powered[board] {
+                self.powered[board] = powered;
+                changed = true;
+            }
+        }
+        if changed {
+            self.clear_analog();
+        }
+        changed
+    }
+
+    /// The settled level on one of a board's own supply rails.
+    fn rail_level(&self, board: u16, rail: crate::Rail) -> Option<Level> {
+        let endpoint = crate::flatten::supply_endpoint(board, rail);
+        let net = *self.flat.endpoint_net.get(&endpoint)?;
+        self.net_level.get(usize::from(net)).copied()
     }
 }
 
@@ -2425,6 +2791,18 @@ fn build_part(
     }
 }
 
+/// The tick an idle UART line goes high before a frame starting at `start`.
+///
+/// A transmitter's first edge is the start bit falling from idle high, but a
+/// pad that has not driven yet reads high impedance, so the trace would begin
+/// on the falling edge with no level before it. Seeding high one bit time
+/// earlier gives the analyzer the edge a receiver actually sees, which is what
+/// makes the first byte decode like every later one.
+fn uart_idle_before(start: Tick, baud: u32) -> Tick {
+    let bit = (TICKS_PER_SEC / u64::from(baud.max(1))).max(1);
+    start.saturating_sub(bit)
+}
+
 /// The 64-bit FNV-1a hash of `bytes`.
 ///
 /// A display model with no change counter needs some stable value that moves
@@ -2450,6 +2828,8 @@ fn resolve(
     members: &[Endpoint],
     chip_drive: &BTreeMap<(u16, u8), Drive>,
     parts: &[Box<dyn Part>],
+    powered: &[bool],
+    power_switch: &[bool],
 ) -> Result<Level, String> {
     let mut strong: Option<(Level, Endpoint)> = None;
     let mut weak: Option<(Level, Endpoint)> = None;
@@ -2458,15 +2838,46 @@ fn resolve(
         let drive = match endpoint {
             Endpoint::Chip(_) | Endpoint::ChipOn { .. } => {
                 // `chip_pin` never fails for these two arms; the board index
-                // is what keeps two GPIO 4s apart in the drive map.
+                // is what keeps two GPIO 4s apart in the drive map. A chip
+                // that has lost power holds nothing back: its pads load
+                // toward ground through their protection diodes, the same
+                // bleed a dead rail has. Weak, so a part or another board
+                // still decides the net, and a passive that was mirroring the
+                // dead pad's last level cannot keep itself alive.
                 let (board, gpio) = endpoint.chip_pin().expect("chip endpoint");
-                chip_drive
-                    .get(&(board, gpio))
-                    .copied()
-                    .unwrap_or(Drive::HIGH_Z)
+                if powered.get(usize::from(board)).copied().unwrap_or(true) {
+                    chip_drive
+                        .get(&(board, gpio))
+                        .copied()
+                        .unwrap_or(Drive::HIGH_Z)
+                } else {
+                    Drive::weak(Level::Low)
+                }
             }
             Endpoint::Part { part, pin } => parts[part as usize].drive(PinId(pin)),
             Endpoint::Rail(rail) => Drive::strong(rail.level()),
+            Endpoint::BoardRail { board, rail } => {
+                let board = usize::from(board);
+                let live = match rail {
+                    // The regulator output exists only while the board runs.
+                    crate::Rail::V33 => powered.get(board).copied().unwrap_or(true),
+                    // The supply pins are the board's input. A board that is
+                    // switched on feeds them; otherwise an external source on
+                    // the wire decides, and a floating pin drives nothing.
+                    crate::Rail::V5 | crate::Rail::Vin => {
+                        power_switch.get(board).copied().unwrap_or(true)
+                    }
+                    crate::Rail::Gnd => true,
+                };
+                if live {
+                    Drive::strong(rail.level())
+                } else {
+                    // A dead rail does not float: its load and bleed path hold
+                    // it near ground. Weak, so anything that supplies the
+                    // board from outside still wins.
+                    Drive::weak(Level::Low)
+                }
+            }
         };
         if !drive.is_driving() {
             continue;
@@ -2505,6 +2916,9 @@ fn describe(flat: &FlatBoard, endpoint: Endpoint) -> String {
         Endpoint::Chip(gpio) => format!("chip GPIO{gpio}"),
         Endpoint::ChipOn { board, pin } => format!("chip {board} GPIO{pin}"),
         Endpoint::Rail(rail) => format!("{rail:?}"),
+        Endpoint::BoardRail { board, rail } => {
+            format!("board {board} {}", rail.header_name())
+        }
         Endpoint::Part { part, pin } => {
             let p = &flat.parts[part as usize];
             let name = p.pins.get(pin as usize).map(String::as_str).unwrap_or("?");

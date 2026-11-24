@@ -382,6 +382,7 @@ fn synthetic(parts: Vec<FlatPart>, nets: &[&[&str]]) -> Board {
         boards: Vec::new(),
         board_ids: Vec::new(),
         chip_pins_of: BTreeMap::new(),
+        board_power: Vec::new(),
     };
     Board::new(flat).unwrap()
 }

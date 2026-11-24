@@ -814,6 +814,9 @@ impl esp_soc::SocBus for SocBus {
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
         SocBus::write_flash(self, offset, data)
     }
+    fn flash_image(&self) -> Option<&[u8]> {
+        Some(&self.flash)
+    }
 
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {
         // Skip mask ROM: parse the IDF image, program Flash MMU (32 KiB pages, same as

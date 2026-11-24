@@ -8,7 +8,8 @@
 //!
 //! Naming is fixed by `docs/formats.md` §3.1: child ids get the instance
 //! prefix (`esp/led_pwr`), a board header pin with `gpio = n` becomes chip pin
-//! `n`, and a fixed header pin becomes a global rail.
+//! `n`, and a fixed header pin reaches that board's own supply (or the shared
+//! ground).
 
 use litz_catalog::{
     BoardInfo, BoardPinTarget, BusDecl, FixedNet, PartManifest, Registry, Simulation,
@@ -39,8 +40,18 @@ pub enum Endpoint {
     ChipOn { board: u16, pin: u8 },
     /// Pin `pin` of flat part `part`.
     Part { part: u16, pin: u16 },
-    /// A global supply rail.
+    /// A global supply rail: `$gnd`, or a `$v33`/`$v5`/`$vin` wire on the
+    /// diagram itself, which is an external supply every board can tap.
     Rail(Rail),
+    /// The `rail` terminal of development board `board`'s own supply.
+    ///
+    /// A board's 3V3 is not the next board's 3V3: it is the output of that
+    /// board's regulator, and it is live only while that board is powered.
+    /// Naming the rail with its board is what lets one board drive another's
+    /// VSYS and switch it on. The ground is shared and stays
+    /// [`Endpoint::Rail`], because two circuits that meet have to agree on
+    /// ground.
+    BoardRail { board: u16, rail: Rail },
 }
 
 impl Endpoint {
@@ -60,7 +71,17 @@ impl Endpoint {
         match self {
             Endpoint::Chip(pin) => Some((0, pin)),
             Endpoint::ChipOn { board, pin } => Some((board, pin)),
-            Endpoint::Part { .. } | Endpoint::Rail(_) => None,
+            Endpoint::Part { .. } | Endpoint::Rail(_) | Endpoint::BoardRail { .. } => None,
+        }
+    }
+
+    /// The rail a supply endpoint names, with its board for a board rail and
+    /// `None` for the global one.
+    pub fn rail_endpoint(self) -> Option<(Option<u16>, Rail)> {
+        match self {
+            Endpoint::Rail(rail) => Some((None, rail)),
+            Endpoint::BoardRail { board, rail } => Some((Some(board), rail)),
+            _ => None,
         }
     }
 }
@@ -84,10 +105,32 @@ impl Rail {
     pub fn from_pseudo(name: &str) -> Option<Self> {
         match name {
             "$gnd" => Some(Rail::Gnd),
-            "$v33" => Some(Rail::V33),
+            // `$v3` is the Pico schematic's spelling of the same regulator
+            // output; treating it as `$v33` keeps that board's power LED wired.
+            "$v3" | "$v33" => Some(Rail::V33),
             "$v5" => Some(Rail::V5),
             "$vin" => Some(Rail::Vin),
             _ => None,
+        }
+    }
+
+    /// The short name a host and a waveform use for this rail.
+    pub fn name(self) -> &'static str {
+        match self {
+            Rail::Gnd => "gnd",
+            Rail::V33 => "v33",
+            Rail::V5 => "v5",
+            Rail::Vin => "vin",
+        }
+    }
+
+    /// The name printed on a board header (`3V3`, `VSYS`, `GND`).
+    pub fn header_name(self) -> &'static str {
+        match self {
+            Rail::Gnd => "GND",
+            Rail::V33 => "3V3",
+            Rail::V5 => "5V",
+            Rail::Vin => "VIN",
         }
     }
 
@@ -251,11 +294,35 @@ pub struct FlatBoard {
     /// holds the `Endpoint::Chip` pins; every other board holds its `ChipOn`
     /// pins.
     pub chip_pins_of: BTreeMap<u16, BTreeSet<u8>>,
+    /// Whether each board's own power switch is on when the run starts, in
+    /// board order. A board is still powered by an external supply on its
+    /// VSYS or VBUS pin whatever this says; this is only the switch.
+    pub board_power: Vec<bool>,
     /// The bus wiring derived from the manifest declarations and the nets.
     pub buses: FlatBuses,
 }
 
 impl FlatBoard {
+    /// Whether any pad of `board` shares a net with a pad of another board.
+    ///
+    /// A direct chip-to-chip wire is how two boards talk UART without a part
+    /// on the bus. A backend that answers this has to watch its UART ports
+    /// even when no part declares `[buses.uartN]`.
+    pub fn has_chip_to_chip_wire(&self, board: u16) -> bool {
+        self.chip_pins_of
+            .get(&board)
+            .into_iter()
+            .flatten()
+            .any(|&pin| {
+                let Some(&net) = self.endpoint_net.get(&Endpoint::chip(board, pin)) else {
+                    return false;
+                };
+                self.nets[usize::from(net)]
+                    .iter()
+                    .any(|endpoint| matches!(endpoint.chip_pin(), Some((b, _)) if b != board))
+            })
+    }
+
     pub fn build(circuit: &Circuit, registry: &Registry) -> Result<Self, BuildError> {
         let diagnostics = circuit.validate(registry);
         let errors: Vec<_> = diagnostics
@@ -330,6 +397,34 @@ impl FlatBoard {
             }
         }
 
+        // A board's supply pins exist whether or not the diagram wires them:
+        // the runtime drives the board's own 3V3 from its regulator, senses
+        // VSYS/VBUS for an external supply, and a scope can watch any of them.
+        // The global ground is seeded for the same reason. These are the
+        // last-sorting endpoints, so a circuit that never names a rail keeps
+        // every net number it had.
+        for board in 0..boards.len() as u16 {
+            for rail in [Rail::V33, Rail::V5, Rail::Vin] {
+                let endpoint = Endpoint::BoardRail { board, rail };
+                builder.edges.push((endpoint, endpoint));
+            }
+        }
+        builder
+            .edges
+            .push((Endpoint::Rail(Rail::Gnd), Endpoint::Rail(Rail::Gnd)));
+
+        let board_power: Vec<bool> = board_instances
+            .iter()
+            .map(|instance| match instance.attrs.get("power") {
+                Some(serde_json::Value::Bool(on)) => *on,
+                Some(serde_json::Value::String(text)) => !matches!(
+                    text.trim().to_ascii_lowercase().as_str(),
+                    "off" | "false" | "0" | "no"
+                ),
+                _ => true,
+            })
+            .collect();
+
         let (nets, endpoint_net) = resolve_nets(&builder.edges);
         let board_ids: Vec<String> = board_instances
             .iter()
@@ -371,6 +466,7 @@ impl FlatBoard {
             boards,
             board_ids,
             chip_pins_of,
+            board_power,
             buses,
         })
     }
@@ -554,7 +650,13 @@ impl<'a> Builder<'a> {
             )?));
         }
         if let Some(rail) = Rail::from_pseudo(&pin.part) {
-            return Ok(Some(Endpoint::Rail(rail)));
+            // The onboard schematic draws its own supply: this board's
+            // regulator output is not another board's. Ground stays global.
+            return Ok(Some(if rail == Rail::Gnd {
+                Endpoint::Rail(rail)
+            } else {
+                Endpoint::BoardRail { board, rail }
+            }));
         }
         if pin.part.starts_with('$') {
             return Ok(None);
@@ -598,14 +700,24 @@ impl<'a> Builder<'a> {
     }
 }
 
-fn header_endpoint(info: &BoardInfo, name: &str, board: u16) -> Option<Endpoint> {
+pub(crate) fn header_endpoint(info: &BoardInfo, name: &str, board: u16) -> Option<Endpoint> {
     info.header
         .iter()
         .find(|p| p.name == name)
         .map(|p| match p.target {
             BoardPinTarget::Gpio(n) => Endpoint::chip(board, n as u8),
-            BoardPinTarget::Fixed(fixed) => Endpoint::Rail(Rail::from_fixed(fixed)),
+            BoardPinTarget::Fixed(fixed) => supply_endpoint(board, Rail::from_fixed(fixed)),
         })
+}
+
+/// The endpoint for a supply rail seen on a board's header: ground is the one
+/// shared node, and every other rail belongs to the board it is printed on.
+pub(crate) fn supply_endpoint(board: u16, rail: Rail) -> Endpoint {
+    if rail == Rail::Gnd {
+        Endpoint::Rail(rail)
+    } else {
+        Endpoint::BoardRail { board, rail }
+    }
 }
 
 fn load_schematic(

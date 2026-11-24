@@ -45,11 +45,31 @@ fn a_probe_point_that_is_not_there_is_refused() {
     assert!(unknown_part.contains("neither a board"), "{unknown_part}");
     let unknown_pin = board.add_probe("p", "led1:Q").unwrap_err();
     assert!(unknown_pin.contains("has no pin"), "{unknown_pin}");
-    let unwired = board.add_probe("p", "esp:GPIO9").unwrap_err();
-    assert!(unwired.contains("not wired"), "{unwired}");
     let no_colon = board.add_probe("p", "led1").unwrap_err();
     assert!(no_colon.contains("<board>:<GPIO>"), "{no_colon}");
     assert!(board.probes().is_empty(), "none of those were recorded");
+}
+
+/// An unwired pad is still a point: a scope can watch anything on the board,
+/// including a pin nothing drives, which reads high impedance.
+#[test]
+fn a_probe_on_an_unwired_pin_reads_high_impedance() {
+    let mut board = board();
+    board.add_probe("unused", "esp:GPIO9").unwrap();
+    board.add_probe("supply", "esp:3V3").unwrap();
+    board.start_trace();
+    let channels = board.scope();
+    assert_eq!(channels.len(), 2);
+    assert_eq!(
+        channels[0].series.digital.last().map(|&(_, level)| level),
+        Some(Level::HighZ),
+        "an unwired pin holds nothing"
+    );
+    assert_eq!(
+        channels[1].series.digital.last().map(|&(_, level)| level),
+        Some(Level::High),
+        "a powered board's 3V3 header is high"
+    );
 }
 
 #[test]

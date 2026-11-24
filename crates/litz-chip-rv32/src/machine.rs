@@ -44,6 +44,8 @@ pub struct Machine {
     pub console: Vec<u8>,
     /// Entry point of the image last loaded, for `boot`.
     entry: Option<u32>,
+    /// Addresses the debugger asked the run to stop at.
+    breakpoints: BTreeSet<u32>,
     pub halted: Option<String>,
     pub cycles: u64,
 }
@@ -68,6 +70,7 @@ impl Machine {
             uart_tx: Vec::new(),
             console: Vec::new(),
             entry: None,
+            breakpoints: BTreeSet::new(),
             halted: None,
             cycles: 0,
         }
@@ -166,10 +169,18 @@ impl Machine {
             .collect()
     }
 
-    /// Run at most `budget` instructions.
-    pub fn run(&mut self, budget: u64) -> u64 {
+    /// Run at most `budget` instructions, stopping early at an armed
+    /// breakpoint. Returns the cycles consumed and the pc it stopped on, if it
+    /// stopped on a breakpoint rather than the budget.
+    pub fn run(&mut self, budget: u64) -> (u64, Option<u32>) {
         let mut done = 0;
+        let mut breakpoint = None;
         while done < budget {
+            let pc = self.cpu.pc;
+            if self.breakpoints.contains(&pc) {
+                breakpoint = Some(pc);
+                break;
+            }
             // The core and the machine are separate owners of one address
             // space, so the core is stepped outside `self` and put back.
             let mut cpu = std::mem::take(&mut self.cpu);
@@ -186,7 +197,43 @@ impl Machine {
         // Whatever was printed is handed over now: the host reads the console
         // after every call, and a partial line must not wait for a batch.
         self.flush_console(true);
-        done
+        (done, breakpoint)
+    }
+
+    /// Execute exactly one instruction, ignoring a breakpoint at the current
+    /// pc so the debugger can step off it.
+    pub fn step_one(&mut self) -> u64 {
+        if self.halted.is_some() {
+            return 0;
+        }
+        let mut cpu = std::mem::take(&mut self.cpu);
+        let result = cpu.step(self);
+        self.cpu = cpu;
+        if let Err(trap) = result {
+            let pc = self.cpu.pc;
+            self.halted = Some(trap.describe(pc));
+        }
+        self.cycles = self.cycles.saturating_add(1);
+        self.flush_console(true);
+        1
+    }
+
+    /// Replace the armed breakpoint set.
+    pub fn set_breakpoints(&mut self, pcs: impl IntoIterator<Item = u32>) {
+        self.breakpoints = pcs.into_iter().collect();
+    }
+
+    /// The integer registers in the RISC-V naming the host maps by name.
+    pub fn registers(&self) -> Vec<(&'static str, u32)> {
+        [
+            "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "s0", "s1", "a0", "a1", "a2", "a3",
+            "a4", "a5", "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11",
+            "t3", "t4", "t5", "t6",
+        ]
+        .iter()
+        .enumerate()
+        .map(|(index, name)| (*name, self.cpu.reg(index)))
+        .collect()
     }
 
     fn flush_console(&mut self, force: bool) {

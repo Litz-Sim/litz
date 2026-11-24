@@ -238,7 +238,7 @@ The trace records nets over the whole board. Probes are a separate recording wit
 
 ## `Probes`
 
-`add(name: string, point: string): void` watches one point and files its samples under `name` in `scope().probes`. A point is `<board>:<GPIO>`, such as `esp:GPIO8`, or `<part>:<pin>`, such as `led1:A`. The module resolves the point to a net on the flattened board. A point it cannot resolve makes `add` throw `LitzError("the probe point could not be added")` or the module's own message.
+`add(name: string, point: string): void` watches one point and files its samples under `name` in `scope().probes`. A point is `<board>:<pin>` — any header pin, such as `esp:GPIO8`, `esp:GP0`, `esp:3V3` or `esp:GND` — or `<part>:<pin>`, such as `led1:A`. The module resolves the point to a net on the flattened board; an unwired pad is accepted and reads high impedance. There is no limit on how many probes a session adds. A point it cannot resolve makes `add` throw `LitzError("the probe point could not be added")` or the module's own message.
 
 ## `Decoders`
 
@@ -254,20 +254,20 @@ The probe names are the names passed to `probe.add`. A specification the module 
 
 ## `Debug`
 
-`session.debug` drives one RISC-V board at a time, addressed by index or diagram id. A board whose core is not RISC-V reports `available() === false` and `step()`/`run()` return `"unsupported"`.
+`session.debug` drives one board at a time, addressed by index or diagram id. Every backend that implements the debugger surface answers these calls: the ESP32 family (RISC-V), the RP2040 and a custom `litz:mcu` component. A board that does not reports `available() === false`, and `step()`/`run()` return `"unsupported"`.
 
 | Member | Signature | Behavior |
 |---|---|---|
 | `available` | `(board?) => boolean` | Whether the board exposes a register file and single-step. |
 | `pc` | `(board?) => number \| null` | The program counter, or `null` when unavailable. |
-| `registers` | `(board?) => { values: number[], pc: number } \| null` | `values` is x0–x31 in order. |
+| `registers` | `(board?) => { values: number[], pc: number } \| null` | `values` is 32 words in the core's own order: x0–x31 on RISC-V, r0–r12, sp and lr on the RP2040 (the unused slots are zero). `pc` repeats the program counter. |
 | `memory` | `(board, addr, length) => Uint8Array` | Reads up to `length` bytes; the array may be shorter when the bus refuses part of the range. |
-| `disassemble` | `(board, addr, count?) => string` | `count` instructions as `"<addr>: <text> <symbol>"` lines. Defaults to 8. |
+| `disassemble` | `(board, addr, count?) => string` | `count` instructions as `"<addr>: <text>"` lines, in the backend's own syntax. Defaults to 8. |
 | `setBreakpoints` | `(board, pcs: ArrayLike<number>) => void` | Replaces the armed instruction addresses. |
 | `step` | `(board?) => StopWord \| "unsupported"` | Executes one instruction. |
 | `run` | `(board?, steps?) => StopWord \| "unsupported"` | Runs until a breakpoint, halt or the step budget; defaults to `DEFAULT_STEPS`. |
 
-A breakpoint stop reports `breakpoint`; the PC stays on the breakpoint instruction, so a second `run` would stop there again until it is cleared or single-stepped.
+A breakpoint stop reports `breakpoint` with the pc on the instruction that has not run yet. On the RP2040 the next `run` continues past it; on the ESP32 family the breakpoint stops the run again until it is cleared or single-stepped.
 
 ## `Display`
 

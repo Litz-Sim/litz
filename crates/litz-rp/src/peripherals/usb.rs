@@ -553,6 +553,20 @@ impl Usb {
     }
 
     /// Advance the host side by `cycles` CPU cycles.
+    /// Cycles until the modelled host performs its next step, when the
+    /// controller is on and the device is pulled up. That step is what
+    /// enumerates the device and moves console bytes, so a core parked in
+    /// `WFE` waiting for the host can be woken by it; with the controller off
+    /// there is nothing to wake it and the caller may idle instead.
+    pub fn cycles_to_next_step(&self) -> Option<u64> {
+        let enabled = self.regs[Self::reg_index(reg::MAIN_CTRL)] & main_ctrl::CONTROLLER_EN != 0;
+        let pullup = self.regs[Self::reg_index(reg::SIE_CTRL)] & sie_ctrl::PULLUP_EN != 0;
+        if !(enabled && pullup) {
+            return None;
+        }
+        Some(HOST_STEP_CYCLES - self.host_acc % HOST_STEP_CYCLES)
+    }
+
     pub fn tick(&mut self, cycles: u64) {
         if self.attached {
             self.sof_acc += cycles;

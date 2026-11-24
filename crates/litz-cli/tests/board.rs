@@ -61,6 +61,67 @@ fn a_module_built_for_the_other_abi_is_caught_here() {
 /// The whole authoring path a project experiences: a board bundle in
 /// `boards/`, a diagram that wires it to an access point and a sensor, and a
 /// firmware image whose program calls the 0.2 host interface.
+/// `--flash-export` writes the MCU's flash as the run left it: the whole
+/// array, with the firmware where it was loaded.
+#[test]
+fn flash_export_writes_the_array_the_firmware_ran_from() {
+    let scratch = repo_root().join(format!("build/flash-export-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    std::fs::create_dir_all(scratch.join("firmware")).unwrap();
+    // A Pico image that halts at once: stage 2 returns, the vector table
+    // points at the application, and the application is one `bkpt`.
+    let mut app = vec![0u8; 0x10c];
+    app[0..2].copy_from_slice(&[0x70, 0x47]); // bx lr
+    app[0x100..0x104].copy_from_slice(&0x2004_2000u32.to_le_bytes());
+    app[0x104..0x108].copy_from_slice(&0x1000_0109u32.to_le_bytes());
+    app[0x108..0x10a].copy_from_slice(&[0x00, 0xbe]); // bkpt 0
+    std::fs::write(scratch.join("firmware/halt.bin"), &app).unwrap();
+    std::fs::write(
+        scratch.join("diagram.json"),
+        r#"{"version":1,"parts":[
+          {"id":"pico","type":"board-raspberry-pi-pico","attrs":{}},
+          {"id":"r1","type":"litz-resistor","attrs":{"value":"330"}},
+          {"id":"led1","type":"litz-led","attrs":{"color":"green"}}],
+          "connections":[
+          ["pico:GP15","r1:1","green",[]],
+          ["r1:2","led1:A","green",[]],
+          ["led1:C","pico:GND.1","black",[]]]}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        scratch.join("litz.toml"),
+        r#"[project]
+diagram = "diagram.json"
+
+[sim]
+firmware = "firmware/halt.bin"
+timeout = "2ms"
+"#,
+    )
+    .unwrap();
+
+    let output = Command::new(env!("CARGO_BIN_EXE_litz"))
+        .args(["run", ".", "--flash-export", "flash.bin"])
+        .current_dir(&scratch)
+        .output()
+        .expect("run the litz binary");
+    let text = text(&output);
+    assert_eq!(output.status.code(), Some(0), "{text}");
+
+    let flash = std::fs::read(scratch.join("flash.bin")).expect("the flash was written");
+    assert_eq!(flash.len(), 2 * 1024 * 1024, "the RP2040's whole array");
+    assert_eq!(
+        &flash[..app.len()],
+        &app[..],
+        "the firmware is where it was loaded"
+    );
+    assert!(
+        flash[app.len()..].iter().all(|byte| *byte == 0xff),
+        "the rest of the array is erased flash"
+    );
+    let _ = std::fs::remove_dir_all(&scratch);
+}
+
 #[test]
 fn a_local_v2_board_boots_with_its_own_firmware() {
     let scratch = std::env::temp_dir().join(format!("litz-board-run-{}", std::process::id()));

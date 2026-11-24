@@ -1,7 +1,7 @@
 //! A reference Litz chip: RV32IMC as a WebAssembly component.
 //!
-//! This is a complete MCU under the `litz:mcu@0.1.0` contract: a core, a
-//! memory map, a GPIO block and UART0. It is not an emulator of the whole
+//! This is a complete MCU under the `litz:mcu@0.2.0` contract: a core, a
+//! memory map, a GPIO block and UART0, plus the debug interface. It is not an emulator of the whole
 //! ESP32-C3 — it has no ADC, no timers, no flash controller — but it runs the
 //! firmware this repository generates (`litz-fixture`) unchanged, which is
 //! what makes it a working reference rather than a sketch.
@@ -29,7 +29,7 @@ mod tests {
         let entry = machine.load(&image).expect("the image parses");
         assert_eq!(entry, 0x4038_0000);
         assert_eq!(machine.boot(), Some(entry));
-        machine.run(50_000);
+        let _ = machine.run(50_000);
         let outputs = machine.take_outputs();
         assert!(
             !outputs.is_empty(),

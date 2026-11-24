@@ -164,8 +164,30 @@ impl Timer {
             // this interval.
             if distance <= micros || micros >= 1 << 32 {
                 self.intr |= 1 << index;
+                // Hardware disarms an alarm when it fires; ARMED drops the
+                // bit and a new ALARM write is needed to arm it again.
+                self.armed &= !(1 << index);
             }
         }
+    }
+
+    /// CPU cycles until the next armed alarm, for a core parked in `WFE`.
+    /// `None` when nothing is armed, so a wait with no event can end in
+    /// `Stop::Idle` instead of spinning.
+    pub fn cycles_to_next_alarm(&self) -> Option<u64> {
+        if self.pause {
+            return None;
+        }
+        let mut best: Option<u64> = None;
+        for index in 0..4 {
+            if self.armed & (1 << index) == 0 {
+                continue;
+            }
+            let due = u64::from(self.alarms[index].wrapping_sub(self.time_us as u32));
+            let cycles = due.saturating_mul(CYCLES_PER_US).max(1);
+            best = Some(best.map_or(cycles, |best| best.min(cycles)));
+        }
+        best
     }
 
     /// Whether alarm `index` has fired and not been acknowledged.

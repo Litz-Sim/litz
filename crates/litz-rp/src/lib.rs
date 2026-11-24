@@ -56,6 +56,7 @@ pub mod chip;
 pub mod cpu;
 pub mod machine;
 pub mod peripherals;
+pub mod thumb;
 
 pub use chip::{CPU_HZ, Rp2040, SIO_PINS};
 pub use cpu::{Bus, Core, Fault};

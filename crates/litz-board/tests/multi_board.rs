@@ -16,6 +16,11 @@ fn board_part(id: &str) -> String {
     format!(r#"{{"id":"{id}","type":"board-esp32-c3-devkitm-1","attrs":{{}}}}"#)
 }
 
+/// A board whose own power switch starts off.
+fn board_part_off(id: &str) -> String {
+    format!(r#"{{"id":"{id}","type":"board-esp32-c3-devkitm-1","attrs":{{"power":false}}}}"#)
+}
+
 fn part(id: &str, type_key: &str, attrs: &str) -> String {
     format!(r#"{{"id":"{id}","type":"{type_key}","attrs":{attrs}}}"#)
 }
@@ -118,10 +123,10 @@ fn a_part_on_the_second_board_is_reached_through_its_header() {
     assert_ne!(board.chip_level_on(0, 8), Some(Level::High));
 }
 
-/// Both boards' fixed header pins are the global rails, so a part can take
-/// power from one board and ground from the other.
+/// Each board's fixed supply pins name its own regulator, so wiring two boards'
+/// `3V3` pins together joins those supplies instead of one global net.
 #[test]
-fn a_rail_is_shared_between_boards() {
+fn a_wire_between_boards_joins_their_rails() {
     let mut board = built_board(
         &[
             board_part("a"),
@@ -145,9 +150,16 @@ fn a_rail_is_shared_between_boards() {
         flat.endpoint_net.contains_key(&Endpoint::Rail(Rail::Gnd)),
         "both boards' GND pins resolve to one global ground"
     );
-    assert!(
-        flat.endpoint_net.contains_key(&Endpoint::Rail(Rail::V33)),
-        "both boards' 3V3 pins resolve to one global rail"
+    assert_eq!(
+        flat.endpoint_net.get(&Endpoint::BoardRail {
+            board: 0,
+            rail: Rail::V33
+        }),
+        flat.endpoint_net.get(&Endpoint::BoardRail {
+            board: 1,
+            rail: Rail::V33
+        }),
+        "the wire joins the two boards' own 3.3 V rails into one net"
     );
 
     board.set_chip_output_on(0, 8, Drive::strong(Level::High), 0);
@@ -245,4 +257,118 @@ fn a_uart_part_on_the_second_board_is_wired_at_the_pin_level() {
         "a level on board 1's GPIO20 reaches the GPS TX pin"
     );
     assert_eq!(board.chip_level_on(1, 20), Some(Level::High));
+}
+
+/// Two boards wired TX to RX are a UART link with no part on the bus. The
+/// sender's route names its transmit pads, the netlist names the far end, and
+/// the receiver's route says it is a receive pad, so the bytes cross between
+/// the two chips' `(board, port)` queues.
+#[test]
+fn uart_bytes_cross_a_wire_between_two_boards() {
+    let mut board = built_board(
+        &[board_part("a"), board_part("b")],
+        &[wire("a:GPIO6", "b:GPIO5"), wire("b:GPIO4", "a:GPIO7")],
+    );
+    board.set_uart_pins(0, 1, 1 << 6, Some(7));
+    board.set_uart_pins(1, 1, 1 << 4, Some(5));
+
+    assert!(
+        board.uart_receive(0, 1, 10, b"hello"),
+        "the wire takes the bytes even though no part listens"
+    );
+    assert_eq!(board.uart_poll(1, 1, 20), b"hello");
+
+    assert!(board.uart_receive(1, 1, 30, b"pico"));
+    assert_eq!(board.uart_poll(0, 1, 30), b"pico");
+
+    // A byte stamped later than the poll waits for the next one.
+    assert!(board.uart_receive(0, 1, 40, b"later"));
+    assert!(board.uart_poll(1, 1, 35).is_empty());
+    assert_eq!(board.uart_poll(1, 1, 40), b"later");
+}
+
+/// A UART is crossed, not straight: a transmitter wired to another
+/// transmitter reaches no receiver and carries nothing.
+#[test]
+fn a_wire_between_two_transmitters_carries_nothing() {
+    let mut board = built_board(
+        &[board_part("a"), board_part("b")],
+        &[wire("a:GPIO6", "b:GPIO4")],
+    );
+    board.set_uart_pins(0, 1, 1 << 6, Some(7));
+    board.set_uart_pins(1, 1, 1 << 4, Some(5));
+
+    assert!(!board.uart_receive(0, 1, 10, b"lost"));
+    assert!(board.uart_poll(1, 1, 20).is_empty());
+}
+
+/// A board starts powered, and its switch takes the whole board with it: the
+/// regulator's 3.3 V rail goes quiet and the onboard power LED goes dark.
+#[test]
+fn a_board_can_be_switched_off_and_back_on() {
+    let mut board = built_board(&[board_part("a")], &[]);
+    assert!(board.board_powered(0), "a board starts powered");
+    assert_eq!(
+        board.state("a/led_pwr"),
+        Some(PartState::Led { lit: true }),
+        "the onboard power LED runs from the board's own 3.3 V"
+    );
+
+    assert!(board.set_board_power(0, false, 100));
+    assert!(!board.board_powered(0));
+    assert_eq!(
+        board.state("a/led_pwr"),
+        Some(PartState::Led { lit: false }),
+        "no regulator, no 3.3 V, no light"
+    );
+
+    assert!(board.set_board_power(0, true, 200));
+    assert!(board.board_powered(0));
+    assert_eq!(board.state("a/led_pwr"), Some(PartState::Led { lit: true }));
+}
+
+/// A board can start with its switch off and be powered from another board's
+/// 5 V header. Turning the supplying board off takes both down, which is the
+/// one-board-manages-another case a diagram needs.
+#[test]
+fn one_board_supply_switches_another_on() {
+    let mut board = built_board(
+        &[board_part("a"), board_part_off("b")],
+        &[wire("a:5V", "b:5V")],
+    );
+    assert!(board.board_power_switch(0));
+    assert!(!board.board_power_switch(1), "board b starts switched off");
+    assert!(board.board_powered(1), "board a's 5 V powers board b");
+    assert_eq!(
+        board.state("b/led_pwr"),
+        Some(PartState::Led { lit: true }),
+        "board b's own regulator runs from the supplied 5 V"
+    );
+
+    board.set_board_power(0, false, 100);
+    assert!(!board.board_powered(1), "the supply is gone with board a");
+    assert_eq!(
+        board.state("b/led_pwr"),
+        Some(PartState::Led { lit: false }),
+        "board b's power LED goes dark with its supply"
+    );
+
+    board.set_board_power(1, true, 200);
+    assert!(board.board_powered(1), "board b can also power itself");
+}
+
+/// A scope can watch any header pin, including a supply pin, and any pad that
+/// is not wired at all reads as the high impedance it is.
+#[test]
+fn any_header_pin_is_a_scope_point() {
+    let mut board = built_board(&[board_part("a")], &[]);
+    board.add_probe("v33", "a:3V3").expect("a supply pin");
+    board.add_probe("gnd", "a:GND").expect("a ground pin");
+    board.add_probe("gpio0", "a:GPIO0").expect("a GPIO by name");
+    board.add_probe("pad0", "a:0").expect("a GPIO by number");
+    board
+        .add_probe("unwired", "a:GPIO10")
+        .expect("an unwired pad is still a point");
+    assert_eq!(board.probes().len(), 5);
+    assert!(board.add_probe("typo", "a:NOPE").is_err());
 }

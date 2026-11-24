@@ -6,7 +6,7 @@
 //! one — so a run divides into whole cycles and the same budget always lands on
 //! the same instruction boundary.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::bus::{FLASH_BASE, Memory, SRAM_BASE};
 use crate::cpu::{Bus, Core, Fault};
@@ -26,6 +26,8 @@ pub enum Stop {
     Trap,
     /// `AIRCR.SYSRESETREQ`: the chip asks to restart.
     Reset,
+    /// The pc reached an armed breakpoint, which has not run yet.
+    Breakpoint(u32),
 }
 
 /// Interrupt numbers, in the order the RP2040 datasheet lists them.
@@ -73,6 +75,10 @@ pub const ROM_HANDOFF: u32 = 0x0000_0008;
 /// The stack the ROM leaves for stage 2: the top of the first 256 KiB of SRAM.
 pub const BOOT_STACK: u32 = 0x2004_0000;
 
+/// IO_BANK0's function select for the UART: a pin with this value carries a
+/// UART signal. Which signal depends on the pin, per the datasheet's table.
+pub const FUNCSEL_UART: u8 = 2;
+
 pub struct Machine {
     pub cpu: Core,
     pub mem: Memory,
@@ -87,8 +93,15 @@ pub struct Machine {
     outputs: Vec<(u8, bool)>,
     /// ADC voltages in microvolts, by channel.
     analog: [u32; 5],
+    /// Bytes each UART port has transmitted since the host last collected
+    /// them. Port 0 is the console too; the console keeps its own copy.
+    uart_tx: [Vec<u8>; 2],
     /// True while stage 2 runs, before the ROM hands off to the application.
     rom_stage: bool,
+    /// Program counters a run stops in front of. The check lives here rather
+    /// than in the adapter so a breakpoint lands on an instruction boundary:
+    /// a run is one budget, not a series of slices, until something stops it.
+    breakpoints: BTreeSet<u32>,
 }
 
 impl Default for Machine {
@@ -109,8 +122,20 @@ impl Machine {
             published: [None; 32],
             outputs: Vec::new(),
             analog: [0; 5],
+            uart_tx: [Vec::new(), Vec::new()],
             rom_stage: false,
+            breakpoints: BTreeSet::new(),
         }
+    }
+
+    /// Replace the armed breakpoint set; an empty slice clears them.
+    pub fn set_breakpoints(&mut self, pcs: impl IntoIterator<Item = u32>) {
+        self.breakpoints = pcs.into_iter().collect();
+    }
+
+    /// Arm one more breakpoint without disturbing the others.
+    pub fn add_breakpoint(&mut self, pc: u32) {
+        self.breakpoints.insert(pc);
     }
 
     pub fn periph(&self) -> &Peripherals {
@@ -260,6 +285,60 @@ impl Machine {
         self.mem.periph.uart[0].update_rx_irq();
     }
 
+    /// The line rate the firmware programmed for a UART port, or 0 when it
+    /// has not configured one.
+    pub fn uart_baud(&self, port: usize) -> u32 {
+        let peri_hz = u64::from(self.mem.periph.clocks.clk_peri_hz());
+        self.mem.periph.uart[port].baud_hz(peri_hz)
+    }
+
+    /// The pads the firmware assigned to a UART port, in the order the
+    /// chip's GPIO function table offers them. A pin counts when IO_BANK0
+    /// selects the UART function for it, which is what `machine.UART` sets.
+    pub fn uart_pins(&self, port: usize) -> (u64, Option<u8>) {
+        let (tx_pins, rx_pins): (&[u8], &[u8]) = if port == 0 {
+            (&[0, 12, 16, 28], &[1, 13, 17, 29])
+        } else {
+            (&[4, 8, 20, 24], &[5, 9, 21, 25])
+        };
+        let mut tx = 0u64;
+        let mut rx = None;
+        for &pin in tx_pins {
+            if self.mem.periph.io.funcsel(pin) == FUNCSEL_UART {
+                tx |= 1 << pin;
+            }
+        }
+        for &pin in rx_pins {
+            if rx.is_none() && self.mem.periph.io.funcsel(pin) == FUNCSEL_UART {
+                rx = Some(pin);
+            }
+        }
+        (tx, rx)
+    }
+
+    /// Bytes a UART port has transmitted since the last call.
+    pub fn take_uart_tx(&mut self, port: usize) -> Vec<u8> {
+        std::mem::take(&mut self.uart_tx[port])
+    }
+
+    /// How many bytes the receiver will take right now. A disabled receiver
+    /// takes none, which holds the wire's bytes until the firmware enables it.
+    pub fn uart_rx_room(&self, port: usize) -> usize {
+        let uart = &self.mem.periph.uart[port];
+        if !uart.receiver_enabled() {
+            return 0;
+        }
+        uart.receive_room()
+    }
+
+    /// Deliver bytes from the board's wire into a UART receiver.
+    pub fn push_uart(&mut self, port: usize, bytes: &[u8]) {
+        for byte in bytes {
+            self.mem.periph.uart[port].rx.push_back(*byte);
+        }
+        self.mem.periph.uart[port].update_rx_irq();
+    }
+
     pub fn is_idle(&self) -> bool {
         self.cpu.waiting
     }
@@ -286,6 +365,43 @@ impl Machine {
     pub fn run(&mut self, budget: u64) -> Stop {
         let start = self.cycles;
         while self.cycles - start < budget {
+            // Checked before the instruction at the breakpoint runs, and only
+            // once the run has advanced: continuing after a stop must leave
+            // the breakpoint behind instead of stopping on it again.
+            if self.cycles > start
+                && let Some(&pc) = self.breakpoints.get(&self.cpu.pc())
+            {
+                return Stop::Breakpoint(pc);
+            }
+            // A core parked in `WFE` with nothing pending can still be woken
+            // by the machine's own schedule: a timer alarm, or the modelled
+            // USB host's next enumeration step, which is what moves the
+            // console bytes a Pico's REPL waits for. Jump straight to the
+            // next one instead of advancing a cycle at a time, and report
+            // `Idle` only when neither is pending.
+            if self.cpu.waiting && !self.any_pending() {
+                let remaining = budget - (self.cycles - start);
+                let due = self
+                    .mem
+                    .periph
+                    .timer
+                    .cycles_to_next_alarm()
+                    .into_iter()
+                    .chain(self.mem.periph.usb.cycles_to_next_step())
+                    .min();
+                match due {
+                    Some(due) => {
+                        self.advance(due.min(remaining).max(1));
+                        // WFE wakes on an event, not only on a delivered
+                        // interrupt. The scheduled event is that event; a
+                        // pending interrupt, if any, is taken on the next
+                        // step like any other.
+                        self.cpu.waiting = false;
+                        continue;
+                    }
+                    None => return Stop::Idle,
+                }
+            }
             match self.step() {
                 Ok(_) => {}
                 Err(Fault::Halted) => {
@@ -373,8 +489,18 @@ impl Machine {
     }
 
     fn drain_uart(&mut self) {
-        let bytes = std::mem::take(&mut self.mem.periph.uart[0].tx);
-        self.console.extend_from_slice(&bytes);
+        for port in 0..self.mem.periph.uart.len() {
+            let bytes = std::mem::take(&mut self.mem.periph.uart[port].tx);
+            if bytes.is_empty() {
+                continue;
+            }
+            // Each byte leaving the FIFO is one transmit-interrupt event.
+            self.mem.periph.uart[port].tx_shifted();
+            if port == 0 {
+                self.console.extend_from_slice(&bytes);
+            }
+            self.uart_tx[port].extend_from_slice(&bytes);
+        }
     }
 
     /// Turn the SIO output and direction registers into pin edges.
@@ -443,6 +569,28 @@ mod tests {
         let mut machine = Machine::new();
         machine.load_flash(0, &flash).unwrap();
         machine
+    }
+
+    #[test]
+    fn the_uart_baud_follows_the_peripheral_clock_the_sdk_selects() {
+        use crate::peripherals::clocks::{ctrl as clock_ctrl, reg as clock_reg};
+        use crate::peripherals::uart::reg as uart_reg;
+        let mut machine = machine();
+        // What `set_sys_clock_pll` leaves behind: clk_peri on the 48 MHz USB
+        // PLL. MicroPython then programs 115 200 as IBRD 26, FBRD 3.
+        machine.mem.periph.clocks.write(
+            clock_reg::PERI_CTRL,
+            clock_ctrl::ENABLE | (2 << clock_ctrl::AUXSRC_SHIFT),
+        );
+        machine
+            .mem
+            .periph
+            .clocks
+            .write(clock_reg::PERI_CTRL + 4, 1 << 8);
+        machine.mem.periph.uart[1].write(uart_reg::IBRD, 26);
+        machine.mem.periph.uart[1].write(uart_reg::FBRD, 3);
+        let baud = machine.uart_baud(1);
+        assert!((baud as i64 - 115_200).abs() < 60, "got {baud}");
     }
 
     #[test]

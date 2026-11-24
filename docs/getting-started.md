@@ -80,7 +80,7 @@ The blinky circuit places an ESP32-C3 development board, a resistor and an LED, 
 }
 ```
 
-A connection is a four-element array: source pin, destination pin, wire colour and route. Only the first two elements affect behaviour. The pin reference is `<part>:<pin>`; `$serialMonitor:RX` is the host serial endpoint, and `$gnd`, `$v33`, `$v5` and `$vin` are global rails that need no `parts` entry.
+A connection is a four-element array: source pin, destination pin, wire colour and route. Only the first two elements affect behaviour. The pin reference is `<part>:<pin>`; `$serialMonitor:RX` is the host serial endpoint, and `$gnd`, `$v33`, `$v5` and `$vin` are supply rails that need no `parts` entry. Inside a board file they name that board's own supply and the shared ground.
 
 `litz.toml` names the image and the test. The blinky manifest is:
 

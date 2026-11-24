@@ -3,7 +3,8 @@
 //! file, and the assertion is on the circuit rather than on serial text.
 
 use litz_cli::runner::{
-    Interactive, Mode, Options, Screenshot, execute, execute_capture, execute_with,
+    Interactive, Mode, Options, Screenshot, execute, execute_capture, execute_scenario,
+    execute_with,
 };
 use std::path::{Path, PathBuf};
 
@@ -795,4 +796,45 @@ expect = "litz: blinky"
     let bytes = std::fs::read(&path).expect("the capture is written");
     assert_eq!(&bytes[..4], &0xa1b2_3c4du32.to_le_bytes());
     assert!(bytes.len() >= 24, "the pcap header");
+}
+
+#[test]
+fn a_scenario_switches_a_board_off_and_on_again() {
+    // The board's own switch starts off, so its core never boots until the
+    // scenario throws it; `set-control` on a board id is that switch.
+    let diagram = BLINKY.replace("\"attrs\": {}", "\"attrs\": {\"power\": false}");
+    let dir = project(
+        "power-cycle",
+        &diagram,
+        r#"
+[sim]
+firmware = "app.bin"
+"#,
+        &litz_fixture::blinky(16_000_000),
+    );
+    let scenario = dir.join("scenario.yaml");
+    std::fs::write(
+        &scenario,
+        r#"
+name: power cycle
+steps:
+  - delay: 5ms
+  - set-control: {part-id: "esp", name: "power", value: "on"}
+  - wait-serial: "litz: blinky"
+  - set-control: {part-id: "esp", name: "power", value: "off"}
+  - delay: 5ms
+  - expect-pin: {part-id: "led1", name: "A", value: 0}
+  - set-control: {part-id: "esp", name: "power", value: "on"}
+  - wait-pin: {part-id: "led1", name: "A", value: 1, timeout: "500ms"}
+"#,
+    )
+    .unwrap();
+    let outcome = execute_scenario(&dir, &scenario, false, false).unwrap();
+    assert_eq!(outcome.exit_code, 0, "{}", outcome.output);
+    assert_eq!(
+        outcome.output.matches("litz: blinky").count(),
+        2,
+        "power-on boots the firmware again: {}",
+        outcome.output
+    );
 }

@@ -105,6 +105,20 @@ fn main() -> ExitCode {
                     return ExitCode::from(2);
                 }
             },
+            "--sr" => match args.next() {
+                Some(path) => options.sr = Some(PathBuf::from(path)),
+                None => {
+                    eprintln!("litz: --sr needs a file to write, e.g. capture.sr");
+                    return ExitCode::from(2);
+                }
+            },
+            "--sr-rate" => match args.next().and_then(|rate| rate.parse::<u64>().ok()) {
+                Some(rate) if rate > 0 => options.sr_rate = Some(rate),
+                _ => {
+                    eprintln!("litz: --sr-rate needs a samplerate in Hz, e.g. 2000000");
+                    return ExitCode::from(2);
+                }
+            },
             "--decode" => match args.next().and_then(|spec| spec.parse().ok()) {
                 Some(spec) => options.decodes.push(spec),
                 None => {
@@ -158,6 +172,13 @@ fn main() -> ExitCode {
                 Some(path) => options.sd_export = Some(PathBuf::from(path)),
                 None => {
                     eprintln!("litz: --sd-export needs a file or directory");
+                    return ExitCode::from(2);
+                }
+            },
+            "--flash-export" => match args.next() {
+                Some(path) => options.flash_export = Some(PathBuf::from(path)),
+                None => {
+                    eprintln!("litz: --flash-export needs a file to write");
                     return ExitCode::from(2);
                 }
             },
@@ -914,6 +935,7 @@ fn usage() {
   --hostfwd SPEC  forward a host port into the guest (tcp:[host:]port-[guest:]port)"
     );
     eprintln!("  --sd-export PATH  save the image of every microSD card the guest wrote");
+    eprintln!("  --flash-export PATH  save the MCU's flash as the firmware left it");
     eprintln!(
         "  --heap         follow the firmware's free heap (default: every 1000 ms)
   --heap-interval MS  sample the heap every MS of simulated time
@@ -922,6 +944,10 @@ fn usage() {
     );
     eprintln!("  --probe [NAME=]POINT  watch a point (esp:GPIO8, sck=esp:GPIO2); repeat for more");
     eprintln!("  --scope FILE   write every probe's record as a CSV when the run ends");
+    eprintln!(
+        "  --sr FILE      write every probe as a sigrok session (.sr) for PulseView
+  --sr-rate HZ   samplerate for the sigrok session (default 2000000)"
+    );
     eprintln!(
         "  --trigger SPEC start the scope at a logic-analyzer trigger (CHANNEL=high|low[,pre=..,post=..])"
     );

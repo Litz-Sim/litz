@@ -2,20 +2,32 @@
 //!
 //! Only the card's own command layer is modelled: CMD0, CMD8, the APP_CMD /
 //! ACMD41 handshake, CMD16, CMD17 single-block reads and CMD24 single-block
-//! writes. There is no FAT filesystem above it; a firmware that speaks the SPI
-//! protocol sees a card that initialises, returns the bytes of its image, and
-//! stores a block it writes back into that same image.
+//! writes. A firmware that speaks the SPI protocol sees a card that
+//! initialises, returns the bytes of its image, and stores a block it writes
+//! back into that same image.
+//!
+//! A card can be given a capacity and a tree of host files. `files` names a
+//! directory (or a file) relative to the project; the card is formatted as a
+//! FAT volume and the tree is copied on, so a firmware that mounts the card —
+//! MicroPython's `machine.SDCard`, CircuitPython's `sdcardio` — finds the
+//! files on its first read. `image` loads an existing image instead, and
+//! `size` alone gives a blank, erased card. The formatter is deterministic:
+//! the same files produce the same bytes.
 //!
 //! The image never comes from an arbitrary path written in a diagram. An
-//! `image` attribute is accepted only as a relative path with no `..`, and the
-//! resolved file is canonicalised and checked to stay inside the project
-//! directory. A host that already has bytes can use [`MicroSd::with_image`] and
-//! bypass the filesystem entirely, which is the path the browser uses.
+//! `image` or `files` attribute is accepted only as a relative path with no
+//! `..`, and the resolved path is canonicalised and checked to stay inside the
+//! project directory. A host that already has bytes can use
+//! [`MicroSd::with_image`] and bypass the filesystem entirely, which is the
+//! path the browser uses.
 //!
 //! Writes mutate the in-memory image only. A native runner can persist the
 //! result with [`MicroSd::save_to`], or call [`MicroSd::save_changed`] at the
-//! end of a run and have it do nothing when the card was never written.
+//! end of a run and have it do nothing when the card was never written. A
+//! diagram can name a `save` path and the board writes it back on its own at
+//! the end of the run.
 
+use crate::block::{Image, parse_size};
 use crate::bus::SpiDevice;
 use crate::flatten::FlatPart;
 use std::any::Any;
@@ -45,9 +57,15 @@ enum WritePhase {
     Crc,
 }
 
+/// The capacity a `files` attribute gets when the diagram does not say one.
+pub const DEFAULT_SD_SIZE: usize = 32 * 1024 * 1024;
+
 /// A microSD card backed by a byte image.
 pub struct MicroSd {
-    image: Vec<u8>,
+    image: Image,
+    /// Where the board writes the image at the end of a run, when the diagram
+    /// asked for it.
+    save: Option<PathBuf>,
     /// The six bytes of the command currently being shifted in.
     command: Vec<u8>,
     response: VecDeque<u8>,
@@ -75,8 +93,19 @@ impl MicroSd {
     }
 
     pub fn with_image(image: Vec<u8>) -> Self {
+        Self::with_bytes(Image::from_bytes(image))
+    }
+
+    /// A card of `capacity` erased bytes: it initialises, reads back as 0xFF
+    /// and has no filesystem until the firmware formats one.
+    pub fn blank(capacity: usize) -> Self {
+        Self::with_bytes(Image::blank(capacity, 0xff))
+    }
+
+    fn with_bytes(image: Image) -> Self {
         Self {
             image,
+            save: None,
             command: Vec::new(),
             response: VecDeque::new(),
             idle: true,
@@ -92,31 +121,97 @@ impl MicroSd {
         }
     }
 
-    /// Build a card from a manifest. `image` is optional; without it the card
-    /// is blank but still initialises.
+    /// Build a card from a manifest.
+    ///
+    /// `image` loads bytes, `files` formats a FAT volume and copies a project
+    /// tree onto it, and `size` sets the capacity (a blank card when nothing
+    /// else is given). `save` names the file the board writes back at the end
+    /// of a run when the guest stored a block.
     pub fn from_attrs(part: &FlatPart) -> Result<Self, String> {
-        let Some(text) = part.attrs.get("image").map(String::as_str).map(str::trim) else {
-            return Ok(Self::new());
+        let image_text = attr(part, "image");
+        let files_text = attr(part, "files");
+        let size_text = attr(part, "size");
+        if !image_text.is_empty() && !files_text.is_empty() {
+            return Err("`image` and `files` are exclusive: load an image or build one".into());
+        }
+        let size = if size_text.is_empty() {
+            None
+        } else {
+            Some(parse_size(size_text).map_err(|error| format!("size {size_text:?}: {error}"))?)
         };
-        if text.is_empty() {
-            return Ok(Self::new());
+        let mut card = if !image_text.is_empty() {
+            let bytes = read_image(&relative_image_path(image_text)?)
+                .map_err(|error| format!("image {image_text:?}: {error}"))?;
+            match size {
+                Some(capacity) => {
+                    if bytes.len() > capacity {
+                        return Err(format!(
+                            "image {image_text:?} is {} bytes, larger than the {capacity}-byte card",
+                            bytes.len()
+                        ));
+                    }
+                    let mut image = Image::blank(capacity, 0);
+                    image.write_at(0, &bytes);
+                    Self::with_bytes(image)
+                }
+                None => Self::with_image(bytes),
+            }
+        } else if !files_text.is_empty() {
+            let capacity = size.unwrap_or(DEFAULT_SD_SIZE);
+            if capacity % crate::block::SECTOR != 0 {
+                return Err(format!(
+                    "size {capacity} is not a whole number of {} byte sectors",
+                    crate::block::SECTOR
+                ));
+            }
+            let tree = crate::fat::read_tree(Path::new(files_text))
+                .map_err(|error| format!("files {files_text:?}: {error}"))?;
+            let files: Vec<crate::fat::File<'_>> = tree
+                .iter()
+                .map(|(path, data)| crate::fat::File {
+                    path,
+                    data: data.as_slice(),
+                })
+                .collect();
+            let mut image = Image::blank(capacity, 0);
+            crate::fat::format(&mut image, &files)
+                .map_err(|error| format!("files {files_text:?}: {error}"))?;
+            Self::with_bytes(image)
+        } else {
+            match size {
+                Some(capacity) => Self::blank(capacity),
+                None => Self::new(),
+            }
+        };
+        if let Some(text) = part.attrs.get("save").map(String::as_str).map(str::trim)
+            && !text.is_empty()
+        {
+            card.save = Some(relative_image_path(text)?);
         }
-        let path = relative_image_path(text)?;
-        match read_image(&path) {
-            Ok(image) => Ok(Self::with_image(image)),
-            Err(error) => Err(format!("image {text:?}: {error}")),
-        }
+        Ok(card)
     }
 
-    /// The bytes on the card.
-    pub fn image(&self) -> &[u8] {
-        &self.image
+    /// The bytes on the card, materialized. A large card's untouched sectors
+    /// are expanded to the fill byte, so this is for a report or a save, not
+    /// for the hot path.
+    pub fn image(&self) -> Vec<u8> {
+        self.image.to_vec()
+    }
+
+    /// The card's capacity in bytes, which is what a `size` attribute sets.
+    pub fn capacity(&self) -> usize {
+        self.image.capacity()
+    }
+
+    /// The file the diagram asked the board to write at the end of a run.
+    pub fn save_target(&self) -> Option<&Path> {
+        self.save.as_deref()
     }
 
     /// Replace the card contents. The write counters and the dirty flag reset:
     /// the new image is the card's baseline.
     pub fn set_image(&mut self, image: Vec<u8>) {
-        self.image = image;
+        self.image = Image::from_bytes(image);
         self.write_phase = WritePhase::Idle;
         self.write_data.clear();
         self.write_crc = 0;
@@ -145,7 +240,7 @@ impl MicroSd {
     /// card would see, including whatever boot sector or partition table the
     /// image carries.
     pub fn save_to(&self, path: &Path) -> io::Result<()> {
-        std::fs::write(path, &self.image)
+        self.image.save(path)
     }
 
     /// Save the image only when a block was written. Returns `true` when a
@@ -206,24 +301,23 @@ impl MicroSd {
             16 => self.response.push_back(0x00),
             17 => {
                 let offset = argument as usize * BLOCK;
-                if offset + BLOCK <= self.image.len() {
+                if let Some(block) = self.image.read_at(offset, BLOCK) {
                     self.response.push_back(0x00);
                     self.response.push_back(TOKEN_START);
-                    self.response
-                        .extend(self.image[offset..offset + BLOCK].iter().copied());
+                    self.response.extend(block);
                     self.response.extend([0xff, 0xff]);
                 } else {
-                    // Parameter error: the block is outside the image.
+                    // Parameter error: the block is outside the card.
                     self.response.push_back(0x40);
                 }
             }
             24 => {
-                // The write is accepted only for a block the image already
-                // has room for; the data itself arrives after this command.
+                // The write is accepted only for a block the card has room
+                // for; the data itself arrives after this command.
                 let end = (argument as usize)
                     .checked_mul(BLOCK)
                     .and_then(|offset| offset.checked_add(BLOCK));
-                if end.is_some_and(|end| end <= self.image.len()) {
+                if end.is_some_and(|end| end <= self.image.capacity()) {
                     self.write_block = argument;
                     self.write_data.clear();
                     self.write_crc = 0;
@@ -277,10 +371,10 @@ impl MicroSd {
         let stored = offset.filter(|offset| {
             offset
                 .checked_add(BLOCK)
-                .is_some_and(|end| end <= self.image.len())
+                .is_some_and(|end| end <= self.image.capacity())
         });
         if let Some(offset) = stored {
-            self.image[offset..offset + BLOCK].copy_from_slice(&self.write_data[..BLOCK]);
+            self.image.write_at(offset, &self.write_data[..BLOCK]);
             self.written_blocks += 1;
             self.dirty = true;
             // The transfer loop pops a response for the byte it just handled,
@@ -352,9 +446,18 @@ impl SpiDevice for MicroSd {
     }
 }
 
+/// One attribute as text, trimmed; an undeclared attribute reads as empty.
+pub(crate) fn attr<'a>(part: &'a FlatPart, name: &str) -> &'a str {
+    part.attrs
+        .get(name)
+        .map(String::as_str)
+        .unwrap_or("")
+        .trim()
+}
+
 /// Validate that a manifest's image path is relative and cannot climb out of
 /// its directory. Symlinks are handled later, after canonicalisation.
-fn relative_image_path(text: &str) -> Result<PathBuf, String> {
+pub(crate) fn relative_image_path(text: &str) -> Result<PathBuf, String> {
     if text.trim().is_empty() {
         return Err("the image path is empty".into());
     }
@@ -378,7 +481,7 @@ fn relative_image_path(text: &str) -> Result<PathBuf, String> {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn read_image(relative: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_image(relative: &Path) -> Result<Vec<u8>, String> {
     let base = std::env::current_dir().map_err(|error| format!("no current directory: {error}"))?;
     let base = base
         .canonicalize()
@@ -398,7 +501,7 @@ fn read_image(relative: &Path) -> Result<Vec<u8>, String> {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn read_image(_relative: &Path) -> Result<Vec<u8>, String> {
+pub(crate) fn read_image(_relative: &Path) -> Result<Vec<u8>, String> {
     // A browser build has no project directory to read from; the host sets the
     // card's bytes through the model instead.
     Ok(Vec::new())
@@ -483,5 +586,81 @@ mod tests {
         let card = MicroSd::new();
         assert!(card.image().is_empty());
         assert_eq!(card.commands(), 0);
+    }
+
+    fn part(attrs: &[(&str, &str)]) -> FlatPart {
+        FlatPart {
+            id: "card".into(),
+            type_key: "litz-microsd-card".into(),
+            engine: crate::flatten::Engine::Builtin("microsd".into()),
+            pins: Vec::new(),
+            pin_kinds: Vec::new(),
+            attrs: attrs
+                .iter()
+                .map(|(name, value)| (name.to_string(), value.to_string()))
+                .collect(),
+            buses: Vec::new(),
+            device: None,
+        }
+    }
+
+    /// A scratch path under the crate's `build/`, which the repository
+    /// ignores, so a failed test leaves nothing in the tree.
+    fn scratch(name: &str) -> PathBuf {
+        let dir = Path::new("build").join(format!("{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn a_size_attribute_gives_a_blank_card() {
+        let card = MicroSd::from_attrs(&part(&[("size", "1MB")])).unwrap();
+        assert_eq!(card.capacity(), 1 << 20);
+        assert_eq!(card.image().len(), 1 << 20);
+        assert_eq!(card.image()[0], 0xff, "an unwritten card is erased");
+        let reply = command(&mut { card }, 17, 0, BLOCK + 4);
+        assert_eq!(reply[0], 0x00, "a sized card has blocks to read");
+    }
+
+    #[test]
+    fn files_are_formatted_onto_the_card() {
+        let dir = scratch("sd-files");
+        std::fs::write(dir.join("main.py"), b"print('hi')\n").unwrap();
+        let attrs = [("files", dir.to_str().unwrap()), ("size", "1MB")];
+        let card = MicroSd::from_attrs(&part(&attrs)).unwrap();
+        assert_eq!(card.capacity(), 1 << 20);
+        let image = crate::block::Image::from_bytes(card.image());
+        let files = crate::fat::read_files(&image).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].0, "main.py");
+        assert_eq!(files[0].1, b"print('hi')\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_image_can_sit_on_a_larger_card() {
+        let dir = scratch("sd-image");
+        let image = dir.join("card.img");
+        std::fs::write(&image, b"LITZ").unwrap();
+        let attrs = [("image", image.to_str().unwrap()), ("size", "1MB")];
+        let card = MicroSd::from_attrs(&part(&attrs)).unwrap();
+        assert_eq!(card.capacity(), 1 << 20);
+        assert_eq!(&card.image()[..4], b"LITZ");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_save_path_is_kept_for_the_board() {
+        let card = MicroSd::from_attrs(&part(&[("save", "state/card.img")])).unwrap();
+        assert_eq!(card.save_target(), Some(Path::new("state/card.img")));
+    }
+
+    #[test]
+    fn image_and_files_are_exclusive() {
+        let error = MicroSd::from_attrs(&part(&[("image", "a.img"), ("files", "dir")]))
+            .err()
+            .expect("one source of contents");
+        assert!(error.contains("exclusive"), "{error}");
     }
 }

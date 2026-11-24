@@ -271,6 +271,11 @@ pub trait SocBus: Bus {
     fn misc(&mut self) -> &mut Misc;
     fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String>;
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String>;
+    /// The whole flash array, for a host that keeps what the guest wrote. A
+    /// backend whose flash is not a plain image leaves the default.
+    fn flash_image(&self) -> Option<&[u8]> {
+        None
+    }
     /// Map and copy the app image at flash `app_off` as the bootloader would; returns the entry point.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String>;
     /// Where each core was when a chip reset took effect, just before `reboot` (a chip that records

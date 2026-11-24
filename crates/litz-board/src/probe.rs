@@ -145,20 +145,32 @@ fn is_driven(level: Level) -> bool {
 }
 
 /// Build the channels for `probes` from the board's net trace and analog
-/// samples. `initial` is the level every net held when recording started,
-/// emitted at `start` so a channel begins with the state it actually had.
+/// samples.
+///
+/// `initial` is the level every net held when recording started, emitted at
+/// `start` so a channel begins with the state it actually had. `start` is
+/// `None` before a trace begins: recording is opt-in, and a probe added early
+/// must read as empty rather than invent a sample at tick zero.
 pub fn channels(
     probes: &[Probe],
     trace: &[(Tick, u16, Level)],
     analog: &[(Tick, u16, f64)],
     initial: &[Level],
-    start: Tick,
+    start: Option<Tick>,
 ) -> Vec<Channel> {
     probes
         .iter()
         .map(|probe| {
             let mut series = Series::default();
-            if let Some(&level) = initial.get(usize::from(probe.net)) {
+            // A net nothing drives reads high impedance, and that is what the
+            // channel reports until something does. A bus that idles at a
+            // named level seeds it through the trace before its first frame,
+            // so this must not invent a level from the first edge.
+            let level = initial
+                .get(usize::from(probe.net))
+                .copied()
+                .unwrap_or(Level::HighZ);
+            if let Some(start) = start {
                 series.digital.push((start, level));
             }
             for &(tick, net, level) in trace {
@@ -504,7 +516,7 @@ mod tests {
         ];
         let analog = [(5, 0, 1.5), (6, 1, 2.5)];
         let initial = [Level::Low, Level::Low];
-        let built = channels(&probes, &trace, &analog, &initial, 0);
+        let built = channels(&probes, &trace, &analog, &initial, Some(0));
 
         assert_eq!(built.len(), 2);
         assert_eq!(

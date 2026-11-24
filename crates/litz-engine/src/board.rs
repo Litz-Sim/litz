@@ -144,7 +144,7 @@ pub fn check(path: &Path) -> Result<BoardReport, String> {
             litz_mcu_wasm::WasmChip::from_bytes_with_abi(&bytes, &simulator.module, &simulator.abi)
                 .map_err(|e| {
                     format!(
-                        "{}: does not instantiate as {}: {e}\n  the guest must be built against                          the WIT that `abi` names; `litz catalog new board` copies it as wit-v2/",
+                        "{}: does not instantiate as {}: {e}\n  the guest must be built against the unified WIT (crates/litz-mcu-wit/wit); `litz catalog new board` copies it as wit/",
                         module.display(),
                         simulator.abi
                     )

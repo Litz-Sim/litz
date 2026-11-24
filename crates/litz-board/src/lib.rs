@@ -40,11 +40,13 @@
 
 pub mod analog;
 pub mod ble_parts;
+pub mod block;
 pub mod bus;
 pub mod bus_parts;
 pub mod chip;
 pub mod devices;
 pub mod displays;
+pub mod fat;
 pub mod flatten;
 /// The JavaScript host bridge for custom parts and chips (wasm32 builds).
 #[cfg(target_arch = "wasm32")]
@@ -67,6 +69,7 @@ pub mod segments;
 pub mod sensor_ics;
 pub mod sensors;
 pub mod signal_gen;
+pub mod sigrok;
 pub mod storage;
 pub mod switch;
 pub mod timing;
@@ -74,6 +77,7 @@ pub mod touch;
 pub mod waveform;
 
 pub use analog::{AnalogConfig, AnalogSolution};
+pub use block::Image;
 pub use bus::{Buses, I2c, I2cDevice, Spi, SpiDevice, Uart, UartPeer};
 pub use bus_parts::{DateTime, Ds3231, Mcp3008, Mpu6050, Pcf8574, Ssd1306};
 pub use chip::{Chip, ChipDebug, ChipInfo, FlashLayout, ImageKind, Input, RunResult, Stop};

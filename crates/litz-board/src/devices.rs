@@ -102,7 +102,11 @@ pub fn build(flat: &FlatBoard) -> Result<Buses, BuildError> {
                         "ili9341" => Box::new(crate::displays::Ili9341::new()),
                         "st7735" => Box::new(crate::displays::St7735::new()),
                         "epaper" => Box::new(crate::displays::Epd::from_attrs(part)),
-                        "w25q32" => Box::new(crate::bus_parts::W25Q32::new()),
+                        "w25q32" => {
+                            Box::new(crate::bus_parts::W25Q32::from_attrs(part).map_err(|e| {
+                                BuildError::Message(format!("part {:?}: {e}", part.id))
+                            })?)
+                        }
                         "microsd" => {
                             Box::new(crate::storage::MicroSd::from_attrs(part).map_err(|e| {
                                 BuildError::Message(format!("part {:?}: {e}", part.id))

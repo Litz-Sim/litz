@@ -2,7 +2,7 @@
 id = "litz-w25q32"
 name = "W25Q32"
 version = "1.0.0"
-description = "4 MiB SPI NOR flash"
+description = "SPI NOR flash, 4 MiB by default"
 license = "MIT"
 
 [pins.VCC]
@@ -30,6 +30,28 @@ label = "write protect, active low"
 [pins.HOLD]
 kind = "digital-in"
 label = "hold, active low"
+
+# The array size, a power of two from 64KB to 16MB. The device id follows the
+# Winbond code, so 8MB answers as a W25Q64.
+[attrs.size]
+type = "string"
+default = "4MB"
+
+# An image to load, or a project directory (or one file) to place on a FAT
+# volume at the start of the array. `image` and `files` are exclusive.
+[attrs.image]
+type = "string"
+default = ""
+
+[attrs.files]
+type = "string"
+default = ""
+
+# Where the board writes the array at the end of a run, when the guest
+# programmed or erased it.
+[attrs.save]
+type = "string"
+default = ""
 
 [buses.spi0]
 cs = "CS"

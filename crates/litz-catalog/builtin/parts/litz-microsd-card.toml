@@ -2,7 +2,7 @@
 id = "litz-microsd-card"
 name = "microSD card"
 version = "1.0.0"
-description = "SPI microSD card with a byte image"
+description = "SPI microSD card with a capacity, files or a byte image"
 license = "MIT"
 
 [pins.CD]
@@ -27,6 +27,25 @@ kind = "spi-mosi"
 kind = "spi-cs"
 
 [attrs.image]
+type = "string"
+default = ""
+
+# A capacity in bytes, `64MB`, `2GB`; used alone it is an erased card, with
+# `files` it is the volume the tree is formatted onto.
+[attrs.size]
+type = "string"
+default = ""
+
+# A project directory (or one file) to place on a FAT volume. The named
+# directory's contents land at the card's root.
+[attrs.files]
+type = "string"
+default = ""
+
+# Where the board writes the image at the end of a run, when the guest
+# stored a block. Point `image` at the same path to keep the card between
+# runs.
+[attrs.save]
 type = "string"
 default = ""
 

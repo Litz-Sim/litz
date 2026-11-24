@@ -92,6 +92,7 @@ Everything a UI or a test asks about the circuit is on `Board`:
 | `conflicts()` | Electrical conflicts: two strong drivers disagreeing on one net. |
 | `part_framebuffer(id)` / `touch_panel(x, y, down)` | One part's framebuffer and a touch at panel pixels. |
 | `save_sd_images(path)` | Write every microSD card the guest wrote. |
+| `save_storage_images()` | Write every storage part that carries a `save` attribute. |
 
 The same surface is reachable through the chip where a backend forwards it (`Chip::state`, `Chip::press`, `Chip::gpio_level`, `Chip::display`, `Chip::touch`), so the runner and a host do not need to know which side owns the board.
 
@@ -121,7 +122,7 @@ assert_eq!(outcome.exit_code, 0);
 
 ## Probes, decoders and waveforms
 
-A probe records the settled level of one net. Register it before the trace starts, then read every channel after the run:
+A probe records the settled level of one net. The point is any header pin (`esp:GPIO8`, `esp:3V3`, `esp:VSYS`, `esp:GND`) or any part pin; an unwired pad is accepted and reads high impedance, and there is no channel limit. Register it before the trace starts, then read every channel after the run:
 
 ```rust
 use litz_board::probe;
@@ -184,13 +185,15 @@ A project names such a component in `part.toml`; the board loads it through the 
 
 ## Custom chips
 
-A chip implements `litz_board::Chip`. The required methods are `info`, `load_image`, `boot`, `schedule`, `run`, `seconds`, `write_console`, `take_console`, `state`, `press`, `set_control`, `part_pin_level` and `conflicts`; recording, breakpoints, displays, touch, heap sampling, pcaps, the host gateway and GDB are default methods a backend opts into.
+A chip implements `litz_board::Chip`. The required methods are `info`, `load_image`, `boot`, `schedule`, `run`, `seconds`, `write_console`, `take_console`, `state`, `press`, `set_control`, `part_pin_level` and `conflicts`; recording, breakpoints, displays, touch, heap sampling, pcaps, the host gateway, GDB, the flash read-back and the debugger surface are default methods a backend opts into.
+
+The debugger surface is the same on every backend and is what the browser's `session.debug` calls: `debug_available`, `debug_pc`, `debug_register_file` (32 words plus the pc last), `debug_read_memory`, `debug_disassemble`, `debug_set_breakpoints` and `debug_step`. `debug(&mut self)` additionally hands out a `ChipDebug`, which is the GDB server where the backend has one. `flash_image()` returns the chip's own flash — the RP2040's XIP array, the ESP32 family's flash — so a host can keep what the firmware wrote.
 
 The contract is deliberately small: the chip drives the board with `Board::set_chip_output(gpio, drive, now)`, reads `Board::take_chip_inputs()`, and advances the shared board's clock with `Board::advance_to(now)` from inside `run`. `Chip::run` returns a `RunResult { cycles, stop }` where `Stop` is `Budget`, `Idle`, `Halted`, `Trap`, `Reset` or `Breakpoint(pc)`.
 
 `crates/litz-chip-rv32` is a compact reference: RV32IMC plus enough of the ESP32-C3 memory map to run the repository's firmware. It is also the guest used by the `litz:mcu` contract.
 
-A custom chip can instead be a WebAssembly component. `litz-mcu-wasm` loads both `litz:mcu@0.1.0` and `0.2.0` with wasmtime:
+A custom chip can instead be a WebAssembly component. `litz-mcu-wasm` loads `litz:mcu@0.2.0` with wasmtime; the retired `0.1.0` is refused with a message naming the module:
 
 ```rust
 use std::cell::RefCell;

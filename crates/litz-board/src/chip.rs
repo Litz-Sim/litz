@@ -232,6 +232,14 @@ pub trait Chip {
         Err("this backend has no Wi-Fi radio".into())
     }
 
+    /// The device's own flash as the run left it, for a host that wants to
+    /// keep what the firmware wrote. Backends without readable flash answer
+    /// `None`; a backend that has it returns the whole array, holes included,
+    /// so it can be written as the image a later run boots.
+    fn flash_image(&self) -> Option<Vec<u8>> {
+        None
+    }
+
     /// The debugger surface, when the backend has one. The protocol lives in
     /// the CLI; handing it a `ChipDebug` keeps every register and memory
     /// access on the backend that owns it.
@@ -341,6 +349,9 @@ impl<T: Chip + ?Sized> Chip for Box<T> {
     }
     fn fault(&self) -> Option<String> {
         (**self).fault()
+    }
+    fn flash_image(&self) -> Option<Vec<u8>> {
+        (**self).flash_image()
     }
     fn save_display(&mut self, path: &std::path::Path) -> Result<(), String> {
         (**self).save_display(path)

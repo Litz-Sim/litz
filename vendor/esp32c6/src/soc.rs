@@ -170,6 +170,9 @@ impl esp_soc::SocBus for SocBus {
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
         SocBus::write_flash(self, offset, data)
     }
+    fn flash_image(&self) -> Option<&[u8]> {
+        Some(&self.flash)
+    }
     /// Copy the RAM segments and map the flash-resident ones through the MMU, as the 2nd-stage
     /// bootloader would. One flat window for code and data makes this straightforward here;
     /// the system registers the bootloader would have set up are not preset, so this is a
