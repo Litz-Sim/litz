@@ -1,16 +1,17 @@
 [package]
 name = "litz-esp-soc"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "MIT"
 description = "Litz fork of esp32sim: The machine around an Espressif SoC: scheduler, device time, console, scripts, web push, loaders, boards — generic over the chip"
 
 # A patch of the upstream crate at `d043ff1`. It differs from that revision in
-# one place: the virtual peripheral's GATT table can be installed by the host
+# two places: the virtual peripheral's GATT table can be installed by the host
 # and a central may connect to any address on the scan list, which is what lets
-# a native ESP32 reach the circuit's beacons. Remove this copy once the upstream
-# crate carries `Ble::set_peer_gatt` and accepts nearby addresses in
-# `LE_CREATE_CONNECTION`.
+# a native ESP32 reach the circuit's beacons; and `SocBus::flash_image` exposes
+# the flash array so a host can keep what the guest wrote. Remove this copy once
+# the upstream crate carries `Ble::set_peer_gatt`, accepts nearby addresses in
+# `LE_CREATE_CONNECTION` and has a flash accessor.
 repository = "https://github.com/Litz-Sim/litz"
 homepage = "https://github.com/Litz-Sim/litz#readme"
 

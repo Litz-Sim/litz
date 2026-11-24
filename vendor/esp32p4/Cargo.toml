@@ -1,6 +1,6 @@
 [package]
 name = "litz-esp32p4"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 description = "Litz fork of esp32sim: ESP32-P4 SoC model: memory map, peripherals, machine"
@@ -15,5 +15,5 @@ name = "esp32p4"
 litz-emu-core = { version = "0.1.0", path = "../emu-core" }
 litz-esp-periph = { version = "0.1.0", path = "../esp-periph" }
 litz-riscv-rv32 = { version = "0.1.0", path = "../riscv-rv32" }
-litz-esp-soc = { version = "0.1.0", path = "../esp-soc" }
+litz-esp-soc = { version = "0.1.2", path = "../esp-soc" }
 litz-esp32c6 = { version = "0.1.0", path = "../esp32c6" }

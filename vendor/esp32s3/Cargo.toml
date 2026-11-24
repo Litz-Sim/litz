@@ -1,6 +1,6 @@
 [package]
 name = "litz-esp32s3"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "MIT"
 description = "Litz fork of esp32sim: ESP32-S3 SoC emulation (memory map, cache MMU, peripherals) on the xtensa-lx7 core"
@@ -14,7 +14,7 @@ name = "esp32s3"
 [dependencies]
 litz-emu-core = { version = "0.1.0", path = "../emu-core" }
 litz-esp-periph = { version = "0.1.0", path = "../esp-periph" }
-litz-esp-soc = { version = "0.1.0", path = "../esp-soc" }
+litz-esp-soc = { version = "0.1.2", path = "../esp-soc" }
 litz-xtensa-lx7 = { version = "0.1.0", path = "../xtensa-lx7" }
 
 [features]
