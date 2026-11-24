@@ -6,6 +6,27 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-24
+
+### Added
+
+- One chip debug surface, answered by every backend: `debug_pc`, `debug_register_file`, `debug_read_memory`, `debug_disassemble`, `debug_set_breakpoints` and `debug_step` on `litz_board::Chip`, with `ChipDebug` for a backend that keeps debugging state. The ESP32 family, the RP2040 and custom wasm chips answer the same calls, and the JavaScript session reaches them through the same ABI.
+- The RP2040 is a full backend: an ARMv6-M core with its clocks, timer, UART and USB peripherals, a `Machine` that owns them, its flash, and a checked-in thumb disassembler behind the debug calls.
+- `Chip::flash_image` returns the MCU's own flash as the run left it, and `litz run --flash-export PATH` writes it. The ESP32 backends expose it through the new `SocBus::flash_image` (litz-esp-soc 0.1.2).
+- SD cards and W25Q flash take a `size` attribute and model a FAT volume: files the host places are on the card the firmware mounts, and files the firmware writes come back with the image.
+- The logic analyzer probes any header pin or part pin with no channel limit, and a probe on an unwired pin reads a flat high-impedance channel. `litz run --sr FILE [--sr-rate HZ]` writes the capture as a sigrok session for PulseView, alongside the existing CSV.
+- Boards have a power switch: a `power` boolean attribute (default `true`) sets whether a board starts powered, `Board::set_board_power` flips it during a run, `set_named_control(board, "power", ...)` or a scenario's `set-control: {part-id: bridge, name: power, value: on}` does the same, and a board wired to another board's 5 V header is powered while that supply is on. `Board::board_powered`, `board_power_switch` and `release_chip_outputs` report and act on the state.
+
+### Changed
+
+- Losing power resets a board: its core stops, its pads are released and its rails read 0 V; power coming back boots the firmware from its reset vector with the flash it had, and a board that is off still advances the clock so it does not stall the one that is on. An unpowered chip's pads read a weak low rather than `HIGH_Z`, so a resistor that was mirroring the pad's last level cannot keep a net alive.
+- Each board's `3V3`, `5V` and `VIN` are that board's own nets (`Endpoint::BoardRail`) and ground stays shared, so wiring two boards' `3V3` pins together joins their regulators instead of naming one global supply.
+- `litz-esp-soc` is 0.1.2 and the SoC crates are 0.1.1; `litz-esp` requires those registry versions.
+
+### Removed
+
+- The extra WIT copies: `crates/litz-mcu-wit/wit/litz-mcu.wit` is the one chip contract, and the scaffolder copies it into a new board's `wit/` instead of shipping its own `wit-v2/`.
+
 ## [0.5.1] - 2026-11-23
 
 ### Fixed
