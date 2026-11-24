@@ -409,6 +409,50 @@ export class Session {
     };
   }
 
+  /**
+   * Every file on a storage part's FAT volume, as the guest left it:
+   * `[{ path, data }]`. `part` is the diagram id of a microSD card or a
+   * W25Q flash. A volume the guest never mounted reads as [].
+   */
+  storageFiles(part) {
+    this.#assertOpen();
+    if (typeof part !== "string" || part.length === 0) {
+      throw new LitzError("storageFiles() needs a part id");
+    }
+    const buf = hold(this.#io, ENCODER.encode(part));
+    try {
+      // The framing always carries at least the u32 count, so 0 is an error.
+      const length = this.#x.litz_storage_files_len(this.#handle, buf.ptr, buf.len);
+      if (length === 0) this.#throwStored();
+      const bytes = this.#readBytes(
+        (ptr, cap) =>
+          this.#x.litz_storage_files_copy(this.#handle, buf.ptr, buf.len, ptr, cap),
+        length,
+      );
+      return parseFileFrame(bytes);
+    } finally {
+      this.#io.release(buf);
+    }
+  }
+
+  /**
+   * The MCU's own flash as the run left it, or `null` when the backend keeps
+   * no image. The array is a copy; later calls do not change it.
+   */
+  flashImage(board = 0) {
+    this.#assertOpen();
+    const index = this.#boardIndex(board);
+    const length = this.#x.litz_flash_len(this.#handle, index);
+    if (length === 0) {
+      this.#throwStored();
+      return null;
+    }
+    return this.#readBytes(
+      (ptr, cap) => this.#x.litz_flash_copy(this.#handle, index, ptr, cap),
+      length,
+    );
+  }
+
   /** Deliver a touch at panel pixels. False when the board has no panel. */
   touch(x, y, down = true) {
     this.#assertOpen();
@@ -709,6 +753,16 @@ export class Session {
     if (message) throw new LitzError(message);
   }
 
+  #readBytes(fill, length) {
+    if (!(length > 0)) return new Uint8Array(0);
+    const cap = this.#io.writeOut(length);
+    const written = fill(cap.ptr, cap.len);
+    if (written !== length) {
+      throw this.#io.error("a value from the module could not be read");
+    }
+    return this.#io.copyOut(written);
+  }
+
   #readText(fill, initial = 256) {
     let capacity = Math.max(64, initial + 1);
     for (;;) {
@@ -721,5 +775,31 @@ export class Session {
       }
     }
   }
+}
+
+/** `u32` count, then per file a `u32` path length, the path, a `u32` data
+ * length and the bytes. */
+function parseFileFrame(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let at = 0;
+  const u32 = () => {
+    if (at + 4 > view.byteLength) throw new LitzError("the file list was truncated");
+    const value = view.getUint32(at, true);
+    at += 4;
+    return value;
+  };
+  const count = u32();
+  const out = [];
+  for (let index = 0; index < count; index += 1) {
+    const pathLength = u32();
+    if (at + pathLength > view.byteLength) throw new LitzError("the file list was truncated");
+    const path = DECODER.decode(bytes.subarray(at, at + pathLength));
+    at += pathLength;
+    const dataLength = u32();
+    if (at + dataLength > view.byteLength) throw new LitzError("the file list was truncated");
+    out.push({ path, data: bytes.slice(at, at + dataLength) });
+    at += dataLength;
+  }
+  return out;
 }
 

@@ -1513,6 +1513,32 @@ impl W25Q32 {
         &self.memory
     }
 
+    /// Format a FAT volume holding `files` at the array's current size.
+    ///
+    /// The in-memory counterpart of the `files` attribute: a browser host
+    /// supplies the bytes instead of a project directory. The rest of the
+    /// array stays erased, like a fresh flash with one volume on it.
+    pub fn load_files(&mut self, files: &[(String, Vec<u8>)]) -> Result<(), String> {
+        let mut image = crate::block::Image::blank(self.memory.len(), 0xff);
+        let volume: Vec<crate::fat::File<'_>> = files
+            .iter()
+            .map(|(path, data)| crate::fat::File {
+                path,
+                data: data.as_slice(),
+            })
+            .collect();
+        crate::fat::format(&mut image, &volume)?;
+        self.memory = image.to_vec();
+        self.dirty = false;
+        Ok(())
+    }
+
+    /// Every file on the volume as the guest left it, or an error when the
+    /// array holds no readable FAT volume.
+    pub fn files(&self) -> Result<Vec<(String, Vec<u8>)>, String> {
+        crate::fat::read_files(&crate::block::Image::from_bytes(self.memory.clone()))
+    }
+
     /// Whether the guest programmed or erased anything since construction.
     pub fn dirty(&self) -> bool {
         self.dirty
@@ -2239,6 +2265,25 @@ mod tests {
         assert_eq!(files[0].0, "notes.txt");
         assert_eq!(files[0].1, b"remember\n");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn host_files_land_on_a_flash_volume_too() {
+        let mut flash = W25Q32::with_capacity(64 * 1024);
+        let files = vec![
+            ("notes.txt".to_string(), b"remember\n".to_vec()),
+            ("data/blob.bin".to_string(), vec![0, 1, 2, 3]),
+        ];
+        flash.load_files(&files).unwrap();
+        assert_eq!(flash.capacity(), 64 * 1024);
+        // The reader reports the volume's own order, which is by path.
+        let read = flash.files().unwrap();
+        assert_eq!(read.len(), 2);
+        assert_eq!(read[0].0, "data/blob.bin");
+        assert_eq!(read[0].1, vec![0, 1, 2, 3]);
+        assert_eq!(read[1].0, "notes.txt");
+        assert_eq!(read[1].1, b"remember\n");
+        assert!(!flash.dirty());
     }
 
     #[test]

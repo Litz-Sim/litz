@@ -219,6 +219,43 @@ impl MicroSd {
         self.dirty = false;
     }
 
+    /// Format a FAT volume holding `files` at the card's current capacity.
+    ///
+    /// This is the in-memory counterpart of the `files` attribute: a host that
+    /// already has the bytes (a browser tab) builds the same volume without a
+    /// project directory. The card keeps its `size`, so formatting a 32 MiB
+    /// card writes only the sectors the volume uses.
+    pub fn load_files(&mut self, files: &[(String, Vec<u8>)]) -> Result<(), String> {
+        let capacity = if self.capacity() == 0 {
+            DEFAULT_SD_SIZE
+        } else {
+            self.capacity()
+        };
+        if capacity % crate::block::SECTOR != 0 {
+            return Err(format!(
+                "size {capacity} is not a whole number of {} byte sectors",
+                crate::block::SECTOR
+            ));
+        }
+        let volume: Vec<crate::fat::File<'_>> = files
+            .iter()
+            .map(|(path, data)| crate::fat::File {
+                path,
+                data: data.as_slice(),
+            })
+            .collect();
+        let mut image = Image::blank(capacity, 0);
+        crate::fat::format(&mut image, &volume)?;
+        self.set_image(image.to_vec());
+        Ok(())
+    }
+
+    /// Every file on the card as the guest left it. Mounting reads a copy, so
+    /// the device's bytes are untouched.
+    pub fn files(&self) -> Result<Vec<(String, Vec<u8>)>, String> {
+        crate::fat::read_files(&self.image)
+    }
+
     /// Whether blocks were written since construction or the last save.
     pub fn dirty(&self) -> bool {
         self.dirty
@@ -636,6 +673,21 @@ mod tests {
         assert_eq!(files[0].0, "main.py");
         assert_eq!(files[0].1, b"print('hi')\n");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn host_files_build_the_same_volume_a_directory_does() {
+        // The browser has no project directory; these bytes are what a host
+        // already holds. The capacity comes from the card, not from the files.
+        let mut card = MicroSd::blank(1 << 20);
+        let files = vec![
+            ("boot.py".to_string(), b"print('hi')\n".to_vec()),
+            ("logs/run.txt".to_string(), b"line\n".to_vec()),
+        ];
+        card.load_files(&files).unwrap();
+        assert_eq!(card.capacity(), 1 << 20);
+        assert_eq!(card.files().unwrap(), files);
+        assert!(!card.dirty(), "formatting is the card's baseline");
     }
 
     #[test]

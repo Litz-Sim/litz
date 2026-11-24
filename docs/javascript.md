@@ -1,6 +1,6 @@
 # JavaScript API
 
-This page is the reference for `@litz-sim/litz` 0.4.1. It documents every export of `index.js` and `index.d.ts`, the shapes that cross the WebAssembly boundary, the lifecycle rules, the host bridge that runs custom parts and chips, and the determinism guarantees. All samples are ES modules and run from the repository root with `node`; the package name resolves through `js/package.json` when a sample is saved inside `js/`.
+This page is the reference for `@litz-sim/litz` 0.6.2. It documents every export of `index.js` and `index.d.ts`, the shapes that cross the WebAssembly boundary, the lifecycle rules, the host bridge that runs custom parts and chips, and the determinism guarantees. All samples are ES modules and run from the repository root with `node`; the package name resolves through `js/package.json` when a sample is saved inside `js/`.
 
 The same simulator is a Rust library: [the Rust reference](rust.md) covers `machine::boot`, the project runner and the native extension points. The package wraps one compiled module, `js/litz_wasm.wasm`, built from `crates/litz-wasm`. The module exposes a synchronous C ABI over linear memory: pointers are byte offsets, strings are UTF-8, and every call returns immediately. The wrapper turns that ABI into `Litz`, `Session` and their supporting objects.
 
@@ -59,10 +59,11 @@ Builds one chip per development board named in `diagram.json` and returns a `Ses
 | `manifests` | `Array<string \| { toml: string, schematic: string }>` | `[]` | Catalog manifests as TOML text. A board manifest with an internal schematic uses the object form. |
 | `parts` | `Record<string, PartFactory>` | `{}` | Part factories keyed by the module name in the part manifest. |
 | `boards` | `Record<string, ChipFactory>` | `{}` | Chip factories keyed by the module name in the board manifest. |
+| `storage` | `Record<string, StorageFile[]>` | `{}` | Files formatted onto a storage part's FAT volume, keyed by diagram id. |
 
 `BoardImage` is `{ id?: string, app, rom?, boot?, ptable?, flashSize?, mac? }`. Omitting `id` matches the images to the boards in diagram order; giving it on one entry means every entry must name a board. Each board's fields override the session-wide `flashSize` and `mac`.
 
-`PartFactory` is `() => HostPart`. `ChipFactory` is `(host: ChipHost) => HostChip`.
+`PartFactory` is `() => HostPart`. `ChipFactory` is `(host: ChipHost) => HostChip`. `StorageFile` is `{ path: string, data: Uint8Array | ArrayBuffer | ArrayBufferView }`, and the paths are relative to the volume root (`boot.py`, `logs/run.txt`). This is the browser's counterpart of the part's `files` attribute: the same deterministic FAT formatter, given bytes the host already holds. The part's `size` attribute sets the capacity.
 
 The wrapper validates the arguments before it crosses into the module. A diagram that is not a non-empty string throws ``LitzError("createSession needs the diagram.json text as `diagram`")``. An absent or empty application image throws ``LitzError("createSession needs the application image as `app`")``. A `flashSize` that is not a positive integer throws ``LitzError("`flashSize` must be a positive whole number of bytes")``. A `mac` that is not a string throws ``LitzError("`mac` must be a string such as 24:0a:c4:12:34:56")``. A `manifests` value that is not an array of strings and `{ toml, schematic }` objects throws ``LitzError("`manifests` must be an array of TOML texts or {toml, schematic}")``. A `parts` or `boards` value that is not a function throws `LitzError("the factory for NAME must be a function")`.
 
@@ -181,7 +182,15 @@ Moves a continuous control such as a potentiometer. The value is rounded and cla
 
 ### `setNamedControl(id: string, name: string, value: string | number): void`
 
-Sets a named control on a part, such as a sensor's `temperature` or `lux`. The value is converted to a string before it crosses into the module. When the module reports that the part has no such control, the call throws `LitzError("part ID has no control NAME")` or the module's own message.
+Sets a named control on a part, such as a sensor's `temperature` or `lux`. The value is converted to a string before it crosses into the module. A board id is also accepted: `setNamedControl("pico", "power", "off")` flips the board's power switch, and turning it back on reboots the firmware from reset. When the module reports that the part has no such control, the call throws `LitzError("part ID has no control NAME")` or the module's own message.
+
+### `storageFiles(part: string): StorageFileBytes[]`
+
+Returns every file on a storage part's FAT volume, as the guest left it. `part` names a microSD card or a W25Q flash by diagram id. A firmware that writes a log or a settings file leaves it here, so a host can read the volume back without a `save` path. An unformatted volume returns `[]`; an id that is not a readable storage part throws `LitzError`.
+
+### `flashImage(board?: number | string): Uint8Array | null`
+
+Returns the MCU's own flash as the run left it, for a host that wants to keep what the firmware wrote. `board` is a list index or diagram id and defaults to the first board. A backend that keeps no image returns `null`.
 
 ### `partPin(id: string, pin?: string): Level | null`
 

@@ -36,6 +36,25 @@ export interface SessionOptions {
   parts?: Record<string, PartFactory>;
   /** Wasm chip modules: `{ "x.wasm": (host) => instance }`. */
   boards?: Record<string, ChipFactory>;
+  /**
+   * Files to format onto a storage part's FAT volume, keyed by diagram id.
+   * The browser counterpart of the part's `files` attribute, which names a
+   * host directory the module cannot read.
+   */
+  storage?: Record<string, StorageFile[]>;
+}
+
+/** One file for a storage volume. */
+export interface StorageFile {
+  /** Path on the volume, e.g. `boot.py` or `logs/run.txt`. */
+  path: string;
+  data: Uint8Array | ArrayBuffer | ArrayBufferView;
+}
+
+/** One file read back from a storage volume. */
+export interface StorageFileBytes {
+  path: string;
+  data: Uint8Array;
 }
 
 /** One board's images in a multi-board session. */
@@ -318,8 +337,21 @@ export declare class Session {
   press(id: string, pressed?: boolean): void;
   /** Move a control: 0 to 1000 permille of its travel. */
   setControl(id: string, permille: number): void;
-  /** Set a named control such as a sensor's `temperature` or `lux`. */
+  /**
+   * Set a named control such as a sensor's `temperature`, a supply's
+   * `voltage` or a board's `power` (`"on"` / `"off"`).
+   */
   setNamedControl(id: string, name: string, value: string | number): void;
+  /**
+   * Every file on a storage part's FAT volume, as the guest left it. `part`
+   * names a microSD card or a W25Q flash; an unformatted volume reads as [].
+   */
+  storageFiles(part: string): StorageFileBytes[];
+  /**
+   * The MCU's own flash as the run left it, or `null` when the backend keeps
+   * no image.
+   */
+  flashImage(board?: number | string): Uint8Array | null;
   /** The level on one of a part's pins, or `null` when it does not exist. */
   partPin(id: string, pin?: string): Level | null;
   /** The level the chip sees on its own pad, by GPIO number. */

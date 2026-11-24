@@ -521,21 +521,42 @@ impl Session {
     }
 
     /// Set a named control (`temperature`, `lux`), which is how a scenario
-    /// drives a sensor that has no knob.
+    /// drives a sensor that has no knob. A board id is a control too: `power`
+    /// is its power switch, so it is tried before the part lookup that would
+    /// otherwise report "no part".
     pub(crate) fn set_named_control(
         &mut self,
         id: &str,
         name: &str,
         value: &str,
     ) -> Result<(), String> {
+        if self.chips[0].set_named_control(id, name, value) {
+            return Ok(());
+        }
         if self.chips[0].state(id).is_none() {
             return Err(format!("no part {id:?} in the diagram"));
         }
-        if self.chips[0].set_named_control(id, name, value) {
-            Ok(())
-        } else {
-            Err(format!("part {id:?} has no control {name:?}"))
-        }
+        Err(format!("part {id:?} has no control {name:?}"))
+    }
+
+    /// Put a host-supplied file tree on a storage part's FAT volume.
+    pub(crate) fn set_storage_files(
+        &mut self,
+        part: &str,
+        files: &[(String, Vec<u8>)],
+    ) -> Result<(), String> {
+        self.board.borrow_mut().set_storage_files(part, files)
+    }
+
+    /// Every file on a storage part's volume, as the guest left it.
+    pub(crate) fn storage_files(&mut self, part: &str) -> Result<Vec<(String, Vec<u8>)>, String> {
+        self.board.borrow_mut().storage_files(part)
+    }
+
+    /// The MCU's own flash as the run left it, for a host that wants to keep
+    /// what the firmware wrote.
+    pub(crate) fn flash_image(&self, board: usize) -> Option<Vec<u8>> {
+        self.chips.get(board)?.flash_image()
     }
 
     /// The level on one of a part's own pins, when the part has it.

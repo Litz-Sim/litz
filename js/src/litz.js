@@ -167,6 +167,7 @@ export class Litz {
     parts = {},
     boards = {},
     boardImages = [],
+    storage = {},
   } = {}) {
     this.#assertOpen();
     if (typeof diagram !== "string" || diagram.length === 0) {
@@ -202,6 +203,9 @@ export class Litz {
       )
     ) {
       throw new LitzError("`manifests` must be an array of TOML texts or {toml, schematic}");
+    }
+    if (typeof storage !== "object" || storage === null || Array.isArray(storage)) {
+      throw new LitzError("`storage` must be an object keyed by part id");
     }
 
     const io = this.#io;
@@ -247,6 +251,26 @@ export class Litz {
     if (mac !== null) spec.mac = mac;
     if (analog) spec.analog = true;
     if (manifests.length > 0) spec.manifests = manifests;
+    const storageSpec = {};
+    for (const [part, files] of Object.entries(storage)) {
+      if (!Array.isArray(files)) {
+        throw new LitzError(`\`storage.${part}\` must be an array of {path, data}`);
+      }
+      // Validate every file before allocating any of them, so a bad entry
+      // does not leave earlier buffers behind.
+      const checked = files.map((file) => {
+        if (!file || typeof file.path !== "string" || file.path.length === 0) {
+          throw new LitzError(`every \`storage.${part}\` entry needs a \`path\``);
+        }
+        return { path: file.path, data: bytesOf(file.data, "storage file data") };
+      });
+      storageSpec[part] = checked.map((file) => {
+        const dataBuf = hold(io, file.data);
+        buffers.push(dataBuf);
+        return { path: file.path, data: { ptr: dataBuf.ptr, len: dataBuf.len } };
+      });
+    }
+    if (Object.keys(storageSpec).length > 0) spec.storage = storageSpec;
     const jsonBuf = hold(io, ENCODER.encode(JSON.stringify(spec)));
     const previous = this.#host.register({ parts, boards });
     let handle;

@@ -6,6 +6,17 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-25
+
+### Added
+
+- A host can put files on a storage part without a project directory: `createSession({ storage })` takes `{ [partId]: [{ path, data }] }`, formats the same deterministic FAT volume the `files` attribute builds, and the new `Session#storageFiles(part)` reads the volume back as the guest left it. This is the browser path for a microSD card or a W25Q flash; the attribute names a host directory, which a wasm build cannot read.
+- `Session#flashImage(board?)` returns the MCU's own flash as the run left it, the JavaScript counterpart of `litz run --flash-export`.
+
+### Fixed
+
+- `Session#setNamedControl` accepts a board id. A board is not a leaf part, so the entry refused `setNamedControl("esp", "power", "off")` with `no part "esp" in the diagram` before the board's own power switch could answer. Boards are now tried first, and an unknown id still reports the old message.
+
 ## [0.6.1] - 2026-11-24
 
 ### Fixed

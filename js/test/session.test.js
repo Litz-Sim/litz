@@ -734,6 +734,85 @@ describe("litz:mcu@0.2.0 host calls", () => {
   });
 });
 
+describe("storage volumes and board power", () => {
+  const diagram = JSON.stringify({
+    version: 1,
+    parts: [
+      { id: "esp", type: "board-esp32-c3-devkitm-1", left: 0, top: 0, attrs: {} },
+      { id: "sd", type: "litz-microsd-card", left: 400, top: 0, attrs: { size: "1MB" } },
+    ],
+    connections: [
+      ["sd:CS", "esp:GPIO4", "", []],
+      ["sd:SCK", "esp:GPIO5", "", []],
+      ["sd:DI", "esp:GPIO6", "", []],
+      ["sd:DO", "esp:GPIO7", "", []],
+      ["sd:VCC", "esp:3V3", "", []],
+      ["sd:GND", "esp:GND.1", "", []],
+    ],
+  });
+
+  async function withCard(files) {
+    return litz.createSession({
+      diagram,
+      app: await fixture("examples/blinky/firmware/blinky.bin"),
+      storage: { sd: files },
+    });
+  }
+
+  test("formats host files onto the card and reads them back", async () => {
+    const session = await withCard([
+      { path: "boot.py", data: new TextEncoder().encode('print("hi")\n') },
+      { path: "logs/run.txt", data: new TextEncoder().encode("line\n") },
+    ]);
+    try {
+      const files = session.storageFiles("sd");
+      assert.deepEqual(
+        files.map((file) => file.path),
+        ["boot.py", "logs/run.txt"],
+      );
+      assert.equal(new TextDecoder().decode(files[0].data), 'print("hi")\n');
+    } finally {
+      session.close();
+    }
+  });
+
+  test("a part that is not storage is refused", async () => {
+    const session = await withCard([]);
+    try {
+      assert.throws(() => session.storageFiles("esp"), LitzError);
+    } finally {
+      session.close();
+    }
+  });
+
+  test("returns the flash the run left behind", async () => {
+    const session = await withCard([]);
+    try {
+      const image = session.flashImage();
+      assert.ok(image instanceof Uint8Array);
+      assert.equal(image.length, 4 * 1024 * 1024);
+    } finally {
+      session.close();
+    }
+  });
+
+  test("the board power switch stops and restarts the core", async () => {
+    const session = await withCard([]);
+    try {
+      session.advance(200);
+      assert.match(session.serial.takeBoard("esp"), /litz: blinky/);
+      session.setNamedControl("esp", "power", "off");
+      session.advance(200);
+      assert.equal(session.serial.takeBoard("esp"), "");
+      session.setNamedControl("esp", "power", "on");
+      session.advance(200);
+      assert.match(session.serial.takeBoard("esp"), /litz: blinky/);
+    } finally {
+      session.close();
+    }
+  });
+});
+
 describe("creating sessions", () => {
   test("rejects an empty diagram with a usable message", () => {
     assert.throws(() => litz.createSession({ diagram: "", app: new Uint8Array([1]) }), LitzError);

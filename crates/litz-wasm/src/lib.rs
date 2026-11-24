@@ -146,6 +146,18 @@ pub mod abi {
         /// whose internal schematic the host also supplies.
         #[serde(default)]
         manifests: Vec<ManifestSpec>,
+        /// Files to format onto a storage part's FAT volume, keyed by the
+        /// part's diagram id. The browser's counterpart of the `files`
+        /// attribute, which names a directory the module cannot read.
+        #[serde(default)]
+        storage: std::collections::BTreeMap<String, Vec<StorageFileSpec>>,
+    }
+
+    /// One file for a storage part's volume.
+    #[derive(Deserialize)]
+    struct StorageFileSpec {
+        path: String,
+        data: ImageRef,
     }
 
     /// One development board's images for a multi-board session.
@@ -325,6 +337,7 @@ pub mod abi {
             mac: mac_text,
             analog,
             manifests,
+            storage,
         } = spec;
         let mac = match mac_text.as_deref().map(parse_mac) {
             None => litz_engine::machine::DEFAULT_MAC,
@@ -421,7 +434,18 @@ pub mod abi {
             Session::with_fleet(&diagram, &images, &options)
         };
         match session {
-            Ok(session) => register(session),
+            Ok(mut session) => {
+                for (part, files) in storage {
+                    let files: Vec<(String, Vec<u8>)> = files
+                        .into_iter()
+                        .map(|file| (file.path, memory::to_vec(file.data.ptr, file.data.len)))
+                        .collect();
+                    if let Err(message) = session.set_storage_files(&part, &files) {
+                        return error_u32(message);
+                    }
+                }
+                register(session)
+            }
             Err(message) => error_u32(message),
         }
     }
@@ -633,6 +657,91 @@ pub mod abi {
             return 0;
         }
         memory::copy_out(dst_ptr, cap, &pixels)
+    }
+
+    /// A file list as one buffer: `u32` count, then per file a `u32` path
+    /// length, the UTF-8 path, a `u32` data length and the bytes. JSON would
+    /// inflate a card's files by an order of magnitude; this stays copyable
+    /// and the host parses it in one pass.
+    fn storage_frame(files: &[(String, Vec<u8>)]) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&(files.len() as u32).to_le_bytes());
+        for (path, data) in files {
+            out.extend_from_slice(&(path.len() as u32).to_le_bytes());
+            out.extend_from_slice(path.as_bytes());
+            out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+            out.extend_from_slice(data);
+        }
+        out
+    }
+
+    /// Bytes of the file list [`litz_storage_files_copy`] would write, or 0
+    /// with an error set when the part is not a readable storage part.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_storage_files_len(handle: u32, part_ptr: u32, part_len: u32) -> u32 {
+        clear_error();
+        let part = match memory::to_string(part_ptr, part_len, "part id") {
+            Ok(part) => part,
+            Err(message) => return error_u32(message),
+        };
+        match with_session(handle, |session| session.storage_files(&part)) {
+            Some(Ok(files)) => storage_frame(&files).len() as u32,
+            Some(Err(message)) => error_u32(message),
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// Copy a storage part's files as the framing above into `dst`. Returns
+    /// the bytes written; a buffer that is too small receives nothing.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_storage_files_copy(
+        handle: u32,
+        part_ptr: u32,
+        part_len: u32,
+        dst_ptr: u32,
+        cap: u32,
+    ) -> u32 {
+        clear_error();
+        let part = match memory::to_string(part_ptr, part_len, "part id") {
+            Ok(part) => part,
+            Err(message) => return error_u32(message),
+        };
+        let files = match with_session(handle, |session| session.storage_files(&part)) {
+            Some(Ok(files)) => files,
+            Some(Err(message)) => return error_u32(message),
+            None => return error_u32(missing_session(handle)),
+        };
+        let frame = storage_frame(&files);
+        if dst_ptr == 0 || (cap as usize) < frame.len() {
+            return 0;
+        }
+        memory::copy_out(dst_ptr, cap, &frame)
+    }
+
+    /// Bytes in the MCU's own flash image for board `index`, or 0.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_flash_len(handle: u32, board: u32) -> u32 {
+        clear_error();
+        match with_session(handle, |session| session.flash_image(board as usize)) {
+            Some(Some(image)) => image.len() as u32,
+            Some(None) => 0,
+            None => error_u32(missing_session(handle)),
+        }
+    }
+
+    /// Copy board `index`'s flash image into `dst`. Returns the bytes written.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_flash_copy(handle: u32, board: u32, dst_ptr: u32, cap: u32) -> u32 {
+        clear_error();
+        let image = match with_session(handle, |session| session.flash_image(board as usize)) {
+            Some(Some(image)) => image,
+            Some(None) => return 0,
+            None => return error_u32(missing_session(handle)),
+        };
+        if dst_ptr == 0 || (cap as usize) < image.len() {
+            return 0;
+        }
+        memory::copy_out(dst_ptr, cap, &image)
     }
 
     /// Number of development boards the session booted.

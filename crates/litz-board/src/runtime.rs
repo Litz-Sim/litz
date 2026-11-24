@@ -8,9 +8,11 @@
 use crate::BuildError;
 use crate::analog::{self, AnalogConfig, AnalogSolution};
 use crate::bus::Buses;
+use crate::bus_parts::W25Q32;
 use crate::flatten::{Device, Endpoint, Engine, FlatBoard};
 use crate::pixels::Framebuffer;
 use crate::probe::{self, Channel, Probe};
+use crate::storage::MicroSd;
 use crate::waveform;
 use crate::{devices, parts};
 use litz_core::{Drive, Level, Part, PartState, PinId, Strength, TICKS_PER_SEC, Tick};
@@ -2213,6 +2215,71 @@ impl Board {
         self.clear_analog();
         self.settle(now);
         true
+    }
+
+    /// Load a host-supplied file tree onto a storage part's FAT volume.
+    ///
+    /// The attributes `image` and `files` are paths, which a browser build
+    /// cannot read. This is the in-memory door: the same formatter, the same
+    /// deterministic image, built from bytes the host already holds. The
+    /// part's `size` decides the capacity.
+    pub fn set_storage_files(
+        &mut self,
+        id: &str,
+        files: &[(String, Vec<u8>)],
+    ) -> Result<(), String> {
+        let Some(Device::Spi {
+            board,
+            controller,
+            chip_select,
+        }) = self.storage_device(id)
+        else {
+            return Err(format!("{id:?} is not a storage part on an SPI bus"));
+        };
+        let spi = self.buses.spi_mut(board, controller);
+        if let Some(card) = spi.device_as_mut::<MicroSd>(chip_select) {
+            return card.load_files(files);
+        }
+        if let Some(flash) = spi.device_as_mut::<W25Q32>(chip_select) {
+            return flash.load_files(files);
+        }
+        Err(format!(
+            "{id:?} is not a microSD card or a W25Q flash this build can format"
+        ))
+    }
+
+    /// Every file on a storage part's FAT volume, as the guest left it.
+    ///
+    /// A firmware that writes a log or a settings file leaves it on the
+    /// volume; a host can read it back without a `save` path.
+    pub fn storage_files(&mut self, id: &str) -> Result<Vec<(String, Vec<u8>)>, String> {
+        let Some(Device::Spi {
+            board,
+            controller,
+            chip_select,
+        }) = self.storage_device(id)
+        else {
+            return Err(format!("{id:?} is not a storage part on an SPI bus"));
+        };
+        let spi = self.buses.spi_mut(board, controller);
+        if let Some(card) = spi.device_as::<MicroSd>(chip_select) {
+            return card.files();
+        }
+        if let Some(flash) = spi.device_as::<W25Q32>(chip_select) {
+            return flash.files();
+        }
+        Err(format!(
+            "{id:?} is not a microSD card or a W25Q flash this build can read"
+        ))
+    }
+
+    /// The bus attachment of a part that sits on one.
+    fn storage_device(&self, id: &str) -> Option<Device> {
+        self.flat
+            .parts
+            .iter()
+            .find(|part| part.id == id)
+            .and_then(|part| part.device)
     }
 
     /// A host set a named control (`pressed`, `temperature`, `lux`) on a part.
