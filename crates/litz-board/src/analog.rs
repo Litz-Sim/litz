@@ -72,6 +72,16 @@ const SWITCH_OPEN_OHMS: f64 = 10_000_000.0;
 /// not say otherwise. It sets the divider's output impedance, not its ratio.
 const SENSOR_OHMS: f64 = 10_000.0;
 
+/// A multimeter in voltage mode stands across two nets without loading them:
+/// ten megohms is what a handheld meter presents, and low enough that the
+/// node still has a well-defined DC solution.
+const VOLTMETER_OHMS: f64 = 10_000_000.0;
+
+/// A multimeter in current mode sits in series, where its shunt is the only
+/// thing between the two nets. One hundredth of an ohm keeps the reading
+/// within a percent of a short against the loads a board run sees.
+const AMMETER_OHMS: f64 = 0.01;
+
 /// Voltages and resistances used to turn board parts into elements.
 ///
 /// The defaults describe the dev boards in the built-in catalog: a 3.3 V logic
@@ -1328,6 +1338,22 @@ fn part_model(
                 part: index,
                 a: net(pin(&["1"]).or(Some(0))),
                 b: net(pin(&["2"]).or(Some(1))),
+                ohms,
+            })
+        }
+        // The meter is one two-terminal element whose resistance is the mode:
+        // a voltmeter stands across the circuit, an ammeter in series with
+        // it. Its reading is the voltage across (or current through) that same
+        // element, so the host reads the solution rather than a part state.
+        "multimeter" => {
+            let ohms = match attr("mode") {
+                Some("current") => AMMETER_OHMS,
+                _ => VOLTMETER_OHMS,
+            };
+            Some(Model::Resistor {
+                part: index,
+                a: net(pin(&["+"])),
+                b: net(pin(&["-"])),
                 ohms,
             })
         }

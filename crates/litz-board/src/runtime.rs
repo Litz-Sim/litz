@@ -1132,6 +1132,15 @@ impl Board {
             .node_voltage_gpio_on(board, gpio)
     }
 
+    /// Current through one named part's main element, in amperes.
+    ///
+    /// For a resistor (and a multimeter in either mode) that is the current
+    /// from its first pin to its second; for an LED it is the forward current.
+    /// `None` when the part is not in the solve or the solve failed.
+    pub fn node_current(&self, part: &str) -> Option<f64> {
+        self.analog_solution().ok()?.current(part)
+    }
+
     /// The operating point a reader sees.
     ///
     /// In transient mode that is the last transient step; otherwise it is the

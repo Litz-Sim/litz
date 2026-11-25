@@ -262,6 +262,48 @@ export class Session {
     return code < 0 ? null : LEVELS[code] ?? null;
   }
 
+  /**
+   * Volts on one of a part's pins, from the analog solve: what a voltmeter's
+   * lead would read. `null` when the pin floats or the part is not in the
+   * diagram — a floating node is not 0 V.
+   */
+  partVoltage(id, pin) {
+    this.#assertOpen();
+    const idBuf = hold(this.#io, ENCODER.encode(String(id)));
+    const pinBuf = hold(this.#io, ENCODER.encode(String(pin)));
+    let volts;
+    try {
+      volts = this.#x.litz_part_voltage(
+        this.#handle,
+        idBuf.ptr,
+        idBuf.len,
+        pinBuf.ptr,
+        pinBuf.len,
+      );
+    } finally {
+      this.#io.release(idBuf);
+      this.#io.release(pinBuf);
+    }
+    return Number.isNaN(volts) ? null : volts;
+  }
+
+  /**
+   * Amperes through a part's main element, from the analog solve: what an
+   * ammeter in series reads. Positive flows from the part's first pin to its
+   * second. `null` when the part is not solved.
+   */
+  partCurrent(id) {
+    this.#assertOpen();
+    const idBuf = hold(this.#io, ENCODER.encode(String(id)));
+    let amps;
+    try {
+      amps = this.#x.litz_part_current(this.#handle, idBuf.ptr, idBuf.len);
+    } finally {
+      this.#io.release(idBuf);
+    }
+    return Number.isNaN(amps) ? null : amps;
+  }
+
   /** The level the chip sees on one of its own pads, by GPIO number. */
   gpio(pin) {
     this.#assertOpen();

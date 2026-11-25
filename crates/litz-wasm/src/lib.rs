@@ -42,6 +42,8 @@
 //! | [`litz_stop`] | `(handle: u32) -> u32` | how the last run ended |
 //! | [`litz_fault`] | `(handle, dst, cap) -> u32` | the backend's trap text |
 //! | [`litz_part_pin_level`] | `(handle, id, id_len, pin, pin_len) -> i32` | a part pin's level |
+//! | [`litz_part_voltage`] | `(handle, id, id_len, pin, pin_len) -> f64` | a part pin's volts, `NaN` when floating |
+//! | [`litz_part_current`] | `(handle, id, id_len) -> f64` | a part's current in amps, `NaN` when unsolved |
 //! | [`litz_gpio_level`] | `(handle, pin: u32) -> i32` | a chip pad's level |
 //! | [`litz_set_named_control`] | `(handle, id, name, value) -> i32` | set `temperature`, `lux`, ... |
 //! | [`litz_heap`] | `(handle: u32) -> i32` | the firmware's free heap, or -1 |
@@ -1321,6 +1323,64 @@ pub mod abi {
             Some(None) => -1,
             None => error_i32(missing_session(handle)),
         }
+    }
+
+    /// Voltage on one of a named part's pins, in volts, from the analog solve.
+    ///
+    /// `NaN` means the pin is floating, the part or pin does not exist, or the
+    /// netlist did not solve: a floating node is not 0 V. This is the reading
+    /// a voltmeter's `+` lead takes.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_part_voltage(
+        handle: u32,
+        id_ptr: u32,
+        id_len: u32,
+        pin_ptr: u32,
+        pin_len: u32,
+    ) -> f64 {
+        clear_error();
+        let id = match memory::to_string(id_ptr, id_len, "part id") {
+            Ok(id) => id,
+            Err(message) => {
+                set_error(message);
+                return f64::NAN;
+            }
+        };
+        let pin = match memory::to_string(pin_ptr, pin_len, "pin name") {
+            Ok(pin) => pin,
+            Err(message) => {
+                set_error(message);
+                return f64::NAN;
+            }
+        };
+        if pin.is_empty() {
+            set_error("part voltage needs a pin name");
+            return f64::NAN;
+        }
+        with_session(handle, |session| session.part_voltage(&id, &pin))
+            .flatten()
+            .unwrap_or(f64::NAN)
+    }
+
+    /// Current through one of a named part's main element, in amperes.
+    ///
+    /// `NaN` when the part is not in the analog solve. The sign follows the
+    /// part's own orientation: for a resistor (and either mode of a
+    /// multimeter) positive current flows from its first pin to its second.
+    /// This is the reading an ammeter takes when it sits in that path.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn litz_part_current(handle: u32, id_ptr: u32, id_len: u32) -> f64 {
+        clear_error();
+        let id = match memory::to_string(id_ptr, id_len, "part id") {
+            Ok(id) => id,
+            Err(message) => {
+                set_error(message);
+                return f64::NAN;
+            }
+        };
+        with_session(handle, |session| session.part_current(&id))
+            .flatten()
+            .unwrap_or(f64::NAN)
     }
 
     /// The level the chip sees on one of its own pads, by GPIO number.

@@ -525,6 +525,7 @@ An optional DC solve, or a backward-Euler transient, turns the same flat nets in
 | Part (builtin engine) | Attribute | Analog meaning |
 |---|---|---|
 | `litz-resistor` (`resistor`) | `value` | resistance in ohms, in electronics notation: `220`, `10k`, `4k7`, `2.2k`, `1M`, `4R7`. Default `220`. |
+| `litz-multimeter` (`multimeter`) | `mode` | `voltage` stands the meter across pins `+`/`-` behind 10 MΩ; `current` puts it in series behind a 0.01 Ω shunt. The reading is the solution's voltage across those pins or current through that element — `partVoltage(id, pin)` / `partCurrent(id)` from a host. |
 | `litz-led` (`led`) | `color` | LED forward voltage: red 1.8 V, green/yellow/orange 2.0 V, blue 3.0 V, white 3.2 V. The junction is a Shockley diode rated for that drop at 20 mA, in series with a small internal resistance. |
 | `litz-potentiometer` (`potentiometer`) | `value` | initial position, 0–100 percent of travel from pin 1 to pin 3. It is an initial value, not a resistance. Track resistance is 10 kΩ unless the part also carries `resistance`. |
 | `litz-capacitor` (`capacitor`) | `value` or `capacitance` | capacitance in farads with an SI prefix: `100p`, `100n`, `100nF`, `4.7u`, `2.2µF`, `1mF`. Default `100n`. |

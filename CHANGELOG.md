@@ -6,6 +6,13 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-11-25
+
+### Added
+
+- `litz-multimeter`: a two-lead meter on the analog shelf. `mode = "voltage"` stands it across pins `+`/`-` behind 10 MΩ, `mode = "current"` puts it in series behind a 0.01 Ω shunt, and the reading is the solve's voltage across those pins or current through that element.
+- `Session#partVoltage(id, pin)` and `Session#partCurrent(id)` expose that reading, backed by the new `litz_part_voltage` / `litz_part_current` exports and `Board::node_current`. A floating node returns `null` rather than 0 V.
+
 ## [0.6.2] - 2026-11-25
 
 ### Added

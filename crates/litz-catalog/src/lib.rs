@@ -575,6 +575,10 @@ impl Registry {
                 include_str!("../builtin/parts/litz-signal-generator.toml"),
             ),
             (
+                "litz-multimeter",
+                include_str!("../builtin/parts/litz-multimeter.toml"),
+            ),
+            (
                 "litz-a4988",
                 include_str!("../builtin/parts/litz-a4988.toml"),
             ),

@@ -750,3 +750,59 @@ fn a_drive_change_restarts_the_transient() {
         "a fresh transient starts discharged, got {volts} V"
     );
 }
+
+#[test]
+fn a_multimeter_reads_the_voltage_across_its_leads() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"1k"}}"#,
+            r#"{"id":"m1","type":"litz-multimeter","attrs":{"mode":"voltage"}}"#,
+        ],
+        &[
+            r#"["esp:3V3","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+            r#"["m1:+","r1:1","",[]]"#,
+            r#"["m1:-","r1:2","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let positive = board.node_voltage("m1", "+").expect("the lead is solved");
+    let negative = board.node_voltage("m1", "-").expect("the lead is solved");
+    assert!(
+        (positive - negative - 3.3).abs() < 0.01,
+        "the meter reads {} V across the rail",
+        positive - negative
+    );
+    // A voltmeter stands across the circuit without loading it.
+    let through = board.node_current("m1").expect("the meter has a current");
+    assert!(
+        through.abs() < 1e-6,
+        "the meter drew {through} A from a 1k load"
+    );
+}
+
+#[test]
+fn a_multimeter_in_series_reads_the_current() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"1k"}}"#,
+            r#"{"id":"m1","type":"litz-multimeter","attrs":{"mode":"current"}}"#,
+        ],
+        &[
+            r#"["esp:3V3","r1:1","",[]]"#,
+            r#"["r1:2","m1:+","",[]]"#,
+            r#"["m1:-","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let amps = board.node_current("m1").expect("the meter is in the path");
+    let expected = 3.3 / 1000.01;
+    assert!(
+        (amps - expected).abs() < 1e-4,
+        "the meter read {amps} A, expected about {expected} A"
+    );
+}

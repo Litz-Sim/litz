@@ -58,6 +58,8 @@ litz.close();
 | `setControl(id, permille)` | method | Move a control through 0 to 1000 permille of its travel. |
 | `setNamedControl(id, name, value)` | method | Set a named control such as a sensor's `temperature` or `lux`. |
 | `partPin(id, pin?)` | method | The level on a part pin, or `null`; the first pin when `pin` is omitted. |
+| `partVoltage(id, pin)` | method | Volts on a part pin from the analog solve, or `null` when it floats. |
+| `partCurrent(id)` | method | Amperes through a part's main element, or `null` when it is not solved. |
 | `gpio(pin)` | method | The level the chip sees on one of its own pads, by GPIO number. |
 | `display()` | method | The panel, or `null` when the circuit has none. |
 | `partDisplay(part)` | method | One part's panel by diagram id, such as an e-paper display, or `null` when that part has no framebuffer. Same shape as `display()`. |

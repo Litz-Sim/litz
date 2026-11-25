@@ -564,6 +564,16 @@ impl Session {
         self.chips[0].part_pin_level(id, pin)
     }
 
+    /// Voltage on one named pin of a part, from the analog solve.
+    pub(crate) fn part_voltage(&self, id: &str, pin: &str) -> Option<f64> {
+        self.board.borrow().node_voltage(id, pin)
+    }
+
+    /// Current through one named part's main element, in amperes.
+    pub(crate) fn part_current(&self, id: &str) -> Option<f64> {
+        self.board.borrow().node_current(id)
+    }
+
     /// The level the chip sees on one of its own pads, by GPIO number.
     pub(crate) fn gpio_level(&self, pin: u8) -> Option<litz_core::Level> {
         self.chips[0].gpio_level(pin)
@@ -787,6 +797,40 @@ mod driven {
             "{json}"
         );
         assert!(json.contains(r#""frames":["#), "{json}");
+    }
+
+    #[test]
+    fn a_multimeter_reports_volts_and_amps_from_the_analog_solve() {
+        const METER: &str = r#"{
+          "version": 1,
+          "parts": [
+            {"id": "esp", "type": "board-esp32-c3-devkitm-1", "attrs": {}},
+            {"id": "r1", "type": "litz-resistor", "attrs": {"value": "1k"}},
+            {"id": "mv", "type": "litz-multimeter", "attrs": {"mode": "voltage"}},
+            {"id": "ma", "type": "litz-multimeter", "attrs": {"mode": "current"}}
+          ],
+          "connections": [
+            ["esp:3V3", "r1:1", "", []],
+            ["r1:2", "ma:+", "", []],
+            ["ma:-", "esp:GND.1", "", []],
+            ["mv:+", "esp:3V3", "", []],
+            ["mv:-", "esp:GND.1", "", []]
+          ]
+        }"#;
+        let s = session(METER);
+        let rail = s.part_voltage("mv", "+").expect("the rail is solved");
+        let ground = s.part_voltage("mv", "-").expect("ground is solved");
+        assert!(
+            (rail - ground - 3.3).abs() < 0.01,
+            "across {rail}-{ground} V"
+        );
+        let amps = s.part_current("ma").expect("the series meter carries it");
+        assert!(
+            (amps - 3.3 / 1000.01).abs() < 1e-4,
+            "the series meter read {amps} A"
+        );
+        assert!(s.part_voltage("mv", "nope").is_none());
+        assert!(s.part_current("nope").is_none());
     }
 
     #[test]

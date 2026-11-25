@@ -734,6 +734,49 @@ describe("litz:mcu@0.2.0 host calls", () => {
   });
 });
 
+describe("multimeter readings", () => {
+  const diagram = JSON.stringify({
+    version: 1,
+    parts: [
+      { id: "esp", type: "board-esp32-c3-devkitm-1", left: 0, top: 0, attrs: {} },
+      { id: "r1", type: "litz-resistor", left: 200, top: 0, attrs: { value: "1k" } },
+      { id: "mv", type: "litz-multimeter", left: 400, top: 0, attrs: { mode: "voltage" } },
+      { id: "ma", type: "litz-multimeter", left: 600, top: 0, attrs: { mode: "current" } },
+    ],
+    connections: [
+      ["esp:3V3", "r1:1", "", []],
+      ["r1:2", "ma:+", "", []],
+      ["ma:-", "esp:GND.1", "", []],
+      ["mv:+", "esp:3V3", "", []],
+      ["mv:-", "esp:GND.1", "", []],
+    ],
+  });
+
+  test("reads volts across the leads and amps through the path", async () => {
+    const session = await litz.createSession({
+      diagram,
+      app: await fixture("examples/blinky/firmware/blinky.bin"),
+    });
+    try {
+      const rail = session.partVoltage("mv", "+");
+      const ground = session.partVoltage("mv", "-");
+      assert.ok(
+        Math.abs(rail - ground - 3.3) < 0.01,
+        `the voltmeter read ${rail} - ${ground} V`,
+      );
+      const amps = session.partCurrent("ma");
+      assert.ok(
+        Math.abs(amps - 3.3 / 1000.01) < 1e-4,
+        `the ammeter read ${amps} A`,
+      );
+      assert.equal(session.partVoltage("mv", "nope"), null);
+      assert.equal(session.partCurrent("nope"), null);
+    } finally {
+      session.close();
+    }
+  });
+});
+
 describe("storage volumes and board power", () => {
   const diagram = JSON.stringify({
     version: 1,

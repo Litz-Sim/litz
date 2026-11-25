@@ -44,6 +44,8 @@ export const REQUIRED_EXPORTS = [
   "litz_stop",
   "litz_fault",
   "litz_part_pin_level",
+  "litz_part_voltage",
+  "litz_part_current",
   "litz_gpio_level",
   "litz_set_named_control",
   "litz_heap",

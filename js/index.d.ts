@@ -354,6 +354,16 @@ export declare class Session {
   flashImage(board?: number | string): Uint8Array | null;
   /** The level on one of a part's pins, or `null` when it does not exist. */
   partPin(id: string, pin?: string): Level | null;
+  /**
+   * Volts on one of a part's pins from the analog solve, or `null` when the
+   * pin floats: a floating node is not 0 V. This is a voltmeter's reading.
+   */
+  partVoltage(id: string, pin: string): number | null;
+  /**
+   * Amperes through a part's main element, or `null` when it is not solved.
+   * Positive current flows from the part's first pin to its second.
+   */
+  partCurrent(id: string): number | null;
   /** The level the chip sees on its own pad, by GPIO number. */
   gpio(pin: number): Level | null;
   /** The level one board sees on one of its own pads. */

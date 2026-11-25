@@ -1,0 +1,24 @@
+[part]
+id = "litz-multimeter"
+name = "Multimeter"
+version = "1.0.0"
+description = "Two-lead DC meter: voltage across its leads, or current through them"
+license = "MIT"
+
+[pins."+"]
+kind = "passive"
+number = 1
+
+[pins."-"]
+kind = "passive"
+number = 2
+
+# `voltage` stands the meter across a circuit; `current` puts it in series.
+[attrs.mode]
+type = "enum"
+values = ["voltage", "current"]
+default = "voltage"
+
+[simulation]
+backend = "builtin"
+engine = "multimeter"

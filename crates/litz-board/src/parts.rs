@@ -144,6 +144,7 @@ pub fn build(part: &FlatPart, radios: &RadioHubHandle) -> Result<Box<dyn Part>, 
         "battery" => crate::pin_parts::Battery::build(part),
         "voltage-source" => crate::pin_parts::PowerSupply::build(part),
         "analog" => crate::pin_parts::AnalogShell::build(part),
+        "multimeter" => crate::pin_parts::AnalogShell::build(part),
         "segments-4digit" => crate::pin_parts::SevenSegment4Digit::build(part),
         // Batch 4: protocol displays, analog modules and small driver parts.
         "tm1637" => crate::protocol_displays::Tm1637::build(part),
