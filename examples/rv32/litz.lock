@@ -3,7 +3,7 @@ version = 1
 [[entry]]
 type = "board-litz-rv32"
 version = "1.0.0"
-sha256 = "3ca978bb1829fce3a147d19db95cfbaa5152e23320931b1990804b9fb521d74c"
+sha256 = "d9d6cd50a29f292fab595f943c289eb55eddf0907366a7f5da88ce857f5fc65f"
 
 [[entry]]
 type = "litz-led"
