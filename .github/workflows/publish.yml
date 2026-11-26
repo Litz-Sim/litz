@@ -37,8 +37,10 @@ jobs:
 
   # One native runner per target, no cross-compilation: each artifact is built
   # and exercised by the platform that will run it. The x86_64 Linux build sits
-  # in a Debian 11 container because that image pins the glibc floor at 2.31;
-  # building on a newer runner would quietly raise the minimum a user needs.
+  # in an Ubuntu 20.04 container because that image pins the glibc floor at
+  # 2.31; building on the newer runner directly would quietly raise the minimum
+  # a user needs. (Debian 11 would do the same, but its security archive is
+  # gone, so apt cannot install a compiler there any more.)
   binaries:
     needs: verify
     strategy:
@@ -46,7 +48,7 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-22.04
-            container: debian:11
+            container: ubuntu:20.04
             target: x86_64-unknown-linux-gnu
             ext: tar.gz
           - runner: ubuntu-24.04-arm
@@ -66,13 +68,13 @@ jobs:
             target: x86_64-pc-windows-msvc
             ext: zip
     runs-on: ${{ matrix.runner }}
-    # An empty value means "no container", so the four non-Debian jobs run
+    # An empty value means "no container", so the other four jobs run
     # directly on their runner.
     container: ${{ matrix.container }}
     steps:
-      # The bare Debian image has no compiler and not even git, which checkout
+      # The bare Ubuntu image has no compiler and not even git, which checkout
       # needs, so the toolchain goes in before any action runs.
-      - name: Install the tools the bare Debian image lacks
+      - name: Install the tools the bare Ubuntu image lacks
         if: matrix.container != ''
         shell: bash
         run: |
