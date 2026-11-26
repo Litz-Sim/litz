@@ -22,7 +22,7 @@ Litz is an open-source electronics and firmware simulator. A `diagram.json` file
 | Multi-board | Several boards per diagram, each with its own firmware, pins and buses; a wire between boards is one net. |
 | CLI | `run`, `test`, `check`/`lint`, `build`, `serve`, `catalog`, `heap`, `board check`, `toolchain`/`doctor`, `editor` and `mcp`, with fixed exit codes, JSON/JUnit reports, GDB, screenshots and coverage. |
 | Extensibility | Custom parts and boards as sandboxed WebAssembly components speaking `litz:part` and `litz:mcu`, with no WASI. |
-| CI | `.github/workflows/ci.yml` and a composite action in `action.yml` wrapping `litz test`. |
+| CI | `.github/workflows/ci.yml` and a composite action in `action.yml` that downloads the release binary and wraps `litz test`. |
 
 ## Rust
 
@@ -88,6 +88,10 @@ session.close();
 
 ## CLI
 
+Every version tag publishes a prebuilt `litz` binary for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-apple-darwin` and `x86_64-pc-windows-msvc`. Download `litz-<version>-<target>.tar.gz` from the [release](https://github.com/Litz-Sim/litz/releases) (a `.zip` on Windows), verify the archive against the `checksums.txt` published beside it, and put the executable on `PATH`. Each binary is compiled on a native runner for its own target rather than cross-compiled, and the x86_64 Linux build runs inside a Debian 11 container so the glibc floor stays at 2.31.
+
+`cargo install litz-cli` is the source path: it builds the same binary from crates.io, and `cargo install --path crates/litz-cli` builds it from a checkout. The commands below use `cargo run` because they are written for this repository.
+
 ```sh
 cargo install litz-cli                 # installs the `litz` binary from crates.io
 cargo install --path crates/litz-cli   # or build it from a checkout
@@ -96,13 +100,16 @@ cargo run -p litz-cli -- run examples/blinky    # stream serial output
 cargo run -p litz-cli -- check examples/blinky  # validate the diagram only
 ```
 
+The composite action in `action.yml` downloads the release binary for the tag it is pinned to and checks it against `checksums.txt`, so a workflow using it needs no Rust toolchain. On a platform the release does not cover, or a tag without a release, it prints one line and builds from source with `cargo run` instead.
+
 | Command | What it does | Exit codes |
 |---|---|---|
 | `litz check [dir]` (`lint`) | validates `diagram.json` without running | 0 valid, 1 errors |
 | `litz run [dir]` | boots the firmware and streams serial output | 0 all boards halted, 42 time limit, 1 fault |
 | `litz test [dir]` | runs the `[[test]]` entries in `litz.toml` | 0 pass, 1 fail |
 | `litz test [dir] --scenario scenario.yaml` | runs an automation scenario instead | 0 pass, 1 fail |
-| `litz build [dir] [--dry-run]` | runs the project's `litz.build.toml` recipe | 0 success, 1 failure |
+| `litz build [dir] [--dry-run] [--push [--board ID]]` | runs the project's `litz.build.toml` recipe; `--push` hands the image to a connected editor | 0 success, 1 failure |
+| `litz connect-editor [dir] [--port N]` | opens the loopback link an editor page builds through (default port 4317) | runs until interrupted |
 | `litz serve [dir] [--port N]` | serves a directory over HTTP on 127.0.0.1 (default `.`, port 8000) | runs until interrupted |
 | `litz board check [dir]` | instantiates a board bundle and reports it | 0 valid, 1 invalid |
 | `litz catalog` (`list`, `check`, `add`, `new`, `remove`, `--json`) | prints or manages parts and boards | 0 success, 1 failure |

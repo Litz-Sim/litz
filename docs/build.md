@@ -150,3 +150,5 @@ Nothing is downloaded or cached by Litz. If a step needs `arduino-cli`, `idf.py`
 ```
 
 For a project that keeps its own Litz binary, the same recipe runs unchanged on a developer machine, a container, or a GitHub runner, because it is only a list of shell commands.
+
+`litz build --push` runs the same recipe and then hands the resulting image to a `litz connect-editor` link. It is the local loop: edit in the page, build from a terminal, and the page boots the new image without a file dialog.

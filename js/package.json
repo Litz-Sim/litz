@@ -1,6 +1,6 @@
 {
   "name": "@litz-sim/litz",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "description": "Deterministic electronics and firmware simulator in WebAssembly",
   "keywords": [
     "simulator",

@@ -11,6 +11,7 @@ litz board check [directory]
 litz heap FIRMWARE.elf
 litz toolchain [--json]        (alias: litz doctor)
 litz editor --vscode [directory] [--force] [--gdb-port N]
+litz connect-editor [directory] [--port N]
 litz mcp
 litz --version
 ```
@@ -23,6 +24,7 @@ litz --version
 | `litz test` | Runs the `[[test]]` entries in `litz.toml`. |
 | `litz check` (`lint`) | Validates `diagram.json` against the catalog without booting. |
 | `litz build` | Runs the project's `litz.build.toml` recipe. |
+| `litz connect-editor` | Opens the loopback link the editor builds through. |
 | `litz serve` | Serves a directory over HTTP on loopback. |
 | `litz catalog` | Prints or manages the builtin and project catalog. |
 | `litz board check` | Parses and instantiates a board bundle. |
@@ -162,13 +164,36 @@ Sampling uses the firmware's own getter, so the numbers are the ones the firmwar
 
 ## build
 
-`litz build [directory] [--dry-run]` runs the project's `litz.build.toml` recipe. The recipe is an ordered list of shell steps with an optional working directory, environment and timeout; it is not a sandbox and runs with the user's permissions. The exit code is 0 when every step succeeded and the declared `firmware` file exists, 1 when a step failed, the output is missing, or the recipe is missing or invalid, and 2 for a usage error.
+`litz build [directory] [--dry-run] [--push [--board ID]]` runs the project's `litz.build.toml` recipe. The recipe is an ordered list of shell steps with an optional working directory, environment and timeout; it is not a sandbox and runs with the user's permissions. The exit code is 0 when every step succeeded and the declared `firmware` file exists, 1 when a step failed, the output is missing, or the recipe is missing or invalid, and 2 for a usage error.
 
 | Option | Meaning |
 |---|---|
 | `--dry-run` | Loads and validates the recipe, prints each step and exits without running anything. |
+| `--push` | After a successful build, hands the image to the link `litz connect-editor` opened. |
+| `--board ID` | Names the `[[board]]` whose image is pushed; defaults to the recipe's `firmware`. |
 
 `--dry-run` still parses the recipe and its timeouts but runs no command and does not check the `firmware` path. The recipe format is documented in [Building firmware](build.md). `litz test --build` and `litz run --build` run the same recipe first.
+
+## connect-editor
+
+`litz connect-editor [directory] [--port N]` opens a loopback link for the Litz editor page. It prints an attach URL and a pairing code:
+
+```text
+litz: editor link ws://127.0.0.1:4317/ws
+litz: pairing code B82E-4414-23F7-48D9
+```
+
+Paste the URL with the code appended as its fragment, `ws://127.0.0.1:4317/ws#B82E-4414-23F7-48D9`, into the editor's **Connect to CLI** dialog. The fragment never reaches the daemon, so the code is not in any server log. The link stays open until Ctrl-C.
+
+The page sends one of two messages: `build` runs this project's recipe and streams its transcript line by line, and then announces the image it produced by SHA-256; the page fetches those bytes from `/artifact/<sha256>`. Nothing else is accepted, and no message carries a command string: the link is not a shell. Every route needs the code, and the listener binds `127.0.0.1` only.
+
+The code is also written to `.litz/editor.json` (mode 0600) so that, from another terminal, `litz build --push` can hand a freshly built image to the connected page without going through the recipe a second time. Without a running link the build still succeeds and prints that it was not pushed.
+
+| Option | Meaning |
+|---|---|
+| `--port N` | Port to listen on; defaults to 4317. |
+
+The link is a development convenience on the same machine. Moving a project between devices is a storage question, not this one.
 
 ## serve
 

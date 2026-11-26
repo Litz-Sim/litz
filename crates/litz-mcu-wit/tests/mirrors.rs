@@ -24,6 +24,11 @@ fn every_copy_of_the_contract_is_the_one_file() {
             // only matter in the workspace, where they are compiled.
             continue;
         };
-        assert_eq!(canonical, copy, "{} drifted from the contract", path.display());
+        assert_eq!(
+            canonical,
+            copy,
+            "{} drifted from the contract",
+            path.display()
+        );
     }
 }

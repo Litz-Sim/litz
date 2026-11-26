@@ -1,3 +1,8 @@
+# Each version tag publishes a native binary per platform, and this action
+# prefers it: a caller pinned to a tag runs that exact build without installing
+# a Rust toolchain. The source build stays as the fallback for alpine/musl
+# containers and any runner the release does not cover, so the action keeps
+# working instead of failing just because a download is unavailable.
 name: Litz
 description: Run a Litz project's tests in CI, offline and without a token.
 branding:
@@ -16,14 +21,91 @@ inputs:
     description: Write a JUnit XML report to this path, if set.
     required: false
     default: ""
+  version:
+    description: Release tag to download (for example v0.6.3). Defaults to this action's ref; empty builds from source.
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
+    # Prebuilt binaries exist for Linux x86_64 on glibc. Anything else (alpine,
+    # arm, macOS, Windows, or a tag with no release) is detected here and the
+    # run steps below switch to the source build.
+    - name: Download the release binary
+      id: binary
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        INPUT_VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_REPO: ${{ github.action_repository }}
+      run: |
+        set -euo pipefail
+        tag="$INPUT_VERSION"
+        if [ -z "$tag" ] && [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          tag="$ACTION_REF"
+        fi
+        if [ -z "$tag" ]; then
+          echo "No release version pinned; building litz from source."
+          echo "source=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        case "$tag" in v*) ;; *) tag="v$tag" ;; esac
+        version="${tag#v}"
+        target=x86_64-unknown-linux-gnu
+        archive="litz-$version-$target.tar.gz"
+        dir="$RUNNER_TEMP/litz"
+        dl="$RUNNER_TEMP/litz-download"
+        rm -rf "$dir" "$dl"
+        mkdir -p "$dir" "$dl"
+        if [ "$(uname -s)" != Linux ] || [ "$(uname -m)" != x86_64 ]; then
+          echo "No prebuilt litz for $(uname -s) $(uname -m); building from source."
+          echo "source=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if ! gh release download "$tag" --repo "$ACTION_REPO" \
+            --pattern "$archive" --pattern checksums.txt --dir "$dl"; then
+          echo "No downloadable litz release at $tag; building from source."
+          echo "source=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if ! (cd "$dl" && grep -F "  $archive" checksums.txt | sha256sum -c -); then
+          echo "Checksum mismatch for $archive; building from source."
+          echo "source=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        if ! tar -xzf "$dl/$archive" -C "$dir"; then
+          echo "Could not unpack $archive; building from source."
+          echo "source=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        # A glibc floor above the host's or a musl loader only shows up at
+        # exec time, not at download time, so probe the binary before using it.
+        if ! "$dir/litz" --version >/dev/null 2>&1; then
+          echo "The prebuilt litz cannot run here (glibc or musl mismatch); building from source."
+          echo "source=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        echo "source=false" >> "$GITHUB_OUTPUT"
+
+    - name: Run the tests with the release binary
+      if: steps.binary.outputs.source != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        junit=""
+        if [ -n "${{ inputs.junit }}" ]; then junit="--junit ${{ inputs.junit }}"; fi
+        "$RUNNER_TEMP/litz/litz" test "${{ inputs.path }}" $junit ${{ inputs.args }}
+
     - uses: dtolnay/rust-toolchain@stable
+      if: steps.binary.outputs.source == 'true'
     - uses: Swatinem/rust-cache@v2
+      if: steps.binary.outputs.source == 'true'
       with:
         workspaces: "."
-    - shell: bash
+    - name: Run the tests from source
+      if: steps.binary.outputs.source == 'true'
+      shell: bash
       run: |
         set -euo pipefail
         junit=""

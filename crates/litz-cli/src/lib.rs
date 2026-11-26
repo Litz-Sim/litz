@@ -10,6 +10,7 @@
 
 pub mod build;
 pub mod catalog;
+pub mod editor_link;
 pub mod heap;
 pub mod report;
 pub mod serve;

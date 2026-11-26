@@ -16,6 +16,7 @@
 use crate::config::parse_duration;
 use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -93,20 +94,28 @@ impl BuildConfig {
 /// Run a project's recipe. Returns a transcript; an error means a step failed
 /// or the recipe could not be loaded.
 pub fn run(dir: &Path, dry_run: bool) -> Result<String, String> {
+    let mut output = String::new();
+    run_with(dir, dry_run, &mut |chunk| output.push_str(chunk))?;
+    Ok(output)
+}
+
+/// Run a project's recipe, handing each piece of transcript to `emit` as it
+/// arrives. `run` is this function with a collector, and the editor link uses
+/// it to stream a build's output instead of waiting for the last step.
+pub fn run_with(dir: &Path, dry_run: bool, emit: &mut dyn FnMut(&str)) -> Result<(), String> {
     let config = BuildConfig::load(dir)?;
     let root = dir
         .canonicalize()
         .map_err(|e| format!("{}: {e}", dir.display()))?;
-    let mut output = String::new();
     for (index, step) in config.steps.iter().enumerate() {
         let label = step.name.clone().unwrap_or_else(|| step.run.clone());
-        output.push_str(&format!(
+        emit(&format!(
             "[build {}/{}] {label}\n",
             index + 1,
             config.steps.len()
         ));
         if dry_run {
-            output.push_str(&format!("  $ {}\n", step.run));
+            emit(&format!("  $ {}\n", step.run));
             continue;
         }
         let workdir = resolve_workdir(
@@ -127,12 +136,8 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<String, String> {
             .map(parse_duration)
             .transpose()?
             .map(Duration::from_nanos);
-        let step_output = execute(&step.run, &workdir, &env, timeout)
+        execute(&step.run, &workdir, &env, timeout, emit)
             .map_err(|e| format!("step {} ({label}): {e}", index + 1))?;
-        output.push_str(&step_output);
-        if !output.ends_with('\n') {
-            output.push('\n');
-        }
     }
     if let Some(firmware) = &config.build.firmware {
         let path = root.join(firmware);
@@ -142,7 +147,96 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<String, String> {
             ));
         }
     }
-    Ok(output)
+    Ok(())
+}
+
+/// Where a project's built image lives, and which board it belongs to.
+///
+/// `litz build` does not need a diagram, but a pushed image does need a name
+/// the editor can show. `[build] firmware` is the recipe's own output and wins
+/// for a project with one board; a `[[board]]` section names each board's
+/// image when there are several.
+pub fn image_for(dir: &Path, board: Option<&str>) -> Result<(Option<String>, PathBuf), String> {
+    let recipe = BuildConfig::load(dir).ok();
+    let project = litz_engine::config::Config::load_project(dir).ok();
+    let board_image = |id: &str| {
+        project.as_ref().and_then(|config| {
+            config
+                .boards
+                .iter()
+                .find(|entry| entry.id == id)
+                .and_then(|entry| {
+                    entry
+                        .firmware
+                        .clone()
+                        .map(|path| (Some(entry.id.clone()), path))
+                })
+        })
+    };
+    let single_board = || {
+        project.as_ref().and_then(|config| {
+            let [entry] = &config.boards[..] else {
+                return None;
+            };
+            entry
+                .firmware
+                .clone()
+                .map(|path| (Some(entry.id.clone()), path))
+        })
+    };
+    let built = || {
+        recipe
+            .as_ref()
+            .and_then(|recipe| recipe.build.firmware.clone())
+    };
+    let configured = || {
+        project
+            .as_ref()
+            .and_then(|config| config.sim.firmware.clone())
+    };
+
+    let mut candidates: Vec<(Option<String>, String)> = Vec::new();
+    match board {
+        Some(id) => {
+            if let Some(hit) = board_image(id) {
+                candidates.push(hit);
+            }
+            if let Some(path) = built() {
+                candidates.push((Some(id.to_string()), path));
+            }
+            if let Some(path) = configured() {
+                candidates.push((Some(id.to_string()), path));
+            }
+        }
+        None => {
+            if let Some(path) = built() {
+                candidates.push((None, path));
+            }
+            if let Some(path) = configured() {
+                candidates.push((None, path));
+            }
+            if let Some(hit) = single_board() {
+                candidates.push(hit);
+            }
+        }
+    }
+    for (name, path) in candidates {
+        let path = dir.join(path);
+        if path.is_file() {
+            return Ok((name, path));
+        }
+    }
+    let available: Vec<String> = project
+        .map(|config| config.boards.into_iter().map(|entry| entry.id).collect())
+        .unwrap_or_default();
+    Err(match board {
+        Some(id) if !available.is_empty() => format!(
+            "no firmware for board {id:?}; this project names {}",
+            available.join(", ")
+        ),
+        Some(id) => format!("no firmware for board {id:?}; no image was built"),
+        None => "no built image to push: set [build] firmware or [sim] firmware".to_string(),
+    })
 }
 
 /// A step's working directory, refused when it leaves the project.
@@ -165,13 +259,19 @@ fn resolve_workdir(
     Ok(path)
 }
 
-/// Run one command through the platform shell and capture its transcript.
+/// Run one command through the platform shell, handing its output to `emit`
+/// line by line as it arrives.
+///
+/// Both pipes are drained on their own threads: a step that writes more than a
+/// pipe buffer would otherwise block with no reader, and a build that only
+/// reports at exit cannot be watched in the editor.
 fn execute(
     command: &str,
     workdir: &Path,
     env: &BTreeMap<&str, &str>,
     timeout: Option<Duration>,
-) -> Result<String, String> {
+    emit: &mut dyn FnMut(&str),
+) -> Result<(), String> {
     #[cfg(windows)]
     let mut child = {
         let mut cmd = Command::new("cmd");
@@ -193,10 +293,45 @@ fn execute(
         .spawn()
         .map_err(|e| format!("cannot start {command:?}: {e}"))?;
 
+    let (sender, receiver) = std::sync::mpsc::channel::<Vec<u8>>();
+    let mut pipes: Vec<Box<dyn Read + Send>> = Vec::new();
+    if let Some(stdout) = child.stdout.take() {
+        pipes.push(Box::new(stdout));
+    }
+    if let Some(stderr) = child.stderr.take() {
+        pipes.push(Box::new(stderr));
+    }
+    let mut readers = Vec::new();
+    for mut pipe in pipes {
+        let sender = sender.clone();
+        readers.push(std::thread::spawn(move || {
+            let mut buffer = [0u8; 8192];
+            loop {
+                match pipe.read(&mut buffer) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        if sender.send(buffer[..n].to_vec()).is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+        }));
+    }
+    drop(sender);
+
     let started = Instant::now();
-    loop {
+    let mut pending: Vec<u8> = Vec::new();
+    let status = loop {
+        while let Ok(chunk) = receiver.recv_timeout(Duration::from_millis(10)) {
+            pending.extend_from_slice(&chunk);
+            while let Some(index) = pending.iter().position(|byte| *byte == b'\n') {
+                let line: Vec<u8> = pending.drain(..=index).collect();
+                emit(&String::from_utf8_lossy(&line));
+            }
+        }
         match child.try_wait() {
-            Ok(Some(_)) => break,
+            Ok(Some(finished)) => break finished,
             Ok(None) => {}
             Err(e) => return Err(format!("waiting for {command:?}: {e}")),
         }
@@ -205,27 +340,35 @@ fn execute(
         {
             let _ = child.kill();
             let _ = child.wait();
+            for reader in readers {
+                let _ = reader.join();
+            }
             return Err(format!(
                 "{command:?} did not finish within {} ms",
                 limit.as_millis()
             ));
         }
-        std::thread::sleep(Duration::from_millis(10));
+    };
+    for reader in readers {
+        let _ = reader.join();
     }
-    let output = child
-        .wait_with_output()
-        .map_err(|e| format!("reading the output of {command:?}: {e}"))?;
-    let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
-    text.push_str(&String::from_utf8_lossy(&output.stderr));
-    if !output.status.success() {
-        let code = output
-            .status
+    while let Ok(chunk) = receiver.try_recv() {
+        pending.extend_from_slice(&chunk);
+    }
+    if !pending.is_empty() {
+        let mut line = String::from_utf8_lossy(&pending).into_owned();
+        line.push('\n');
+        emit(&line);
+    }
+
+    if !status.success() {
+        let code = status
             .code()
             .map(|code| code.to_string())
             .unwrap_or_else(|| "a signal".to_string());
         return Err(format!("{command:?} exited with {code}"));
     }
-    Ok(text)
+    Ok(())
 }
 
 #[cfg(test)]

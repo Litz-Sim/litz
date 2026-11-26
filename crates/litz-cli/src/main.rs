@@ -4,6 +4,7 @@
 //! failed, electrical fault or invalid diagram.
 
 use litz_cli::catalog;
+use litz_cli::editor_link;
 use litz_cli::report;
 use litz_cli::runner::{
     GdbRequest, Interactive, Mode, Options, Screenshot, execute_capture, execute_scenario_with,
@@ -12,6 +13,7 @@ use litz_cli::runner::{
 use litz_cli::serve;
 use litz_cli::toolchain;
 use litz_mcp::{RunReport, Runtime, TestEntry, TestReport};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -47,6 +49,11 @@ fn main() -> ExitCode {
     if args.first().map(String::as_str) == Some("editor") {
         return run_editor(&args[1..]);
     }
+    // `connect-editor` owns its own flags and never returns, so it is parsed
+    // before the runner's option loop.
+    if args.first().map(String::as_str) == Some("connect-editor") {
+        return run_connect_editor(&args[1..]);
+    }
 
     let mut command = None;
     let mut dir: Option<PathBuf> = None;
@@ -58,6 +65,8 @@ fn main() -> ExitCode {
     let mut update_lock = false;
     let mut dry_run = false;
     let mut build_first = false;
+    let mut push = false;
+    let mut push_board: Option<String> = None;
     let mut options = Options::default();
 
     let mut args = args.into_iter();
@@ -78,6 +87,14 @@ fn main() -> ExitCode {
             "run" | "test" | "check" | "lint" | "build" | "serve" => command = Some(arg),
             "--dry-run" => dry_run = true,
             "--build" => build_first = true,
+            "--push" => push = true,
+            "--board" => match args.next() {
+                Some(id) => push_board = Some(id),
+                None => {
+                    eprintln!("litz: --board needs the id a [[board]] section names");
+                    return ExitCode::from(2);
+                }
+            },
             "--strict" | "--warnings-as-errors" => strict = true,
             "--json" => as_json = true,
             "--update-lock" => update_lock = true,
@@ -288,9 +305,23 @@ fn main() -> ExitCode {
     let dir = dir.unwrap_or_else(|| PathBuf::from("."));
 
     if command.as_deref() == Some("build") {
-        return match litz_cli::build::run(&dir, dry_run) {
-            Ok(text) => {
-                print!("{text}");
+        let mut output = std::io::stdout();
+        let outcome = litz_cli::build::run_with(&dir, dry_run, &mut |chunk| {
+            let _ = output.write_all(chunk.as_bytes());
+            let _ = output.flush();
+        });
+        return match outcome {
+            Ok(()) => {
+                // A dry run produced nothing; pushing the previous image would
+                // look like the edited recipe had been built.
+                if push && !dry_run {
+                    // A missing link is not a failed build: the image is on
+                    // disk either way, and say so rather than exit 1.
+                    match litz_cli::editor_link::push(&dir, push_board.as_deref()) {
+                        Ok(message) => println!("litz: {message}"),
+                        Err(e) => println!("litz: not pushed to an editor: {e}"),
+                    }
+                }
                 ExitCode::SUCCESS
             }
             Err(e) => {
@@ -483,6 +514,56 @@ fn editor_usage() {
     eprintln!("  directory defaults to the current directory; PORT defaults to 3333.");
     eprintln!("  --force merges into existing files and keeps unrelated configurations;");
     eprintln!("  without it an existing launch.json or tasks.json is refused.");
+}
+
+/// `litz connect-editor [directory] [--port N]`: open the loopback link an
+/// editor page attaches to. The token is printed once and kept in the
+/// project's `.litz/editor.json`, which `litz build --push` reads.
+fn run_connect_editor(args: &[String]) -> ExitCode {
+    let mut port = editor_link::DEFAULT_PORT;
+    let mut directory = PathBuf::from(".");
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--port" => match args.get(index + 1).and_then(|value| value.parse().ok()) {
+                Some(value) => {
+                    port = value;
+                    index += 1;
+                }
+                None => {
+                    eprintln!("litz: --port needs a number");
+                    return ExitCode::from(2);
+                }
+            },
+            "-h" | "--help" => {
+                editor_link_usage();
+                return ExitCode::SUCCESS;
+            }
+            other if other.starts_with('-') => {
+                eprintln!("litz: unknown connect-editor option {other}");
+                return ExitCode::from(2);
+            }
+            other => directory = PathBuf::from(other),
+        }
+        index += 1;
+    }
+    match editor_link::serve(&directory, port) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("litz: {e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn editor_link_usage() {
+    eprintln!("usage: litz connect-editor [directory] [--port N]");
+    eprintln!("  Opens a loopback link (default port 4317) for the Litz editor page:");
+    eprintln!("  the page sends `build`, receives the recipe's output line by line, and");
+    eprintln!("  fetches the image the build produced. The printed pairing code is the");
+    eprintln!("  only credential; it is also kept in .litz/editor.json so that");
+    eprintln!("  `litz build --push [--board ID]` can hand a fresh image to the page.");
+    eprintln!("  Binds 127.0.0.1 only; Ctrl-C stops it.");
 }
 
 /// `litz catalog [--json]` and its `list`, `check`, `add`, `new`, `new board`
@@ -887,7 +968,8 @@ fn parse_address(text: &str) -> Option<u32> {
 fn usage() {
     eprintln!("usage: litz <run|test|check|lint> [directory] [--strict] [--json] [--junit FILE]");
     eprintln!("       litz test [directory] --scenario scenario.yaml");
-    eprintln!("       litz build [directory] [--dry-run]");
+    eprintln!("       litz build [directory] [--dry-run] [--push [--board ID]]");
+    eprintln!("       litz connect-editor [directory] [--port N]");
     eprintln!("       litz serve [directory] [--port N]");
     eprintln!(
         "       litz catalog [--json] | list | check | add | new | remove
@@ -908,6 +990,7 @@ fn usage() {
         "  check  validate diagram.json against the catalog without running (`lint` is an alias)"
     );
     eprintln!("  build  run the project's litz.build.toml recipe and check its firmware output");
+    eprintln!("  connect-editor  open the loopback link an editor page builds through");
     eprintln!("  serve  serve a directory over HTTP (default directory: ., default port: 8000)");
     eprintln!("  catalog  print the builtin catalog, or install and inspect a project's own parts");
     eprintln!(
@@ -921,6 +1004,10 @@ fn usage() {
     eprintln!("  --scenario F   run an automation scenario instead of the [[test]] entries");
     eprintln!("  --build        run litz.build.toml before `test` or `run`");
     eprintln!("  --dry-run      print the build steps without running them");
+    eprintln!("  --push         after `build`, hand the image to a running `connect-editor`");
+    eprintln!(
+        "  --board ID     which [[board]] the pushed image belongs to (default: the recipe's)"
+    );
     eprintln!("  --update-lock  rewrite litz.lock instead of checking it");
     eprintln!(
         "  --vcd FILE     record every net transition as a VCD (PulseView, GTKWave)

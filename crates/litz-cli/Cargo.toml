@@ -28,6 +28,9 @@ litz-diagram = { workspace = true }
 litz-mcp = { workspace = true }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+# `connect-editor` names an image by its SHA-256, so the page can fetch it by
+# content rather than by a mutable path.
+sha2 = "0.11.1"
 toml = "1.2.1"
 litz-engine = { workspace = true }
 

@@ -35,6 +35,113 @@ jobs:
           test "$tag" = "$crates"
           test "$tag" = "$npm"
 
+  # One native runner per target, no cross-compilation: each artifact is built
+  # and exercised by the platform that will run it. The x86_64 Linux build sits
+  # in a Debian 11 container because that image pins the glibc floor at 2.31;
+  # building on a newer runner would quietly raise the minimum a user needs.
+  binaries:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            container: debian:11
+            target: x86_64-unknown-linux-gnu
+            ext: tar.gz
+          - runner: ubuntu-24.04-arm
+            container: ""
+            target: aarch64-unknown-linux-gnu
+            ext: tar.gz
+          - runner: macos-15
+            container: ""
+            target: aarch64-apple-darwin
+            ext: tar.gz
+          - runner: macos-15-intel
+            container: ""
+            target: x86_64-apple-darwin
+            ext: tar.gz
+          - runner: windows-latest
+            container: ""
+            target: x86_64-pc-windows-msvc
+            ext: zip
+    runs-on: ${{ matrix.runner }}
+    # An empty value means "no container", so the four non-Debian jobs run
+    # directly on their runner.
+    container: ${{ matrix.container }}
+    steps:
+      # The bare Debian image has no compiler and not even git, which checkout
+      # needs, so the toolchain goes in before any action runs.
+      - name: Install the tools the bare Debian image lacks
+        if: matrix.container != ''
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential git curl ca-certificates
+
+      - uses: actions/checkout@v4
+
+      - name: Read the workspace version
+        id: version
+        shell: bash
+        run: |
+          version=$(awk '/^\[workspace.package\]/{inside=1; next} /^\[/{inside=0} inside && /^version =/ {gsub(/"/, "", $3); print $3; exit}' Cargo.toml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the CLI
+        shell: bash
+        run: cargo build --release -p litz-cli --bin litz
+
+      # The tarball holds the executable alone at its root so a user can
+      # unpack it onto PATH. A missing strip is not fatal: the binary still
+      # runs, it just carries its symbol table.
+      - name: Strip and package the executable
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          EXT: ${{ matrix.ext }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if command -v strip >/dev/null 2>&1; then
+            strip target/release/litz
+          else
+            echo "strip is not installed; packaging the unstripped binary"
+          fi
+          mkdir -p dist
+          cp target/release/litz dist/litz
+          archive="litz-$VERSION-$TARGET.$EXT"
+          tar -C dist -czf "$archive" litz
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$archive" > "checksums-$TARGET.txt"
+          else
+            shasum -a 256 "$archive" > "checksums-$TARGET.txt"
+          fi
+
+      - name: Package the executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $archive = "litz-$env:VERSION-$env:TARGET.zip"
+          Compress-Archive -Path target/release/litz.exe -DestinationPath $archive
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          "$hash  $archive" | Out-File -Encoding ascii "checksums-$env:TARGET.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: litz-${{ matrix.target }}
+          path: |
+            litz-${{ steps.version.outputs.version }}-${{ matrix.target }}.${{ matrix.ext }}
+            checksums-${{ matrix.target }}.txt
+          if-no-files-found: error
+
   crates:
     needs: verify
     runs-on: ubuntu-latest
@@ -97,10 +204,26 @@ jobs:
       # test and still fails here.
       - run: tools/install-smoke.sh --version "${GITHUB_REF_NAME#v}"
 
+  # The release is the single place assets land: every binary job uploads an
+  # artifact, this job gathers them into one directory and attaches them to the
+  # tag's release, so a rerun after a partial failure converges on the same
+  # asset set.
   release:
-    needs: [crates, npm, smoke]
+    needs: [crates, npm, smoke, binaries]
+    # The registries are the deliverable; the binaries are attached to the page
+    # this job creates. One target failing (a retired runner image, say) must
+    # not take the release page down with it, so the guard names the three
+    # publish jobs and tolerates a partial binary set.
+    if: always() && needs.crates.result == 'success' && needs.npm.result == 'success' && needs.smoke.result == 'success'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: litz-*
+          merge-multiple: true
+          path: dist
+
       # The tag is the release boundary: one GitHub release with generated
       # notes per version. Re-running the workflow reuses an existing release
       # instead of failing on the second create.
@@ -114,3 +237,23 @@ jobs:
               --verify-tag \
               --title "Litz $GITHUB_REF_NAME" \
               --generate-notes
+
+      # `checksums.txt` is the one file the CI action reads, so the per-target
+      # lists are folded into it before upload; the per-target files stay for
+      # anyone verifying a single archive.
+      - name: Attach the binaries to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cd dist
+          shopt -s nullglob
+          archives=(litz-*)
+          if [ ${#archives[@]} -eq 0 ]; then
+            echo "no binaries reached this job; the release page is still created"
+            exit 0
+          fi
+          cat checksums-*.txt > checksums.txt
+          gh release upload "$GITHUB_REF_NAME" "${archives[@]}" checksums.txt --clobber
