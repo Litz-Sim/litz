@@ -187,11 +187,31 @@ jobs:
         working-directory: js
         run: |
           version=$(node -p "require('./package.json').version")
-          if npm view "@litz-sim/litz@$version" version >/dev/null 2>&1; then
+          # Ask the registry document directly: `npm view` reads a cached
+          # copy, and a version published by the previous run of this workflow
+          # can be missing from it for a minute, which turns the check into a
+          # second publish attempt.
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://registry.npmjs.org/@litz-sim%2Flitz/$version")
+          if [ "$code" = 200 ]; then
             echo "@litz-sim/litz@$version is already published"
-          else
-            npm publish --provenance --access public
+            exit 0
           fi
+          set +e
+          output=$(npm publish --provenance --access public 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+          # The same race from the other side: the registry accepted an
+          # earlier publish that this check could not see yet.
+          if printf '%s' "$output" | grep -q 'previously published'; then
+            echo "@litz-sim/litz@$version was already published"
+            exit 0
+          fi
+          exit "$status"
 
   smoke:
     needs: [crates, npm]
