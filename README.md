@@ -88,7 +88,7 @@ session.close();
 
 ## CLI
 
-Every version tag publishes a prebuilt `litz` binary for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-apple-darwin` and `x86_64-pc-windows-msvc`. Download `litz-<version>-<target>.tar.gz` from the [release](https://github.com/Litz-Sim/litz/releases) (a `.zip` on Windows), verify the archive against the `checksums.txt` published beside it, and put the executable on `PATH`. Each binary is compiled on a native runner for its own target rather than cross-compiled, and the x86_64 Linux build runs inside a Debian 11 container so the glibc floor stays at 2.31.
+Every version tag publishes a prebuilt `litz` binary for `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-apple-darwin` and `x86_64-pc-windows-msvc`. Download `litz-<version>-<target>.tar.gz` from the [release](https://github.com/Litz-Sim/litz/releases) (a `.zip` on Windows), verify the archive against the `checksums.txt` published beside it, and put the executable on `PATH`. Each binary is compiled on a native runner for its own target rather than cross-compiled, and the x86_64 Linux build runs inside an Ubuntu 20.04 container so the glibc floor stays at 2.31.
 
 `cargo install litz-cli` is the source path: it builds the same binary from crates.io, and `cargo install --path crates/litz-cli` builds it from a checkout. The commands below use `cargo run` because they are written for this repository.
 
