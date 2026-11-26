@@ -99,9 +99,10 @@ pub fn serve(dir: &Path, port: u16) -> Result<(), String> {
         .local_addr()
         .map_err(|e| format!("editor link: {e}"))?
         .port();
-    println!("litz: editor link ws://127.0.0.1:{port}/ws");
-    println!("litz: pairing code {token}");
-    println!("litz: paste both into the editor's Connect dialog; Ctrl-C to stop");
+    // One line to copy: the page reads the pairing code from the fragment, so
+    // the code never reaches the server in a request line or a log.
+    println!("litz: editor link ws://127.0.0.1:{port}/ws#{token}");
+    println!("litz: paste that into the editor's Connect dialog; Ctrl-C to stop");
     println!("litz: `litz build --push` from another terminal sends an image here");
     accept_loop(listener, Arc::new(state(dir, token)));
     Ok(())

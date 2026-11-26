@@ -176,14 +176,13 @@ Sampling uses the firmware's own getter, so the numbers are the ones the firmwar
 
 ## connect-editor
 
-`litz connect-editor [directory] [--port N]` opens a loopback link for the Litz editor page. It prints an attach URL and a pairing code:
+`litz connect-editor [directory] [--port N]` opens a loopback link for the Litz editor page. It prints one attach URL:
 
 ```text
-litz: editor link ws://127.0.0.1:4317/ws
-litz: pairing code B82E-4414-23F7-48D9
+litz: editor link ws://127.0.0.1:4317/ws#B82E-4414-23F7-48D9
 ```
 
-Paste the URL with the code appended as its fragment, `ws://127.0.0.1:4317/ws#B82E-4414-23F7-48D9`, into the editor's **Connect to CLI** dialog. The fragment never reaches the daemon, so the code is not in any server log. The link stays open until Ctrl-C.
+Paste that line into the editor's **Connect to CLI** dialog. The pairing code rides in the fragment, so it never reaches the daemon in a request line, and the page strips it before opening the socket. The link stays open until Ctrl-C.
 
 The page sends one of two messages: `build` runs this project's recipe and streams its transcript line by line, and then announces the image it produced by SHA-256; the page fetches those bytes from `/artifact/<sha256>`. Nothing else is accepted, and no message carries a command string: the link is not a shell. Every route needs the code, and the listener binds `127.0.0.1` only.
 
