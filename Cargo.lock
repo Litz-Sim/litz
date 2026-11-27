@@ -1114,7 +1114,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "litz"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-catalog",
  "litz-core",
@@ -1125,14 +1125,14 @@ dependencies = [
 
 [[package]]
 name = "litz-analog"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "litz-avr"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-board",
  "litz-catalog",
@@ -1143,11 +1143,11 @@ dependencies = [
 
 [[package]]
 name = "litz-ble"
-version = "0.7.0"
+version = "0.7.1"
 
 [[package]]
 name = "litz-board"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "fatfs",
  "litz-analog",
@@ -1165,7 +1165,7 @@ dependencies = [
 
 [[package]]
 name = "litz-catalog"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-diagram",
  "serde",
@@ -1175,7 +1175,7 @@ dependencies = [
 
 [[package]]
 name = "litz-chip-conformance"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-board",
  "litz-catalog",
@@ -1185,14 +1185,14 @@ dependencies = [
 
 [[package]]
 name = "litz-chip-rv32"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "wit-bindgen",
 ]
 
 [[package]]
 name = "litz-cli"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-catalog",
  "litz-diagram",
@@ -1207,18 +1207,18 @@ dependencies = [
 
 [[package]]
 name = "litz-core"
-version = "0.7.0"
+version = "0.7.1"
 
 [[package]]
 name = "litz-decode"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-core",
 ]
 
 [[package]]
 name = "litz-diagram"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -1227,7 +1227,7 @@ dependencies = [
 
 [[package]]
 name = "litz-editor"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-catalog",
  "litz-diagram",
@@ -1241,7 +1241,7 @@ version = "0.1.0"
 
 [[package]]
 name = "litz-engine"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-avr",
  "litz-ble",
@@ -1263,7 +1263,7 @@ dependencies = [
 
 [[package]]
 name = "litz-esp"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "gdbstub",
  "litz-ble",
@@ -1364,15 +1364,15 @@ dependencies = [
 
 [[package]]
 name = "litz-fixture"
-version = "0.7.0"
+version = "0.7.1"
 
 [[package]]
 name = "litz-ieee802154"
-version = "0.7.0"
+version = "0.7.1"
 
 [[package]]
 name = "litz-mcp"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-catalog",
  "litz-core",
@@ -1384,14 +1384,14 @@ dependencies = [
 
 [[package]]
 name = "litz-mcu"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-core",
 ]
 
 [[package]]
 name = "litz-mcu-wasm"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-ble",
  "litz-board",
@@ -1410,14 +1410,14 @@ dependencies = [
 
 [[package]]
 name = "litz-mcu-wit"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "wit-parser 0.261.0",
 ]
 
 [[package]]
 name = "litz-net"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "getrandom 0.4.3",
  "rustls",
@@ -1427,42 +1427,42 @@ dependencies = [
 
 [[package]]
 name = "litz-part-74hc595"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "wit-bindgen",
 ]
 
 [[package]]
 name = "litz-part-display"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-part-sdk",
 ]
 
 [[package]]
 name = "litz-part-eeprom"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-part-sdk",
 ]
 
 [[package]]
 name = "litz-part-runaway"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-part-sdk",
 ]
 
 [[package]]
 name = "litz-part-sdk"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "wit-bindgen",
 ]
 
 [[package]]
 name = "litz-part-wasm"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-core",
  "litz-part-wit",
@@ -1471,14 +1471,14 @@ dependencies = [
 
 [[package]]
 name = "litz-part-wit"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "wit-parser 0.261.0",
 ]
 
 [[package]]
 name = "litz-project"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-diagram",
  "serde",
@@ -1488,7 +1488,7 @@ dependencies = [
 
 [[package]]
 name = "litz-radio"
-version = "0.7.0"
+version = "0.7.1"
 
 [[package]]
 name = "litz-riscv-rv32"
@@ -1499,7 +1499,7 @@ dependencies = [
 
 [[package]]
 name = "litz-rp"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-board",
  "litz-catalog",
@@ -1512,7 +1512,7 @@ dependencies = [
 
 [[package]]
 name = "litz-wasm"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "litz-board",
  "litz-core",
