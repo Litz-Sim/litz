@@ -109,7 +109,7 @@ The composite action in `action.yml` downloads the release binary for the tag it
 | `litz test [dir]` | runs the `[[test]]` entries in `litz.toml` | 0 pass, 1 fail |
 | `litz test [dir] --scenario scenario.yaml` | runs an automation scenario instead | 0 pass, 1 fail |
 | `litz build [dir] [--dry-run] [--push [--board ID]]` | runs the project's `litz.build.toml` recipe; `--push` hands the image to a connected editor | 0 success, 1 failure |
-| `litz connect-editor [dir] [--port N]` | opens the loopback link an editor page builds through (default port 4317) | runs until interrupted |
+| `litz connect-editor [dir] [--port N] [--host ADDR] [--static DIR] [--origin URL]` | opens the link an editor page builds through and keeps its projects (default `127.0.0.1:4317`) | runs until interrupted |
 | `litz serve [dir] [--port N]` | serves a directory over HTTP on 127.0.0.1 (default `.`, port 8000) | runs until interrupted |
 | `litz board check [dir]` | instantiates a board bundle and reports it | 0 valid, 1 invalid |
 | `litz catalog` (`list`, `check`, `add`, `new`, `remove`, `--json`) | prints or manages parts and boards | 0 success, 1 failure |

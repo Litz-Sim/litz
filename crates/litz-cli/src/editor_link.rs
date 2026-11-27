@@ -8,9 +8,13 @@
 //!
 //! Nothing leaves the machine. The token is the only way in: a page that was
 //! not handed the URL printed by `connect-editor` gets 403 on every route.
-//! The socket accepts two commands — build this project's own recipe, and
-//! accept bytes a `litz build --push` already produced — and never a command
-//! string, so the link is not a shell.
+//! The socket accepts three commands — build this project's own recipe, accept
+//! bytes a `litz build --push` already produced, and read or write the editor's
+//! project library — and never a command string, so the link is not a shell.
+//!
+//! The library is the only place the link touches the filesystem for the page:
+//! flat `.litzproject.json` files under `.litz/projects`, each named by a stem
+//! that cannot leave that directory.
 
 use crate::build;
 use sha2::{Digest, Sha256};
@@ -32,6 +36,13 @@ const MAX_FRAME: usize = 64 * 1024 * 1024;
 const MAX_ARTIFACTS: usize = 8;
 const LOCK_FILE: &str = ".litz/editor.json";
 const GUID: &str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+/// Where the editor keeps the projects it saves through the link. A project is
+/// one file, so the library is a directory the user can list, copy or commit.
+const LIBRARY: &str = ".litz/projects";
+const PROJECT_SUFFIX: &str = ".litzproject.json";
+/// A project carries its parts, code and wires; 8 MB is generous for one and
+/// still small enough that a save cannot stall the socket.
+const MAX_PROJECT: usize = 8 * 1024 * 1024;
 
 /// One image the editor can fetch, keyed by its SHA-256.
 struct Artifact {
@@ -54,9 +65,25 @@ enum Message {
     Close,
 }
 
+/// What a link serves and who may reach it.
+pub struct Options {
+    pub directory: PathBuf,
+    pub port: u16,
+    /// Interface to bind. Loopback by default; a server sets this on purpose.
+    pub host: String,
+    /// Pages allowed to open the socket. Empty accepts any page that holds the
+    /// code, which is the loopback case.
+    pub origins: Vec<String>,
+    /// An editor build to serve beside the link, so page and socket share one
+    /// origin and the browser has nothing to negotiate.
+    pub assets: Option<PathBuf>,
+}
+
 struct State {
     dir: PathBuf,
     token: String,
+    origins: Vec<String>,
+    assets: Option<PathBuf>,
     sessions: RwLock<Vec<Session>>,
     artifacts: Mutex<Vec<(String, Artifact)>>,
     next_id: AtomicU64,
@@ -93,26 +120,57 @@ impl State {
 /// Serve a project to an editor page until the process is interrupted.
 ///
 /// `port` 0 asks the system for one, which is what the tests use.
-pub fn serve(dir: &Path, port: u16) -> Result<(), String> {
-    let (listener, token) = listen(dir, port)?;
+pub fn serve(options: &Options) -> Result<(), String> {
+    let (listener, token) = listen(options)?;
     let port = listener
         .local_addr()
         .map_err(|e| format!("editor link: {e}"))?
         .port();
+    // A wildcard bind is not an address a browser can use, so the printed URL
+    // names loopback and says what to replace it with.
+    let wildcard = options.host == "0.0.0.0" || options.host == "::";
+    let host = if wildcard { "127.0.0.1" } else { &options.host };
     // One line to copy: the page reads the pairing code from the fragment, so
     // the code never reaches the server in a request line or a log.
-    println!("litz: editor link ws://127.0.0.1:{port}/ws#{token}");
-    println!("litz: paste that into the editor's Connect dialog; Ctrl-C to stop");
+    match &options.assets {
+        Some(assets) => {
+            println!("litz: editor at http://{host}:{port}/#{token}");
+            println!("litz: serving {} as well; Ctrl-C to stop", assets.display());
+        }
+        None => {
+            println!("litz: editor link ws://{host}:{port}/ws#{token}");
+            println!("litz: paste that into the editor's Connect dialog; Ctrl-C to stop");
+        }
+    }
+    if wildcard {
+        println!(
+            "litz: listening on every interface; replace 127.0.0.1 with the name the editor reaches"
+        );
+    }
+    if wildcard || !loopback(&options.host) {
+        if options.origins.is_empty() {
+            eprintln!(
+                "litz: warning: bound to {} without --origin; any page holding the code may attach",
+                options.host
+            );
+        }
+        eprintln!("litz: warning: this listener speaks plain HTTP; terminate TLS in front of it");
+    }
     println!("litz: `litz build --push` from another terminal sends an image here");
-    accept_loop(listener, Arc::new(state(dir, token)));
+    accept_loop(listener, Arc::new(state(options, token)));
     Ok(())
 }
 
-/// Bind the loopback listener and claim the project's lock file.
-fn listen(dir: &Path, port: u16) -> Result<(TcpListener, String), String> {
-    let dir = dir
+fn loopback(host: &str) -> bool {
+    host == "127.0.0.1" || host == "::1" || host == "localhost"
+}
+
+/// Bind the listener and claim the project's lock file.
+fn listen(options: &Options) -> Result<(TcpListener, String), String> {
+    let dir = options
+        .directory
         .canonicalize()
-        .map_err(|e| format!("{}: {e}", dir.display()))?;
+        .map_err(|e| format!("{}: {e}", options.directory.display()))?;
     if let Ok((running, _)) = read_lock(&dir)
         && TcpStream::connect(("127.0.0.1", running)).is_ok()
     {
@@ -120,8 +178,8 @@ fn listen(dir: &Path, port: u16) -> Result<(TcpListener, String), String> {
             "an editor link is already running on port {running}; close it first"
         ));
     }
-    let listener = TcpListener::bind(("127.0.0.1", port))
-        .map_err(|e| format!("cannot listen on 127.0.0.1:{port}: {e}"))?;
+    let listener = TcpListener::bind((options.host.as_str(), options.port))
+        .map_err(|e| format!("cannot listen on {}:{}: {e}", options.host, options.port))?;
     let actual = listener
         .local_addr()
         .map_err(|e| format!("editor link: {e}"))?
@@ -131,10 +189,12 @@ fn listen(dir: &Path, port: u16) -> Result<(TcpListener, String), String> {
     Ok((listener, token))
 }
 
-fn state(dir: &Path, token: String) -> State {
+fn state(options: &Options, token: String) -> State {
     State {
-        dir: dir.to_path_buf(),
+        dir: options.directory.to_path_buf(),
         token,
+        origins: options.origins.clone(),
+        assets: options.assets.clone(),
         sessions: RwLock::new(Vec::new()),
         artifacts: Mutex::new(Vec::new()),
         next_id: AtomicU64::new(1),
@@ -209,9 +269,39 @@ fn handle(mut stream: TcpStream, state: Arc<State>) {
         return;
     };
     let origin = request.headers.get("origin").map(String::as_str);
+    if !allowed(&state.origins, origin) {
+        let _ = respond(
+            &mut stream,
+            403,
+            "text/plain",
+            b"this page is not allowed on this link",
+            origin,
+            &[],
+        );
+        return;
+    }
     let (path, query) = split_target(&request.target);
+    // The code arrives in the query for a plain link, in the socket protocol or
+    // an Authorization header once a page wants it out of request lines.
+    let bearer = request
+        .headers
+        .get("authorization")
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .unwrap_or("");
+    let offered = offered_token(
+        request
+            .headers
+            .get("sec-websocket-protocol")
+            .map(String::as_str),
+    );
     let provided = query.get("token").map(String::as_str).unwrap_or("");
-    let authorized = same(&state.token, provided);
+    let authorized =
+        same(&state.token, provided) || same(&state.token, bearer) || same(&state.token, offered);
+    let protocol = if request.headers.contains_key("sec-websocket-protocol") {
+        "Sec-WebSocket-Protocol: litz\r\n"
+    } else {
+        ""
+    };
 
     if request.method == "OPTIONS" {
         let _ = respond(&mut stream, 204, "text/plain", b"", origin, &[]);
@@ -260,7 +350,7 @@ fn handle(mut stream: TcpStream, state: Arc<State>) {
             let accept = base64(&sha1(format!("{key}{GUID}").as_bytes()));
             let _ = write!(
                 stream,
-                "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n"
+                "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n{protocol}\r\n"
             );
             run_socket(stream, state);
         }
@@ -300,10 +390,74 @@ fn handle(mut stream: TcpStream, state: Arc<State>) {
                 }
             }
         }
-        _ => {
-            let _ = respond(&mut stream, 404, "text/plain", b"not found", origin, &[]);
-        }
+        _ => match &state.assets {
+            Some(root) if request.method == "GET" => {
+                let _ = serve_asset(&mut stream, root, &request.target, origin);
+            }
+            Some(_) => {
+                let _ = respond(
+                    &mut stream,
+                    405,
+                    "text/plain",
+                    b"only GET is served",
+                    origin,
+                    &[],
+                );
+            }
+            None => {
+                let _ = respond(&mut stream, 404, "text/plain", b"not found", origin, &[]);
+            }
+        },
     }
+}
+
+/// Serve the editor build. A path with no file behind it goes to `index.html`:
+/// the page owns its routes, not the file tree.
+fn serve_asset(
+    stream: &mut TcpStream,
+    root: &Path,
+    target: &str,
+    origin: Option<&str>,
+) -> std::io::Result<()> {
+    let Some(path) = crate::serve::resolve(root, target) else {
+        return respond(
+            stream,
+            403,
+            "text/plain",
+            b"outside the served directory",
+            origin,
+            &[],
+        );
+    };
+    if let Ok(body) = std::fs::read(&path) {
+        return respond(stream, 200, crate::serve::mime(&path), &body, origin, &[]);
+    }
+    match std::fs::read(root.join("index.html")) {
+        Ok(body) => respond(stream, 200, "text/html; charset=utf-8", &body, origin, &[]),
+        Err(_) => respond(stream, 404, "text/plain", b"not found", origin, &[]),
+    }
+}
+
+/// A client that names no Origin (curl, `litz build --push`) is fine. A page
+/// that names one must be on the list, when a list was given.
+fn allowed(origins: &[String], origin: Option<&str>) -> bool {
+    match origin {
+        None => true,
+        Some(origin) => origins.is_empty() || origins.iter().any(|entry| entry == origin),
+    }
+}
+
+/// The code a page offered as `Sec-WebSocket-Protocol: litz, CODE`.
+fn offered_token(header: Option<&str>) -> &str {
+    header
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .find(|part| *part != "litz")
+                .unwrap_or("")
+        })
+        .unwrap_or("")
 }
 
 struct Request {
@@ -411,6 +565,7 @@ fn run_socket(stream: TcpStream, state: Arc<State>) {
         "type": "hello",
         "version": env!("CARGO_PKG_VERSION"),
         "project": state.dir.file_name().and_then(|name| name.to_str()).unwrap_or(""),
+        "library": library(&state.dir).display().to_string(),
         "boards": boards(&state.dir),
     });
     let _ = out.send(Message::Text(hello.to_string()));
@@ -437,9 +592,82 @@ fn run_socket(stream: TcpStream, state: Arc<State>) {
                     let _ = out.send(Message::Text(error("each message is a JSON object")));
                     continue;
                 };
+                // Only requests that reach the filesystem carry an id: the
+                // page awaits one answer and must not mistake it for another.
+                let id = message.get("id").and_then(|value| value.as_u64());
                 match message.get("type").and_then(|kind| kind.as_str()) {
                     Some("ping") => {
                         let _ = out.send(Message::Text(r#"{"type":"pong"}"#.to_string()));
+                    }
+                    Some("projects.list") => reply(
+                        &out,
+                        id,
+                        serde_json::json!({
+                            "type": "projects.listed",
+                            "items": list_projects(&state.dir),
+                        }),
+                    ),
+                    Some("project.read") => {
+                        let name = message.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                        match project_path(&state.dir, name) {
+                            Some(path) => match read_project(&path) {
+                                Ok(body) => reply(
+                                    &out,
+                                    id,
+                                    serde_json::json!({
+                                        "type": "project.text",
+                                        "key": name.trim(),
+                                        "text": body,
+                                    }),
+                                ),
+                                Err(failure) => reply(&out, id, failure_message(&failure)),
+                            },
+                            None => reply(&out, id, failure_message(&bad_name(name))),
+                        }
+                    }
+                    Some("project.write") => {
+                        let name = message.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                        let body = message.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                        match project_path(&state.dir, name) {
+                            Some(path) if body.len() <= MAX_PROJECT => {
+                                match write_project(&path, body) {
+                                    Ok(()) => reply(
+                                        &out,
+                                        id,
+                                        serde_json::json!({
+                                            "type": "project.written",
+                                            "key": name.trim(),
+                                        }),
+                                    ),
+                                    Err(failure) => reply(&out, id, failure_message(&failure)),
+                                }
+                            }
+                            Some(_) => {
+                                reply(&out, id, failure_message("the project is larger than 8 MB"))
+                            }
+                            None => reply(&out, id, failure_message(&bad_name(name))),
+                        }
+                    }
+                    Some("project.remove") => {
+                        let name = message.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                        match project_path(&state.dir, name) {
+                            Some(path) => match std::fs::remove_file(&path) {
+                                Ok(()) => reply(
+                                    &out,
+                                    id,
+                                    serde_json::json!({
+                                        "type": "project.removed",
+                                        "key": name.trim(),
+                                    }),
+                                ),
+                                Err(failure) => reply(
+                                    &out,
+                                    id,
+                                    failure_message(&format!("{}: {failure}", path.display())),
+                                ),
+                            },
+                            None => reply(&out, id, failure_message(&bad_name(name))),
+                        }
                     }
                     Some("build") => {
                         let board = message
@@ -486,8 +714,108 @@ fn boards(dir: &Path) -> Vec<String> {
         .unwrap_or_default()
 }
 
+// ---------------------------------------------------------------------------
+// Project library
+
+fn library(dir: &Path) -> PathBuf {
+    dir.join(LIBRARY)
+}
+
+/// A name is a file stem, never a path: the library is flat, so nothing the
+/// page sends can address a file outside it.
+fn project_name(name: &str) -> Option<&str> {
+    let name = name.trim();
+    let plain = name
+        .chars()
+        .all(|c| !c.is_control() && c != '/' && c != '\\');
+    (!name.is_empty() && name.len() <= 120 && !name.starts_with('.') && plain).then_some(name)
+}
+
+fn bad_name(name: &str) -> String {
+    if name.trim().is_empty() {
+        "a project needs a name".to_string()
+    } else {
+        "a project name cannot contain a path".to_string()
+    }
+}
+
+fn project_path(dir: &Path, name: &str) -> Option<PathBuf> {
+    Some(library(dir).join(format!("{}{PROJECT_SUFFIX}", project_name(name)?)))
+}
+
+fn list_projects(dir: &Path) -> Vec<serde_json::Value> {
+    let mut items = Vec::new();
+    let Ok(entries) = std::fs::read_dir(library(dir)) else {
+        return items;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(stem) = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .and_then(|name| name.strip_suffix(PROJECT_SUFFIX))
+        else {
+            continue;
+        };
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+        if !meta.is_file() {
+            continue;
+        }
+        // Milliseconds since the epoch: the page turns this into a local time,
+        // which the CLI has no business deciding.
+        let modified = meta
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|age| age.as_millis() as u64)
+            .unwrap_or(0);
+        items.push(serde_json::json!({
+            "key": stem,
+            "name": stem,
+            "size": meta.len(),
+            "modified": modified,
+        }));
+    }
+    items.sort_by(|left, right| right["modified"].as_u64().cmp(&left["modified"].as_u64()));
+    items
+}
+
+fn read_project(path: &Path) -> Result<String, String> {
+    let size = std::fs::metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    if size.len() > MAX_PROJECT as u64 {
+        return Err("the project is larger than 8 MB".to_string());
+    }
+    std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+fn write_project(path: &Path, body: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    // Write beside the target and rename: a crash mid-save keeps the previous
+    // project readable instead of leaving half a file.
+    let staging = path.with_extension("json.tmp");
+    std::fs::write(&staging, body).map_err(|e| format!("{}: {e}", staging.display()))?;
+    std::fs::rename(&staging, path).map_err(|e| format!("{}: {e}", path.display()))
+}
+
 fn error(message: &str) -> String {
     serde_json::json!({ "type": "error", "message": message }).to_string()
+}
+
+fn failure_message(message: &str) -> serde_json::Value {
+    serde_json::json!({ "type": "error", "message": message })
+}
+
+/// Answer a request the page is waiting on. A message without an id was sent
+/// fire-and-forget, and its answer needs nothing to match against.
+fn reply(out: &mpsc::Sender<Message>, id: Option<u64>, mut value: serde_json::Value) {
+    if let Some(id) = id {
+        value["id"] = serde_json::json!(id);
+    }
+    let _ = out.send(Message::Text(value.to_string()));
 }
 
 struct Upload {
@@ -1039,9 +1367,16 @@ mod tests {
         )
         .unwrap();
 
-        let (listener, token) = listen(&dir, 0).unwrap();
+        let options = Options {
+            directory: dir.clone(),
+            port: 0,
+            host: "127.0.0.1".into(),
+            origins: Vec::new(),
+            assets: None,
+        };
+        let (listener, token) = listen(&options).unwrap();
         let port = listener.local_addr().unwrap().port();
-        let state = Arc::new(state(&dir, token.clone()));
+        let state = Arc::new(state(&options, token.clone()));
         let running = state.clone();
         std::thread::spawn(move || accept_loop(listener, running));
 
@@ -1074,5 +1409,153 @@ mod tests {
         let (_, _, bytes) = state.artifact(sha).expect("the image is kept");
         assert_eq!(&bytes[..], b"hello");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_library_keeps_one_file_per_project() {
+        let dir = scratch("library");
+        let path = project_path(&dir, " Blinky ").unwrap();
+        assert_eq!(
+            path,
+            dir.join(".litz")
+                .join("projects")
+                .join("Blinky.litzproject.json")
+        );
+        let body = r#"{"format":"litz-project"}"#;
+        write_project(&path, body).unwrap();
+        assert_eq!(read_project(&path).unwrap(), body);
+        // The staging file is renamed away, so a save leaves one file.
+        assert!(!path.with_extension("json.tmp").exists());
+
+        let items = list_projects(&dir);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["key"], "Blinky");
+        assert_eq!(items[0]["size"].as_u64(), Some(body.len() as u64));
+        assert!(items[0]["modified"].as_u64().unwrap() > 0);
+
+        std::fs::write(dir.join(".litz/projects/notes.txt"), "kept").unwrap();
+        assert_eq!(
+            list_projects(&dir).len(),
+            1,
+            "only project files are listed"
+        );
+
+        std::fs::remove_file(&path).unwrap();
+        assert!(list_projects(&dir).is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_project_name_cannot_address_another_directory() {
+        for name in ["", "  ", "../escape", "a/b", "a\\b", ".hidden", "x\ny"] {
+            assert!(
+                project_path(Path::new("."), name).is_none(),
+                "{name:?} was accepted"
+            );
+        }
+        assert!(project_name(&"long".repeat(31)).is_none());
+        assert_eq!(project_name("Blinky 1"), Some("Blinky 1"));
+    }
+
+    #[test]
+    fn the_code_can_arrive_in_a_header_instead_of_the_query() {
+        let dir = scratch("header-token");
+        let (port, token) = start(Options {
+            directory: dir.clone(),
+            port: 0,
+            host: "127.0.0.1".into(),
+            origins: Vec::new(),
+            assets: None,
+        });
+        assert!(request(port, "/artifact/none", &[]).contains(" 403 "));
+        let bearer = format!("Bearer {token}");
+        assert!(
+            request(port, "/artifact/none", &[("Authorization", &bearer)]).contains(" 404 "),
+            "a header-carried code is the same credential"
+        );
+        assert!(
+            request(
+                port,
+                "/artifact/none",
+                &[("Authorization", "Bearer 0000-0000-0000-0000")]
+            )
+            .contains(" 403 ")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_origin_list_keeps_other_pages_out() {
+        let dir = scratch("origins");
+        let (port, _) = start(Options {
+            directory: dir.clone(),
+            port: 0,
+            host: "127.0.0.1".into(),
+            origins: vec!["https://litz.example.com".into()],
+            assets: None,
+        });
+        assert!(
+            request(port, "/health", &[("Origin", "https://elsewhere.example")]).contains(" 403 ")
+        );
+        assert!(
+            request(port, "/health", &[("Origin", "https://litz.example.com")]).contains(" 200 ")
+        );
+        // A client with no Origin is still welcome: curl and `--push` have none.
+        assert!(request(port, "/health", &[]).contains(" 200 "));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_editor_build_is_served_beside_the_link() {
+        let dir = scratch("assets");
+        let assets = dir.join("site");
+        std::fs::create_dir_all(&assets).unwrap();
+        std::fs::write(assets.join("index.html"), "<!doctype html>").unwrap();
+        std::fs::write(assets.join("app.js"), "export {}").unwrap();
+        let (port, _) = start(Options {
+            directory: dir.clone(),
+            port: 0,
+            host: "127.0.0.1".into(),
+            origins: Vec::new(),
+            assets: Some(assets),
+        });
+        assert!(request(port, "/", &[]).contains(" 200 "));
+        assert!(request(port, "/app.js", &[]).contains(" 200 "));
+        // A client route has no file behind it; the page answers it.
+        assert!(request(port, "/editor", &[]).contains(" 200 "));
+        assert!(request(port, "/../Cargo.toml", &[]).contains(" 403 "));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Run a link on a system-chosen port and hand back what it bound.
+    fn start(options: Options) -> (u16, String) {
+        let dir = options.directory.clone();
+        std::thread::spawn(move || {
+            let _ = serve(&options);
+        });
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(5) {
+            if let Ok((port, token)) = read_lock(&dir)
+                && TcpStream::connect(("127.0.0.1", port)).is_ok()
+            {
+                return (port, token);
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        panic!("the link did not claim its lock file");
+    }
+
+    fn request(port: u16, target: &str, headers: &[(&str, &str)]) -> String {
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let mut head =
+            format!("GET {target} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n");
+        for (name, value) in headers {
+            head.push_str(&format!("{name}: {value}\r\n"));
+        }
+        head.push_str("\r\n");
+        stream.write_all(head.as_bytes()).unwrap();
+        let mut body = String::new();
+        stream.read_to_string(&mut body).unwrap();
+        body.lines().next().unwrap_or("").to_string()
     }
 }

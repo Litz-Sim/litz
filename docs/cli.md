@@ -11,7 +11,7 @@ litz board check [directory]
 litz heap FIRMWARE.elf
 litz toolchain [--json]        (alias: litz doctor)
 litz editor --vscode [directory] [--force] [--gdb-port N]
-litz connect-editor [directory] [--port N]
+litz connect-editor [directory] [--port N] [--host ADDR] [--static DIR] [--origin URL]
 litz mcp
 litz --version
 ```
@@ -176,23 +176,53 @@ Sampling uses the firmware's own getter, so the numbers are the ones the firmwar
 
 ## connect-editor
 
-`litz connect-editor [directory] [--port N]` opens a loopback link for the Litz editor page. It prints one attach URL:
+`litz connect-editor [directory] [--port N]` opens a link for the Litz editor page. It prints one URL:
 
 ```text
 litz: editor link ws://127.0.0.1:4317/ws#B82E-4414-23F7-48D9
 ```
 
-Paste that line into the editor's **Connect to CLI** dialog. The pairing code rides in the fragment, so it never reaches the daemon in a request line, and the page strips it before opening the socket. The link stays open until Ctrl-C.
+Paste that line into the editor's **Connect to CLI** dialog, or open it directly when the link serves the editor. The pairing code rides in the fragment, so it never reaches the daemon in a request line, and the page strips it before opening the socket. The link stays open until Ctrl-C.
 
-The page sends one of two messages: `build` runs this project's recipe and streams its transcript line by line, and then announces the image it produced by SHA-256; the page fetches those bytes from `/artifact/<sha256>`. Nothing else is accepted, and no message carries a command string: the link is not a shell. Every route needs the code, and the listener binds `127.0.0.1` only.
+The page sends one of five messages: `build` runs this project's recipe and streams its transcript line by line, and then announces the image it produced by SHA-256; the page fetches those bytes from `/artifact/<sha256>`. Four more carry the editor's project library — `projects.list`, `project.read`, `project.write` and `project.remove` — and answer on the same socket with the request's `id`. A project is one `.litzproject.json` file in `<directory>/.litz/projects`; the name is a file stem, so no request can address a file outside that directory, and a write lands on a staging file that is renamed over the old one. Nothing else is accepted, and no message carries a command string: the link is not a shell. Every route needs the code, which it accepts in the query, in `Authorization: Bearer CODE`, or as the `Sec-WebSocket-Protocol` the page offers; the page uses the last two so a proxy's access log never sees it.
 
 The code is also written to `.litz/editor.json` (mode 0600) so that, from another terminal, `litz build --push` can hand a freshly built image to the connected page without going through the recipe a second time. Without a running link the build still succeeds and prints that it was not pushed.
 
 | Option | Meaning |
 |---|---|
 | `--port N` | Port to listen on; defaults to 4317. |
+| `--host ADDR` | Interface to bind; defaults to `127.0.0.1`. |
+| `--static DIR` | Serve an editor build (`dist/`) from the same port, so the page and the socket share an origin and the printed URL is the editor. |
+| `--origin URL` | A page origin allowed to attach; repeatable. Empty accepts any page that holds the code. Always sent by browsers, so this is what keeps another site out. |
 
-The link is a development convenience on the same machine. Moving a project between devices is a storage question, not this one.
+### Running the link on a server
+
+The link does not have to live on the machine in front of you, and the editor does not have to live on the link. The editor is a static page: point it at a link on whatever server stays up, and the projects are the server's.
+
+```sh
+litz connect-editor /srv/litz --host 127.0.0.1 --port 4317 \
+  --origin https://editor.example.com
+```
+
+Caddy needs three lines, and the only thing that changes is the scheme the editor uses:
+
+```text
+litz.example.com {
+	reverse_proxy 127.0.0.1:4317
+}
+```
+
+`cloudflared tunnel --url http://127.0.0.1:4317` does the same without opening a port; pass the tunnel's hostname to `--origin`. The editor's Connect dialog takes `wss://litz.example.com/ws#CODE`, and that browser remembers it: opening the editor again reattaches on its own until Disconnect. A bookmark of the form
+
+```text
+https://editor.example.com/#wss://litz.example.com/ws#CODE
+```
+
+skips the dialog: the page reads the whole attach URL from its fragment, connects, and drops the fragment.
+
+`--static /srv/litz/dist --origin https://litz.example.com` is the other shape: the link also serves the editor, so one origin carries page, socket and artifacts and the printed URL is the editor. Worth it offline or on a LAN; unnecessary when a public editor exists.
+
+Keep two things in mind before exposing a link: it speaks plain HTTP, so terminate TLS in front of it, and a build runs the project's recipe — shell commands included — for any page that holds the code. The code is 64 bits and rotates on every start, and `--origin` is what stops another site from being that page.
 
 ## serve
 

@@ -522,6 +522,9 @@ fn editor_usage() {
 fn run_connect_editor(args: &[String]) -> ExitCode {
     let mut port = editor_link::DEFAULT_PORT;
     let mut directory = PathBuf::from(".");
+    let mut host = "127.0.0.1".to_string();
+    let mut assets: Option<PathBuf> = None;
+    let mut origins = Vec::new();
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
@@ -532,6 +535,36 @@ fn run_connect_editor(args: &[String]) -> ExitCode {
                 }
                 None => {
                     eprintln!("litz: --port needs a number");
+                    return ExitCode::from(2);
+                }
+            },
+            "--host" => match args.get(index + 1) {
+                Some(value) => {
+                    host = value.clone();
+                    index += 1;
+                }
+                None => {
+                    eprintln!("litz: --host needs an address");
+                    return ExitCode::from(2);
+                }
+            },
+            "--static" => match args.get(index + 1) {
+                Some(value) => {
+                    assets = Some(PathBuf::from(value));
+                    index += 1;
+                }
+                None => {
+                    eprintln!("litz: --static needs a directory");
+                    return ExitCode::from(2);
+                }
+            },
+            "--origin" => match args.get(index + 1) {
+                Some(value) => {
+                    origins.push(value.trim_end_matches('/').to_string());
+                    index += 1;
+                }
+                None => {
+                    eprintln!("litz: --origin needs a URL");
                     return ExitCode::from(2);
                 }
             },
@@ -547,7 +580,14 @@ fn run_connect_editor(args: &[String]) -> ExitCode {
         }
         index += 1;
     }
-    match editor_link::serve(&directory, port) {
+    let options = editor_link::Options {
+        directory,
+        port,
+        host,
+        origins,
+        assets,
+    };
+    match editor_link::serve(&options) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("litz: {e}");
@@ -557,13 +597,21 @@ fn run_connect_editor(args: &[String]) -> ExitCode {
 }
 
 fn editor_link_usage() {
-    eprintln!("usage: litz connect-editor [directory] [--port N]");
-    eprintln!("  Opens a loopback link (default port 4317) for the Litz editor page:");
-    eprintln!("  the page sends `build`, receives the recipe's output line by line, and");
-    eprintln!("  fetches the image the build produced. The printed pairing code is the");
-    eprintln!("  only credential; it is also kept in .litz/editor.json so that");
-    eprintln!("  `litz build --push [--board ID]` can hand a fresh image to the page.");
-    eprintln!("  Binds 127.0.0.1 only; Ctrl-C stops it.");
+    eprintln!(
+        "usage: litz connect-editor [directory] [--port N] [--host ADDR] [--static DIR] [--origin URL]..."
+    );
+    eprintln!("  Opens a link (default 127.0.0.1:4317) for the Litz editor page: the page");
+    eprintln!("  sends `build`, receives the recipe's output line by line, fetches the image");
+    eprintln!("  the build produced, and reads or writes the project library in");
+    eprintln!("  .litz/projects. The printed pairing code is the only credential; it is also");
+    eprintln!("  kept in .litz/editor.json so that `litz build --push [--board ID]` can hand");
+    eprintln!("  a fresh image to the page.");
+    eprintln!("  --host ADDR    bind somewhere other than loopback, for a link that outlives");
+    eprintln!("                 the machine in front of you (0.0.0.0 behind a TLS proxy)");
+    eprintln!("  --static DIR   serve an editor build on the same port, page and socket");
+    eprintln!("                 sharing one origin");
+    eprintln!("  --origin URL   the page origin allowed to attach; repeatable, empty allows");
+    eprintln!("                 any page that holds the code. Ctrl-C stops the link.");
 }
 
 /// `litz catalog [--json]` and its `list`, `check`, `add`, `new`, `new board`

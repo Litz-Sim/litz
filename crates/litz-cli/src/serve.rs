@@ -73,7 +73,7 @@ fn answer(mut stream: TcpStream, root: &Path) -> std::io::Result<()> {
 ///
 /// `..` is rejected rather than normalised away: a path that climbs is a
 /// mistake or an attack, and neither deserves a guess at what was meant.
-fn resolve(root: &Path, target: &str) -> Option<PathBuf> {
+pub(crate) fn resolve(root: &Path, target: &str) -> Option<PathBuf> {
     let target = target.split(['?', '#']).next().unwrap_or("");
     let mut relative = PathBuf::new();
     for piece in target.split('/') {
@@ -98,7 +98,7 @@ fn resolve(root: &Path, target: &str) -> Option<PathBuf> {
     Some(root.join(relative))
 }
 
-fn mime(path: &Path) -> &'static str {
+pub(crate) fn mime(path: &Path) -> &'static str {
     match path.extension().and_then(|e| e.to_str()) {
         Some("html") => "text/html; charset=utf-8",
         Some("js") => "text/javascript; charset=utf-8",
