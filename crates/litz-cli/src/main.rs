@@ -525,6 +525,7 @@ fn run_connect_editor(args: &[String]) -> ExitCode {
     let mut host = "127.0.0.1".to_string();
     let mut assets: Option<PathBuf> = None;
     let mut origins = Vec::new();
+    let mut token: Option<String> = None;
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
@@ -568,6 +569,16 @@ fn run_connect_editor(args: &[String]) -> ExitCode {
                     return ExitCode::from(2);
                 }
             },
+            "--token" => match args.get(index + 1) {
+                Some(value) => {
+                    token = Some(value.clone());
+                    index += 1;
+                }
+                None => {
+                    eprintln!("litz: --token needs a pairing code");
+                    return ExitCode::from(2);
+                }
+            },
             "-h" | "--help" => {
                 editor_link_usage();
                 return ExitCode::SUCCESS;
@@ -586,6 +597,7 @@ fn run_connect_editor(args: &[String]) -> ExitCode {
         host,
         origins,
         assets,
+        token,
     };
     match editor_link::serve(&options) {
         Ok(()) => ExitCode::SUCCESS,
@@ -598,14 +610,17 @@ fn run_connect_editor(args: &[String]) -> ExitCode {
 
 fn editor_link_usage() {
     eprintln!(
-        "usage: litz connect-editor [directory] [--port N] [--host ADDR] [--static DIR] [--origin URL]..."
+        "usage: litz connect-editor [directory] [--port N] [--host ADDR] [--static DIR] [--origin URL]... [--token CODE]"
     );
     eprintln!("  Opens a link (default 127.0.0.1:4317) for the Litz editor page: the page");
     eprintln!("  sends `build`, receives the recipe's output line by line, fetches the image");
-    eprintln!("  the build produced, and reads or writes the project library in");
-    eprintln!("  .litz/projects. The printed pairing code is the only credential; it is also");
-    eprintln!("  kept in .litz/editor.json so that `litz build --push [--board ID]` can hand");
-    eprintln!("  a fresh image to the page.");
+    eprintln!("  the build produced, reads or writes the project library in .litz/projects,");
+    eprintln!("  and forwards an HTTP request the browser is not allowed to make. The pairing");
+    eprintln!("  code is the only credential; it is also kept in .litz/editor.json so that");
+    eprintln!("  `litz build --push [--board ID]` can hand a fresh image to the page.");
+    eprintln!("  --token CODE   use this pairing code instead of the one the last run left in");
+    eprintln!("                 .litz/editor.json, which a restart reuses anyway; 4-64 of");
+    eprintln!("                 A-Z a-z 0-9 . _ - ~");
     eprintln!("  --host ADDR    bind somewhere other than loopback, for a link that outlives");
     eprintln!("                 the machine in front of you (0.0.0.0 behind a TLS proxy)");
     eprintln!("  --static DIR   serve an editor build on the same port, page and socket");

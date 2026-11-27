@@ -6,15 +6,23 @@
 //! and build output, and an in-memory artifact store the editor fetches over
 //! plain HTTP.
 //!
-//! Nothing leaves the machine. The token is the only way in: a page that was
-//! not handed the URL printed by `connect-editor` gets 403 on every route.
-//! The socket accepts three commands — build this project's own recipe, accept
-//! bytes a `litz build --push` already produced, and read or write the editor's
-//! project library — and never a command string, so the link is not a shell.
+//! Nothing leaves the machine on its own. The token is the only way in: a page
+//! that was not handed the URL printed by `connect-editor` gets 403 on every
+//! route. The socket accepts five commands — build this project's own recipe,
+//! accept bytes a `litz build --push` already produced, read or write the
+//! editor's project library, and make one HTTP request from this machine — and
+//! never a command string, so the link is not a shell.
 //!
 //! The library is the only place the link touches the filesystem for the page:
 //! flat `.litzproject.json` files under `.litz/projects`, each named by a stem
-//! that cannot leave that directory.
+//! that cannot leave that directory. A forwarded request leaves the machine
+//! because the browser is not allowed to make it (a bucket's control API has
+//! no CORS): the page names the method, URL, headers and body, and the link
+//! answers with the status, headers and body it got back.
+//!
+//! The code is a credential the user may have bookmarked, so a link that
+//! starts where one ran before keeps the code `.litz/editor.json` remembers
+//! unless `--token` names another.
 
 use crate::build;
 use sha2::{Digest, Sha256};
@@ -43,6 +51,11 @@ const PROJECT_SUFFIX: &str = ".litzproject.json";
 /// A project carries its parts, code and wires; 8 MB is generous for one and
 /// still small enough that a save cannot stall the socket.
 const MAX_PROJECT: usize = 8 * 1024 * 1024;
+/// A forwarded request is a form or a JSON document; an answer is usually one
+/// too, and anything larger is a file the page has its own way to fetch.
+const MAX_FORWARD: usize = 1024 * 1024;
+const MAX_REPLY: u64 = 4 * 1024 * 1024;
+const FORWARD_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// One image the editor can fetch, keyed by its SHA-256.
 struct Artifact {
@@ -77,6 +90,10 @@ pub struct Options {
     /// An editor build to serve beside the link, so page and socket share one
     /// origin and the browser has nothing to negotiate.
     pub assets: Option<PathBuf>,
+    /// The pairing code to use. Without one the link keeps the code its
+    /// previous run left in `.litz/editor.json`, so a bookmark or a page that
+    /// remembered the URL survives a restart; a first run makes one.
+    pub token: Option<String>,
 }
 
 struct State {
@@ -184,7 +201,20 @@ fn listen(options: &Options) -> Result<(TcpListener, String), String> {
         .local_addr()
         .map_err(|e| format!("editor link: {e}"))?
         .port();
-    let token = token();
+    // A code is a credential the user may have put in a bookmark or left in a
+    // page's storage, so the link keeps the one it used last unless the caller
+    // asked for a new one. The liveness check above already showed that the
+    // file names no running link.
+    let token = match &options.token {
+        Some(code) => code_of(code).ok_or_else(|| {
+            format!(
+                "{code:?} is not a pairing code: 4 to 64 letters, digits, dots, dashes or tildes"
+            )
+        })?,
+        None => read_lock(&dir)
+            .map(|(_, remembered)| remembered)
+            .unwrap_or_else(|_| token()),
+    };
     write_lock(&dir, actual, &token)?;
     Ok((listener, token))
 }
@@ -669,6 +699,24 @@ fn run_socket(stream: TcpStream, state: Arc<State>) {
                             None => reply(&out, id, failure_message(&bad_name(name))),
                         }
                     }
+                    Some("http.request") => match Forward::from_message(&message) {
+                        Some(request) => {
+                            // A slow host must not stall the page's saves, so
+                            // the answer comes back through the writer channel
+                            // from its own thread.
+                            let out = out.clone();
+                            std::thread::spawn(move || {
+                                let _ = out.send(Message::Text(forward(id, &request).to_string()));
+                            });
+                        }
+                        None => reply(
+                            &out,
+                            id,
+                            failure_message(
+                                "http.request needs an http(s) url, a method and at most 1 MB",
+                            ),
+                        ),
+                    },
                     Some("build") => {
                         let board = message
                             .get("board")
@@ -1144,7 +1192,156 @@ fn read_lock(dir: &Path) -> Result<(u16, String), String> {
 }
 
 // ---------------------------------------------------------------------------
+// Requests the page cannot make itself.
+
+/// A request the page hands to the link because the far side refuses browsers
+/// (no CORS, or a header a page may not set) — a bucket's control API, for one.
+struct Forward {
+    method: String,
+    url: String,
+    headers: Vec<(String, String)>,
+    body: Option<String>,
+}
+
+impl Forward {
+    fn from_message(message: &serde_json::Value) -> Option<Self> {
+        let method = message.get("method")?.as_str()?.trim().to_ascii_uppercase();
+        let url = message.get("url")?.as_str()?.trim().to_string();
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return None;
+        }
+        let headers = message
+            .get("headers")
+            .and_then(|value| value.as_object())
+            .map(|map| {
+                map.iter()
+                    .filter_map(|(name, value)| Some((name.clone(), value.as_str()?.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let body = message.get("body").and_then(|value| value.as_str());
+        if body.is_some_and(|body| body.len() > MAX_FORWARD) {
+            return None;
+        }
+        Some(Self {
+            method,
+            url,
+            headers,
+            body: body.map(str::to_string),
+        })
+    }
+}
+
+/// Put the page's headers on a request builder; the body-wanted flag rides on
+/// the builder's type and is carried through unchanged.
+fn carrying<B>(
+    mut call: ureq::RequestBuilder<B>,
+    headers: &[(String, String)],
+) -> ureq::RequestBuilder<B> {
+    for (name, value) in headers {
+        call = call.header(name, value);
+    }
+    call
+}
+
+/// Carry out one forwarded request: the answer carries the same id back so the
+/// page can settle the promise it made when it asked. Non-2xx replies are
+/// answers, not failures — the caller wants the body the host sent.
+fn forward(id: Option<u64>, request: &Forward) -> serde_json::Value {
+    let agent = ureq::Agent::new_with_config(
+        ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .timeout_global(Some(FORWARD_TIMEOUT))
+            .max_redirects(8)
+            .build(),
+    );
+    // The builder's type records whether a body is wanted, so the methods that
+    // never take one and the ones that do are two arms rather than one.
+    let sent = match request.method.as_str() {
+        "GET" | "HEAD" | "DELETE" => {
+            let call = match request.method.as_str() {
+                "HEAD" => agent.head(&request.url),
+                "GET" => agent.get(&request.url),
+                _ => agent.delete(&request.url),
+            };
+            carrying(call, &request.headers).call()
+        }
+        "POST" | "PUT" | "PATCH" => {
+            let call = match request.method.as_str() {
+                "POST" => agent.post(&request.url),
+                "PUT" => agent.put(&request.url),
+                _ => agent.patch(&request.url),
+            };
+            let body = request.body.as_deref().unwrap_or("");
+            carrying(call, &request.headers).send(body)
+        }
+        other => {
+            return serde_json::json!({
+                "type": "http.failed",
+                "id": id,
+                "error": format!("the link does not forward {other}"),
+            });
+        }
+    };
+    let mut response = match sent {
+        Ok(response) => response,
+        Err(failure) => {
+            return serde_json::json!({
+                "type": "http.failed",
+                "id": id,
+                "error": failure.to_string(),
+            });
+        }
+    };
+    let status = response.status().as_u16();
+    let headers: serde_json::Map<String, serde_json::Value> = response
+        .headers()
+        .iter()
+        .map(|(name, value)| {
+            let value = String::from_utf8_lossy(value.as_bytes()).to_string();
+            (name.as_str().to_string(), serde_json::Value::String(value))
+        })
+        .collect();
+    let bytes = response
+        .body_mut()
+        .with_config()
+        .limit(MAX_REPLY)
+        .read_to_vec()
+        .unwrap_or_default();
+    // JSON and form answers are text; an image or a downloaded file is not, and
+    // base64 is the only shape a JSON message can carry it in.
+    match String::from_utf8(bytes.clone()) {
+        Ok(text) => serde_json::json!({
+            "type": "http.replied",
+            "id": id,
+            "status": status,
+            "headers": headers,
+            "body": text,
+        }),
+        Err(_) => serde_json::json!({
+            "type": "http.replied",
+            "id": id,
+            "status": status,
+            "headers": headers,
+            "body": base64(&bytes),
+            "encoding": "base64",
+        }),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Small primitives, kept here so the link adds no dependency.
+
+/// A code the user supplies: printable, no separators that would end the URL
+/// fragment or the `Sec-WebSocket-Protocol` list it travels in.
+fn code_of(text: &str) -> Option<String> {
+    let text = text.trim();
+    let shaped = (4..=64).contains(&text.len())
+        && text
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '~'));
+    shaped.then(|| text.to_string())
+}
 
 fn token() -> String {
     let mut text = String::new();
@@ -1349,6 +1546,105 @@ mod tests {
     }
 
     #[test]
+    fn a_given_code_is_held_to_what_a_fragment_and_a_header_can_carry() {
+        assert_eq!(code_of(" FIELD-TEST "), Some("FIELD-TEST".into()));
+        assert_eq!(code_of("abcd"), Some("abcd".into()));
+        assert!(code_of("has space").is_none());
+        assert!(code_of("hash#tag").is_none());
+        assert!(code_of("slash/end").is_none());
+        assert!(code_of("abc").is_none());
+        assert!(code_of("x".repeat(65).as_str()).is_none());
+    }
+
+    #[test]
+    fn a_restart_keeps_the_code_a_bookmark_names() {
+        let dir = scratch("keep-code");
+        // The port a dead link used; nothing listens there any more.
+        let dead = {
+            let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+            let port = listener.local_addr().unwrap().port();
+            drop(listener);
+            port
+        };
+        write_lock(&dir, dead, "AAAA-BBBB-CCCC-DDDD").unwrap();
+        let options = Options {
+            directory: dir.clone(),
+            port: 0,
+            host: "127.0.0.1".into(),
+            origins: Vec::new(),
+            assets: None,
+            token: None,
+        };
+        let (_listener, token) = listen(&options).unwrap();
+        assert_eq!(token, "AAAA-BBBB-CCCC-DDDD");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_flag_sets_the_code_and_the_lock_file_records_it() {
+        let dir = scratch("given-code");
+        let options = Options {
+            directory: dir.clone(),
+            port: 0,
+            host: "127.0.0.1".into(),
+            origins: Vec::new(),
+            assets: None,
+            token: Some("FIELD-TEST-0001".into()),
+        };
+        let (_listener, token) = listen(&options).unwrap();
+        assert_eq!(token, "FIELD-TEST-0001");
+        assert_eq!(read_lock(&dir).unwrap().1, "FIELD-TEST-0001");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_forwarded_request_carries_its_method_headers_and_body() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let seen = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut chunk = [0u8; 1024];
+            while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+                match stream.read(&mut chunk) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => request.extend_from_slice(&chunk[..n]),
+                }
+            }
+            stream
+                .write_all(
+                    b"HTTP/1.1 201 Created\r\nX-Probe: yes\r\nContent-Length: 7\r\nConnection: close\r\n\r\ncreated",
+                )
+                .unwrap();
+            String::from_utf8_lossy(&request).to_string()
+        });
+
+        let request = Forward {
+            method: "POST".into(),
+            url: format!("http://127.0.0.1:{port}/accounts/x/r2/buckets"),
+            headers: vec![("authorization".into(), "Bearer secret".into())],
+            body: Some("{\"name\":\"litz\"}".into()),
+        };
+        let answer = forward(Some(7), &request);
+        assert_eq!(answer["type"], "http.replied");
+        assert_eq!(answer["id"], 7);
+        assert_eq!(answer["status"], 201);
+        assert_eq!(answer["headers"]["x-probe"], "yes");
+        assert_eq!(answer["body"], "created");
+
+        let sent = seen.join().unwrap().to_lowercase();
+        assert!(
+            sent.starts_with("post /accounts/x/r2/buckets http/1.1"),
+            "{sent}"
+        );
+        assert!(sent.contains("authorization: bearer secret"), "{sent}");
+        assert!(sent.contains("{\"name\":\"litz\"}"), "{sent}");
+    }
+
+    #[test]
     fn a_lock_file_round_trips() {
         let dir = scratch("lock");
         write_lock(&dir, 4317, "ABCD-EF01-2345-6789").unwrap();
@@ -1373,6 +1669,7 @@ mod tests {
             host: "127.0.0.1".into(),
             origins: Vec::new(),
             assets: None,
+            token: None,
         };
         let (listener, token) = listen(&options).unwrap();
         let port = listener.local_addr().unwrap().port();
@@ -1466,6 +1763,7 @@ mod tests {
             host: "127.0.0.1".into(),
             origins: Vec::new(),
             assets: None,
+            token: None,
         });
         assert!(request(port, "/artifact/none", &[]).contains(" 403 "));
         let bearer = format!("Bearer {token}");
@@ -1493,6 +1791,7 @@ mod tests {
             host: "127.0.0.1".into(),
             origins: vec!["https://litz.example.com".into()],
             assets: None,
+            token: None,
         });
         assert!(
             request(port, "/health", &[("Origin", "https://elsewhere.example")]).contains(" 403 ")
@@ -1518,6 +1817,7 @@ mod tests {
             host: "127.0.0.1".into(),
             origins: Vec::new(),
             assets: Some(assets),
+            token: None,
         });
         assert!(request(port, "/", &[]).contains(" 200 "));
         assert!(request(port, "/app.js", &[]).contains(" 200 "));

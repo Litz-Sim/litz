@@ -100,6 +100,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "base64"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
+
+[[package]]
 name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -150,6 +156,12 @@ name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+
+[[package]]
+name = "bytes"
+version = "1.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "776dfebd015e2d8732c684a2c71003674ccb49457b539b9e82151ba38e96dd7c"
 
 [[package]]
 name = "cc"
@@ -986,6 +998,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "http"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "918d3568bebf352712bc2ef3d46a8bcf1a75b373be6539de198e9105cbbf9ce0"
+dependencies = [
+ "bytes",
+ "itoa",
+]
+
+[[package]]
+name = "httparse"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
+
+[[package]]
 name = "hybrid-array"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1114,7 +1142,7 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
 name = "litz"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-catalog",
  "litz-core",
@@ -1125,14 +1153,14 @@ dependencies = [
 
 [[package]]
 name = "litz-analog"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "litz-avr"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-board",
  "litz-catalog",
@@ -1143,11 +1171,11 @@ dependencies = [
 
 [[package]]
 name = "litz-ble"
-version = "0.7.1"
+version = "0.7.2"
 
 [[package]]
 name = "litz-board"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "fatfs",
  "litz-analog",
@@ -1165,7 +1193,7 @@ dependencies = [
 
 [[package]]
 name = "litz-catalog"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-diagram",
  "serde",
@@ -1175,7 +1203,7 @@ dependencies = [
 
 [[package]]
 name = "litz-chip-conformance"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-board",
  "litz-catalog",
@@ -1185,14 +1213,14 @@ dependencies = [
 
 [[package]]
 name = "litz-chip-rv32"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "wit-bindgen",
 ]
 
 [[package]]
 name = "litz-cli"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-catalog",
  "litz-diagram",
@@ -1203,22 +1231,23 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "toml",
+ "ureq",
 ]
 
 [[package]]
 name = "litz-core"
-version = "0.7.1"
+version = "0.7.2"
 
 [[package]]
 name = "litz-decode"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-core",
 ]
 
 [[package]]
 name = "litz-diagram"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -1227,7 +1256,7 @@ dependencies = [
 
 [[package]]
 name = "litz-editor"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-catalog",
  "litz-diagram",
@@ -1241,7 +1270,7 @@ version = "0.1.0"
 
 [[package]]
 name = "litz-engine"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-avr",
  "litz-ble",
@@ -1263,7 +1292,7 @@ dependencies = [
 
 [[package]]
 name = "litz-esp"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "gdbstub",
  "litz-ble",
@@ -1364,15 +1393,15 @@ dependencies = [
 
 [[package]]
 name = "litz-fixture"
-version = "0.7.1"
+version = "0.7.2"
 
 [[package]]
 name = "litz-ieee802154"
-version = "0.7.1"
+version = "0.7.2"
 
 [[package]]
 name = "litz-mcp"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-catalog",
  "litz-core",
@@ -1384,14 +1413,14 @@ dependencies = [
 
 [[package]]
 name = "litz-mcu"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-core",
 ]
 
 [[package]]
 name = "litz-mcu-wasm"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-ble",
  "litz-board",
@@ -1410,14 +1439,14 @@ dependencies = [
 
 [[package]]
 name = "litz-mcu-wit"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "wit-parser 0.261.0",
 ]
 
 [[package]]
 name = "litz-net"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "getrandom 0.4.3",
  "rustls",
@@ -1427,42 +1456,42 @@ dependencies = [
 
 [[package]]
 name = "litz-part-74hc595"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "wit-bindgen",
 ]
 
 [[package]]
 name = "litz-part-display"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-part-sdk",
 ]
 
 [[package]]
 name = "litz-part-eeprom"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-part-sdk",
 ]
 
 [[package]]
 name = "litz-part-runaway"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-part-sdk",
 ]
 
 [[package]]
 name = "litz-part-sdk"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "wit-bindgen",
 ]
 
 [[package]]
 name = "litz-part-wasm"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-core",
  "litz-part-wit",
@@ -1471,14 +1500,14 @@ dependencies = [
 
 [[package]]
 name = "litz-part-wit"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "wit-parser 0.261.0",
 ]
 
 [[package]]
 name = "litz-project"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-diagram",
  "serde",
@@ -1488,7 +1517,7 @@ dependencies = [
 
 [[package]]
 name = "litz-radio"
-version = "0.7.1"
+version = "0.7.2"
 
 [[package]]
 name = "litz-riscv-rv32"
@@ -1499,7 +1528,7 @@ dependencies = [
 
 [[package]]
 name = "litz-rp"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-board",
  "litz-catalog",
@@ -1512,7 +1541,7 @@ dependencies = [
 
 [[package]]
 name = "litz-wasm"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "litz-board",
  "litz-core",
@@ -1678,6 +1707,12 @@ checksum = "a6305423e0e7738146434843d1694d621cce767262b2a86910beab705e4493d9"
 dependencies = [
  "base64ct",
 ]
+
+[[package]]
+name = "percent-encoding"
+version = "2.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "petgraph"
@@ -1986,7 +2021,9 @@ version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
+ "log",
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",
@@ -2414,6 +2451,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
+name = "ureq"
+version = "3.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ac5cecf619ca81f66a96482db09687c9f7465af65f4300a8c30cca05bd5a59d"
+dependencies = [
+ "base64 0.23.1",
+ "flate2",
+ "log",
+ "percent-encoding",
+ "rustls",
+ "rustls-pki-types",
+ "ureq-proto",
+ "utf8-zero",
+ "webpki-roots",
+]
+
+[[package]]
+name = "ureq-proto"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "622dce33c252115466d83f63e9744a18f12b4406aae51a01c15ad8fcf1185eb3"
+dependencies = [
+ "base64 0.23.1",
+ "http",
+ "httparse",
+ "log",
+]
+
+[[package]]
+name = "utf8-zero"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
+
+[[package]]
 name = "uuid"
 version = "1.29.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2684,7 +2756,7 @@ version = "50.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9326591ca405eb6e3cfd10cc667420cee850418e650f675d5071b3eedd892c2"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "directories-next",
  "log",
  "postcard",
@@ -2851,6 +2923,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbc9c5aca783b3f1838be89f3f9937c528b90ec5faa6fb62d809726c16a7d8f7"
 dependencies = [
  "wast",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7265c9301c16a8711c992c2d8da90ee77ef54b1ed51482d6dfeb00dc756b1297"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]

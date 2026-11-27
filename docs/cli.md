@@ -11,7 +11,7 @@ litz board check [directory]
 litz heap FIRMWARE.elf
 litz toolchain [--json]        (alias: litz doctor)
 litz editor --vscode [directory] [--force] [--gdb-port N]
-litz connect-editor [directory] [--port N] [--host ADDR] [--static DIR] [--origin URL]
+litz connect-editor [directory] [--port N] [--host ADDR] [--static DIR] [--origin URL] [--token CODE]
 litz mcp
 litz --version
 ```
@@ -184,7 +184,7 @@ litz: editor link ws://127.0.0.1:4317/ws#B82E-4414-23F7-48D9
 
 Paste that line into the editor's **Connect to CLI** dialog, or open it directly when the link serves the editor. The pairing code rides in the fragment, so it never reaches the daemon in a request line, and the page strips it before opening the socket. The link stays open until Ctrl-C.
 
-The page sends one of five messages: `build` runs this project's recipe and streams its transcript line by line, and then announces the image it produced by SHA-256; the page fetches those bytes from `/artifact/<sha256>`. Four more carry the editor's project library — `projects.list`, `project.read`, `project.write` and `project.remove` — and answer on the same socket with the request's `id`. A project is one `.litzproject.json` file in `<directory>/.litz/projects`; the name is a file stem, so no request can address a file outside that directory, and a write lands on a staging file that is renamed over the old one. Nothing else is accepted, and no message carries a command string: the link is not a shell. Every route needs the code, which it accepts in the query, in `Authorization: Bearer CODE`, or as the `Sec-WebSocket-Protocol` the page offers; the page uses the last two so a proxy's access log never sees it.
+The page sends one of six messages: `build` runs this project's recipe and streams its transcript line by line, and then announces the image it produced by SHA-256; the page fetches those bytes from `/artifact/<sha256>`. Four more carry the editor's project library — `projects.list`, `project.read`, `project.write` and `project.remove` — and answer on the same socket with the request's `id`. The last, `http.request`, makes one HTTP request from this machine and answers with `status`, `headers` and `body`; a body that is not UTF-8 comes back base64 under `"encoding": "base64"`. It runs on its own thread with a 30-second timeout and a 4 MB answer, so a slow host never stalls a save, and it exists because some APIs (a bucket's control plane, for one) send no CORS headers and a browser may not call them. A project is one `.litzproject.json` file in `<directory>/.litz/projects`; the name is a file stem, so no request can address a file outside that directory, and a write lands on a staging file that is renamed over the old one. Nothing else is accepted, and no message carries a command string: the link is not a shell. Every route needs the code, which it accepts in the query, in `Authorization: Bearer CODE`, or as the `Sec-WebSocket-Protocol` the page offers; the page uses the last two so a proxy's access log never sees it.
 
 The code is also written to `.litz/editor.json` (mode 0600) so that, from another terminal, `litz build --push` can hand a freshly built image to the connected page without going through the recipe a second time. Without a running link the build still succeeds and prints that it was not pushed.
 
@@ -194,6 +194,7 @@ The code is also written to `.litz/editor.json` (mode 0600) so that, from anothe
 | `--host ADDR` | Interface to bind; defaults to `127.0.0.1`. |
 | `--static DIR` | Serve an editor build (`dist/`) from the same port, so the page and the socket share an origin and the printed URL is the editor. |
 | `--origin URL` | A page origin allowed to attach; repeatable. Empty accepts any page that holds the code. Always sent by browsers, so this is what keeps another site out. |
+| `--token CODE` | The pairing code to use, 4–64 of `A-Z a-z 0-9 . _ - ~`. Without it a link keeps the code the previous run left in `.litz/editor.json`, so a bookmark and the page's stored attach URL survive a restart; the first run mints one. |
 
 ### Running the link on a server
 
@@ -222,7 +223,7 @@ skips the dialog: the page reads the whole attach URL from its fragment, connect
 
 `--static /srv/litz/dist --origin https://litz.example.com` is the other shape: the link also serves the editor, so one origin carries page, socket and artifacts and the printed URL is the editor. Worth it offline or on a LAN; unnecessary when a public editor exists.
 
-Keep two things in mind before exposing a link: it speaks plain HTTP, so terminate TLS in front of it, and a build runs the project's recipe — shell commands included — for any page that holds the code. The code is 64 bits and rotates on every start, and `--origin` is what stops another site from being that page.
+Keep two things in mind before exposing a link: it speaks plain HTTP, so terminate TLS in front of it, and a build runs the project's recipe — shell commands included — for any page that holds the code. The code is 64 bits, `--origin` is what stops another site from being that page, and a forwarded `http.request` runs as this process on this machine — give the link only the reach the page should have.
 
 ## serve
 
