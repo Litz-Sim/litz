@@ -1608,10 +1608,31 @@ mod tests {
                 .unwrap();
             let mut request = Vec::new();
             let mut chunk = [0u8; 1024];
-            while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+            let mut head = None;
+            // The body may arrive after the headers; a server that answers at
+            // `\r\n\r\n` reads only part of a request that is still in flight.
+            while head.is_none() {
                 match stream.read(&mut chunk) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => request.extend_from_slice(&chunk[..n]),
+                }
+                head = request
+                    .windows(4)
+                    .position(|window| window == b"\r\n\r\n")
+                    .map(|at| at + 4);
+            }
+            if let Some(head) = head {
+                let text = String::from_utf8_lossy(&request[..head]).to_lowercase();
+                let length: usize = text
+                    .lines()
+                    .find_map(|line| line.strip_prefix("content-length:"))
+                    .and_then(|value| value.trim().parse().ok())
+                    .unwrap_or(0);
+                while request.len() < head + length {
+                    match stream.read(&mut chunk) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => request.extend_from_slice(&chunk[..n]),
+                    }
                 }
             }
             stream
