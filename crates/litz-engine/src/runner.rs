@@ -1702,7 +1702,12 @@ pub(crate) fn is_builtin_chip(chip: &str) -> bool {
             | "esp32p4"
             | "esp32s31"
             | "atmega328p"
+            | "atmega2560"
+            | "atmega32u4"
+            | "attiny85"
             | "rp2040"
+            | "stc89c52"
+            | "ch32v003"
     )
 }
 

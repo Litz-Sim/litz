@@ -1,0 +1,97 @@
+[board]
+id = "board-esp32-c3-supermini"
+name = "ESP32-C3 SuperMini"
+version = "1.0.0"
+description = "ESP32-C3 SuperMini: a 22.5 x 18 mm third-party board with 4 MiB flash, USB-C on the chip's own USB Serial/JTAG and 13 GPIO on two rows of eight"
+chip = "esp32c3"
+flash_size = "4MB"
+psram = false
+schematic = "board-esp32-c3-supermini.onboard.json"
+
+# The header in the order the V1601 silkscreen prints it: one row of eight
+# beside the USB-C socket, the other down the opposite edge. GPIO18 and GPIO19
+# stay on the USB-C connector and never reach the header.
+
+[[pins]]
+name = "5V"
+fixed = "5v"
+label = "USB 5 V, or 5 V in"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+
+[[pins]]
+name = "3V3"
+fixed = "3v3"
+label = "3.3 V out"
+
+[[pins]]
+name = "GPIO4"
+gpio = 4
+functions = ["adc", "spi"]
+
+[[pins]]
+name = "GPIO3"
+gpio = 3
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO2"
+gpio = 2
+functions = ["adc", "strap"]
+label = "keep high at boot"
+
+[[pins]]
+name = "GPIO1"
+gpio = 1
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO0"
+gpio = 0
+functions = ["adc"]
+
+[[pins]]
+name = "GPIO5"
+gpio = 5
+functions = ["adc", "spi"]
+label = "ADC2, uncalibrated"
+
+[[pins]]
+name = "GPIO6"
+gpio = 6
+functions = ["spi"]
+
+[[pins]]
+name = "GPIO7"
+gpio = 7
+functions = ["spi"]
+
+[[pins]]
+name = "GPIO8"
+gpio = 8
+functions = ["strap"]
+label = "blue LED, active low; keep high at boot"
+
+[[pins]]
+name = "GPIO9"
+gpio = 9
+functions = ["strap", "boot"]
+label = "BOOT button"
+
+[[pins]]
+name = "GPIO10"
+gpio = 10
+
+[[pins]]
+name = "GPIO20"
+gpio = 20
+functions = ["uart"]
+label = "UART0 RX"
+
+[[pins]]
+name = "GPIO21"
+gpio = 21
+functions = ["uart"]
+label = "UART0 TX"

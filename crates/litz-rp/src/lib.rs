@@ -32,22 +32,32 @@
 //! `boot2` uses, the USB device controller and its CDC console, plus the
 //! system control space (`NVIC`, `SysTick`, `SCB`).
 //!
-//! # What is not modelled yet
+//! PIO0 and PIO1 each run four state machines with their own clock dividers,
+//! program memory, shift registers, delays, side-set, autopush/autopull and
+//! the full nine-instruction set, and their pins drive and sample the pads
+//! through IO_BANK0's function selects. SIO's interpolators compute the lane
+//! result from both accumulators with the shift, mask, sign, cross-input and
+//! blend controls, and the inter-core FIFOs carry words in both directions.
 //!
-//! PIO and its state machines, the interpolators, and core 1. PIO0 and PIO1
-//! share a scratch register file: their registers accept writes, read back
-//! what was written and otherwise read zero, but no state machine runs and no
-//! FIFO moves. The interpolator registers in SIO fall into scratch storage the
-//! same way, so a lane's accumulators and shifters never advance. Releasing
-//! core 1 starts no second core: the SIO FIFO and spinlocks exist for
-//! single-core firmware, and `CPUID` always reports core 0.
+//! Core 1 is a second [`cpu::Core`] with its own NVIC, `SysTick` and `VTOR`:
+//! the word core 0 writes to SIO's FIFO releases it through the bootrom's
+//! launch block, and from then on both cores step against one clock, the
+//! machine advancing by the longer of their instructions.
 //!
-//! The hardware divider is not a gap: SIO implements the signed and unsigned
-//! divide, its quotient and remainder read back, and `DIV_CSR.READY` is always
-//! set. The RP2040 has no square-root peripheral to model.
+//! # What is approximate
 //!
-//! None of these traps. Firmware that touches a gap keeps running against the
-//! inert version above; the named [`cpu::Fault`]s are reserved for undefined
+//! PIO's instruction timing is one system clock per instruction after the
+//! divider, with the programmed delays and the stall of a blocking `PULL` or
+//! `PUSH` accounted for; the pipeline's one-instruction skew on a pin edge is
+//! not reproduced, and a side-set's extra cycle is folded into the delay.
+//! The ADC samples on its own schedule rather than at the end of a converted
+//! cycle. A UART transmitter's frames are timed bit by bit at the baud its
+//! divisor names, but a byte the host sends arrives at the receiver at once
+//! rather than a bit at a time. The hardware divider is exact: SIO implements the signed and
+//! unsigned divide, its quotient and remainder read back, and `DIV_CSR.READY`
+//! is always set; the RP2040 has no square-root peripheral to model.
+//!
+//! None of these traps. The named [`cpu::Fault`]s are reserved for undefined
 //! or unimplemented instructions, a bus access with no target, and a halt.
 #![forbid(unsafe_code)]
 

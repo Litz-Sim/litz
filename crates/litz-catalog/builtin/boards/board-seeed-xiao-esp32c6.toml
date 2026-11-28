@@ -1,0 +1,94 @@
+[board]
+id = "board-seeed-xiao-esp32c6"
+name = "Seeed XIAO ESP32C6"
+version = "1.0.0"
+description = "Seeed Studio XIAO ESP32C6: an ESP32-C6FH4 with 4 MiB flash on the 17.8 x 21 mm XIAO footprint, 11 GPIO on the 14-pin header"
+chip = "esp32c6"
+flash_size = "4MB"
+psram = false
+schematic = "board-seeed-xiao-esp32c6.onboard.json"
+
+# The XIAO header, labelled with the board's own names: D0 to D6 down one edge,
+# then 5V, GND, 3V3 and D10 to D7 up the other. The pins behind them are the
+# chip's, which is why D3 is GPIO21 and D10 is GPIO18. GPIO4 to GPIO7 (the
+# JTAG pads) are solder pads on the back of the board and stay off this header.
+
+[[pins]]
+name = "5V"
+fixed = "5v"
+label = "USB 5 V"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+
+[[pins]]
+name = "3V3"
+fixed = "3v3"
+label = "3.3 V out"
+
+[[pins]]
+name = "D0"
+gpio = 0
+functions = ["adc"]
+label = "A0"
+
+[[pins]]
+name = "D1"
+gpio = 1
+functions = ["adc"]
+label = "A1"
+
+[[pins]]
+name = "D2"
+gpio = 2
+functions = ["adc"]
+label = "A2"
+
+[[pins]]
+name = "D3"
+gpio = 21
+functions = ["spi"]
+label = "SPI SS"
+
+[[pins]]
+name = "D4"
+gpio = 22
+functions = ["i2c"]
+label = "I2C SDA"
+
+[[pins]]
+name = "D5"
+gpio = 23
+functions = ["i2c"]
+label = "I2C SCL"
+
+[[pins]]
+name = "D6"
+gpio = 16
+functions = ["uart"]
+label = "UART TX"
+
+[[pins]]
+name = "D7"
+gpio = 17
+functions = ["uart"]
+label = "UART RX"
+
+[[pins]]
+name = "D8"
+gpio = 19
+functions = ["spi"]
+label = "SPI SCK"
+
+[[pins]]
+name = "D9"
+gpio = 20
+functions = ["spi"]
+label = "SPI MISO"
+
+[[pins]]
+name = "D10"
+gpio = 18
+functions = ["spi"]
+label = "SPI MOSI"

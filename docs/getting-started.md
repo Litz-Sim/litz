@@ -137,7 +137,7 @@ console.log(session.chip().name, session.stop, session.ms);
 session.close();
 ```
 
-`createSession` also accepts `rom`, `boot`, `ptable`, `flashSize`, `mac`, `analog`, `manifests`, `parts` and `boards`. `advance(ms)` advances by simulated time and returns the simulated milliseconds reached; `run(steps)` advances by scheduling steps instead. A session runs one board. The WebAssembly build carries the ESP32-C3, ESP32-C6, ESP32-P4 and ESP32-S31, the ATmega328P and the RP2040; the classic ESP32 and ESP32-S3 are Xtensa and are not compiled into the WebAssembly module.
+`createSession` also accepts `rom`, `boot`, `ptable`, `flashSize`, `mac`, `analog`, `manifests`, `parts` and `boards`. `advance(ms)` advances by simulated time and returns the simulated milliseconds reached; `run(steps)` advances by scheduling steps instead. A session runs one board. The WebAssembly build carries the ESP32-C3, ESP32-C6, ESP32-P4 and ESP32-S31, the AVR parts (ATmega328P, ATmega2560, ATmega32U4 and ATtiny85), the RP2040, the STC89C52RC and the CH32V003; the classic ESP32 and ESP32-S3 are Xtensa and are not compiled into the WebAssembly module.
 
 Beyond serial, the session exposes `parts()`, `part(id)`, `press(id, pressed)`, `setControl(id, permille)`, `gpio(pin)`, `partPin(id, pin)`, `display()`, `touch(x, y, down)`, `probe.add(name, point)`, `scope()`, `decode.add(spec)`, `trace.vcd()`, `heap()` and `conflicts()`. The type declarations in `js/index.d.ts` list every call, and [File formats](formats.md) documents the simulation options the constructor takes.
 

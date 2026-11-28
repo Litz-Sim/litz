@@ -1,0 +1,105 @@
+[board]
+id = "board-ch32v003"
+name = "CH32V003 breakout"
+version = "1.0.0"
+description = "CH32V003F4P6 (RV32EC) at 48 MHz, 16 KiB flash, 2 KiB SRAM, breakout header"
+chip = "ch32v003"
+flash_size = "16KB"
+psram = false
+schematic = "board-ch32v003.onboard.json"
+
+[[pins]]
+name = "3V3"
+fixed = "3v3"
+label = "3.3 V supply"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+repeat = 2
+
+[[pins]]
+name = "PC0"
+gpio = 0
+
+[[pins]]
+name = "PC1"
+gpio = 1
+label = "TXD (remapped)"
+functions = ["serial"]
+
+[[pins]]
+name = "PC2"
+gpio = 2
+label = "RXD (remapped)"
+
+[[pins]]
+name = "PC3"
+gpio = 3
+
+[[pins]]
+name = "PC4"
+gpio = 4
+functions = ["adc"]
+
+[[pins]]
+name = "PC5"
+gpio = 5
+
+[[pins]]
+name = "PC6"
+gpio = 6
+
+[[pins]]
+name = "PC7"
+gpio = 7
+
+[[pins]]
+name = "PD0"
+gpio = 8
+functions = ["interrupt"]
+
+[[pins]]
+name = "PD1"
+gpio = 9
+
+[[pins]]
+name = "PD2"
+gpio = 10
+functions = ["adc"]
+
+[[pins]]
+name = "PD3"
+gpio = 11
+functions = ["adc"]
+
+[[pins]]
+name = "PD4"
+gpio = 12
+functions = ["adc"]
+
+[[pins]]
+name = "PD5"
+gpio = 13
+label = "TXD"
+functions = ["adc", "serial"]
+
+[[pins]]
+name = "PD6"
+gpio = 14
+label = "RXD"
+functions = ["adc", "serial"]
+
+[[pins]]
+name = "PD7"
+gpio = 15
+
+[[pins]]
+name = "PA1"
+gpio = 16
+functions = ["adc", "serial"]
+
+[[pins]]
+name = "PA2"
+gpio = 17
+functions = ["adc"]

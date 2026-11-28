@@ -1,29 +1,33 @@
-//! The on-chip peripherals: GPIO, the three timers, USART0, the ADC, SPI, TWI,
-//! the EEPROM, the watchdog and the interrupt controller that ties them
-//! together.
+//! The on-chip peripherals: GPIO, the timers, the USARTs, the ADC, SPI, TWI,
+//! the ATtiny's USI, the EEPROM, the watchdog and the interrupt controller
+//! that ties them together.
 //!
 //! Every peripheral exposes its registers through [`Peripherals::read`] and
 //! [`Peripherals::write`], which the core reaches through
-//! [`crate::cpu::DataBus`]. Bad addresses are ignored rather than panicking.
+//! [`crate::cpu::DataBus`]. A register a part does not have is not dispatched:
+//! it falls through to plain storage and reads as zero, which matches the
+//! datasheet's "reserved" behaviour.
 //!
 //! # Interrupts
 //!
-//! [`vector`] names the ATmega328P vectors in datasheet order. The core asks
-//! [`Peripherals::pending_interrupt`] before every instruction; when the `I`
-//! flag is set and a pending vector exists, the core pushes the return
-//! address, clears `I` and jumps to the vector's address (four cycles, the
-//! ATmega328P's vector-entry cost with a 16-bit PC). `RETI` restores `I`.
-//! Sources that have a flag cleared by hardware on vector entry clear it in
-//! [`Peripherals::acknowledge`]; `RXC0`/`UDRE0` are level conditions and stay
-//! pending until the ISR reads `UDR0` or writes it.
+//! The [`vector`] module names the ATmega328P's vectors, and each device table
+//! in [`crate::device`] carries the same information for its own part. The
+//! core asks [`Peripherals::pending_interrupt`] before every instruction; when
+//! the `I` flag is set and a pending vector exists, the core pushes the return
+//! address, clears `I` and jumps to the vector's address. The entry cost and
+//! the PC width come from the device, so an ATmega2560 pushes three bytes and
+//! retires five cycles. `RETI` restores `I`. Sources that have a flag cleared
+//! by hardware on vector entry clear it in [`Peripherals::acknowledge`];
+//! `RXC`/`UDRE` are level conditions and stay pending until the ISR reads or
+//! writes the data register.
 //!
 //! # GPIO and timer outputs
 //!
 //! A pin with `DDR` set can be driven by its `PORT` latch or by a timer
-//! compare output (`OC0A`, `OC0B`, `OC1A`, `OC1B`, `OC2A`, `OC2B`). The timer
-//! level wins whenever the corresponding `COMnx` bits are non-zero, which is
-//! what makes `analogWrite` move the pin. Every driven edge is reported to the
-//! host and surfaces in [`Peripherals::take_outputs`].
+//! compare output. The timer level wins whenever the corresponding `COMnx`
+//! bits are non-zero, which is what makes `analogWrite` move the pin. Every
+//! driven edge is reported to the host and surfaces in
+//! [`Peripherals::take_outputs`].
 
 pub mod adc;
 pub mod eeprom;
@@ -31,17 +35,20 @@ pub mod spi;
 pub mod timers;
 pub mod twi;
 pub mod usart;
+pub mod usi;
 
 use std::fmt;
 
+use crate::device::{ATMEGA328P, Device, NONE, Port};
 pub use adc::Adc;
 pub use eeprom::Eeprom;
 pub use spi::{Spi, SpiTransfer};
-pub use timers::{Timer0, Timer1, Timer2};
+pub use timers::{Timer, Timer0, Timer1, Timer2};
 pub use twi::{I2cRead, I2cWrite, Twi};
 pub use usart::Usart0;
+pub use usi::Usi;
 
-/// Data-space addresses of the registers this module answers.
+/// Data-space addresses of the ATmega328P registers this module answers.
 pub mod addr {
     pub const PINB: u16 = 0x23;
     pub const DDRB: u16 = 0x24;
@@ -55,6 +62,7 @@ pub mod addr {
     pub const TIFR0: u16 = 0x35;
     pub const TIFR1: u16 = 0x36;
     pub const TIFR2: u16 = 0x37;
+    pub const TIFR3: u16 = 0x38;
     pub const PCIFR: u16 = 0x3b;
     pub const EIFR: u16 = 0x3c;
     pub const EIMSK: u16 = 0x3d;
@@ -75,12 +83,14 @@ pub mod addr {
     pub const WDTCSR: u16 = 0x60;
     pub const PCICR: u16 = 0x68;
     pub const EICRA: u16 = 0x69;
+    pub const EICRB: u16 = 0x6a;
     pub const PCMSK0: u16 = 0x6b;
     pub const PCMSK1: u16 = 0x6c;
     pub const PCMSK2: u16 = 0x6d;
     pub const TIMSK0: u16 = 0x6e;
     pub const TIMSK1: u16 = 0x6f;
     pub const TIMSK2: u16 = 0x70;
+    pub const TIMSK3: u16 = 0x71;
     pub const ADCL: u16 = 0x78;
     pub const ADCH: u16 = 0x79;
     pub const ADCSRA: u16 = 0x7a;
@@ -114,6 +124,29 @@ pub mod addr {
     pub const UBRR0L: u16 = 0xc4;
     pub const UBRR0H: u16 = 0xc5;
     pub const UDR0: u16 = 0xc6;
+    pub const UCSR1A: u16 = 0xc8;
+    pub const UCSR1B: u16 = 0xc9;
+    pub const UCSR1C: u16 = 0xca;
+    pub const UBRR1L: u16 = 0xcc;
+    pub const UBRR1H: u16 = 0xcd;
+    pub const UDR1: u16 = 0xce;
+    pub const TCCR3A: u16 = 0x90;
+    pub const TCCR3B: u16 = 0x91;
+    pub const TCNT3L: u16 = 0x94;
+    pub const TCNT3H: u16 = 0x95;
+    pub const OCR3AL: u16 = 0x98;
+    pub const OCR3AH: u16 = 0x99;
+    // ATtiny85 register addresses (data space).
+    pub const USIDR: u16 = 0x2f;
+    pub const USIBR: u16 = 0x30;
+    pub const USISR: u16 = 0x2e;
+    pub const USICR: u16 = 0x2d;
+    pub const TCCR1_TINY: u16 = 0x50;
+    pub const GTCCR_TINY: u16 = 0x4c;
+    pub const OCR1C_TINY: u16 = 0x4d;
+    pub const MCUCR_TINY: u16 = 0x55;
+    pub const GIMSK_TINY: u16 = 0x5b;
+    pub const GIFR_TINY: u16 = 0x5a;
 }
 
 /// The interrupt vectors of an ATmega328P, in datasheet priority order.
@@ -121,6 +154,9 @@ pub mod addr {
 /// Vector `n` lives at byte address `4 * n` in flash (word address `2 * n`);
 /// avr-gcc emits a four-byte `jmp` at each slot, which is why the spacing is
 /// four bytes even though the datasheet's table numbers the slots in words.
+/// The ATtiny85's slots are one word wide, so its table has a different
+/// spacing; use [`word_address_for`] with a device for a part-specific
+/// address.
 ///
 /// Unknown sources are not routed; a vector with no handler falls through to
 /// whatever the firmware put there.
@@ -154,27 +190,37 @@ pub mod vector {
     /// One past the last vector.
     pub const COUNT: u8 = 26;
 
-    /// Byte address of a vector's slot in flash.
+    /// Byte address of a vector's slot on the ATmega328P.
     pub const fn byte_address(vector: u8) -> u16 {
         (vector as u16) * 4
     }
 
-    /// Word address of a vector's slot in flash.
+    /// Word address of a vector's slot on the ATmega328P.
     pub const fn word_address(vector: u8) -> u16 {
         (vector as u16) * 2
     }
 }
 
+/// Word address of a vector's slot on `device`.
+pub fn word_address_for(device: &Device, vector: u8) -> u16 {
+    u16::from(vector) * u16::from(device.vector_words)
+}
+
+/// Byte address of a vector's slot on `device`.
+pub fn byte_address_for(device: &Device, vector: u8) -> u32 {
+    u32::from(vector) * u32::from(device.vector_words) * 2
+}
+
 /// Cycles an interrupt entry costs on an ATmega328P after a 16-bit PC is
-/// pushed.
+/// pushed. Other parts carry their own entry cost in the device table.
 pub const INTERRUPT_CYCLES: u8 = 4;
 
-/// The three GPIO ports, named as the datasheet names them.
+/// The ATmega328P's GPIO ports, named as the datasheet names them.
 pub const PORT_B: usize = 0;
 pub const PORT_C: usize = 1;
 pub const PORT_D: usize = 2;
 
-/// Which port and bit a host-facing digital pin maps to.
+/// Which port and bit an Arduino Uno pin maps to.
 ///
 /// The numbering is the Arduino Uno's: D0–D7 are `PORTD[0..8]`, D8–D13 are
 /// `PORTB[0..6]`, A0–A5 are `PORTC[0..6]`.
@@ -198,24 +244,48 @@ pub fn port_to_digital(port: usize, bit: u8) -> Option<u8> {
     }
 }
 
-/// GPIO ports B, C and D: direction, output latch, external input levels and
-/// the timer compare-output overrides.
-#[derive(Default)]
+/// The most ports any modelled part has (the ATmega2560's A–L).
+const MAX_PORTS: usize = 11;
+
+/// GPIO ports: direction, output latch, external input levels and the timer
+/// compare-output overrides. The port index is the port's position in the
+/// device table.
 pub struct Gpio {
-    ddr: [u8; 3],
-    port: [u8; 3],
-    input: [u8; 3],
+    device: &'static Device,
+    ddr: [u8; MAX_PORTS],
+    port: [u8; MAX_PORTS],
+    input: [u8; MAX_PORTS],
     /// Level a timer wants on a pin, when a compare output is connected.
-    overridden: [Option<bool>; 24],
+    overridden: [Option<bool>; MAX_PORTS * 8],
     /// Last level reported per port/bit, so a callback sees edges only.
-    reported: [Option<bool>; 24],
+    reported: [Option<bool>; MAX_PORTS * 8],
     events: Vec<(u8, bool)>,
     callback: Option<Box<dyn FnMut(u8, bool)>>,
 }
 
+impl Default for Gpio {
+    fn default() -> Self {
+        Self::new(&ATMEGA328P)
+    }
+}
+
 impl Gpio {
-    /// Install a callback for output edges. It receives the Arduino digital
-    /// pin number and the level the chip now drives.
+    /// GPIO for `device`, with every pin an input and every latch low.
+    pub fn new(device: &'static Device) -> Self {
+        Self {
+            device,
+            ddr: [0; MAX_PORTS],
+            port: [0; MAX_PORTS],
+            input: [0; MAX_PORTS],
+            overridden: [None; MAX_PORTS * 8],
+            reported: [None; MAX_PORTS * 8],
+            events: Vec::new(),
+            callback: None,
+        }
+    }
+
+    /// Install a callback for output edges. It receives the host-facing pin
+    /// number and the level the chip now drives.
     pub fn set_callback(&mut self, callback: Box<dyn FnMut(u8, bool)>) {
         self.callback = Some(callback);
     }
@@ -231,18 +301,25 @@ impl Gpio {
         core::mem::take(&mut self.events)
     }
 
+    fn port_spec(&self, index: usize) -> Option<&'static Port> {
+        self.device.ports.get(index)
+    }
+
     pub fn ddr(&self, port: usize) -> u8 {
-        self.ddr[port]
+        self.ddr.get(port).copied().unwrap_or(0)
     }
 
     pub fn port(&self, port: usize) -> u8 {
-        self.port[port]
+        self.port.get(port).copied().unwrap_or(0)
     }
 
     /// Level driven back into `PINx`: output pins read the level the chip
     /// drives (the timer's compare output when one is connected, otherwise the
     /// latch); input pins read the external level.
     pub fn pin(&self, port: usize) -> u8 {
+        if self.port_spec(port).is_none() {
+            return 0;
+        }
         let mut value = 0u8;
         for bit in 0..8u8 {
             let high = if self.ddr[port] & (1 << bit) != 0 {
@@ -259,7 +336,7 @@ impl Gpio {
 
     /// What the chip drives on one pin, or `None` when the pin is an input.
     pub fn driven_level(&self, port: usize, bit: u8) -> Option<bool> {
-        if self.ddr[port] & (1 << bit) == 0 {
+        if self.port_spec(port).is_none() || self.ddr[port] & (1 << bit) == 0 {
             return None;
         }
         let index = port * 8 + usize::from(bit);
@@ -269,6 +346,9 @@ impl Gpio {
     /// Connect (or disconnect) a timer compare output. The level only reaches
     /// the pin when `DDR` makes it an output.
     pub(crate) fn set_override(&mut self, port: usize, bit: u8, level: Option<bool>) {
+        if self.port_spec(port).is_none() {
+            return;
+        }
         let index = port * 8 + usize::from(bit);
         if self.overridden[index] == level {
             return;
@@ -278,11 +358,17 @@ impl Gpio {
     }
 
     pub fn set_ddr(&mut self, port: usize, value: u8) {
+        if self.port_spec(port).is_none() {
+            return;
+        }
         self.ddr[port] = value;
         self.report(port);
     }
 
     pub fn set_port(&mut self, port: usize, value: u8) {
+        if self.port_spec(port).is_none() {
+            return;
+        }
         self.port[port] = value;
         self.report(port);
     }
@@ -290,14 +376,20 @@ impl Gpio {
     /// Writing a one to `PINx` toggles the corresponding `PORTx` bit, which is
     /// how firmware implements a fast pin toggle.
     pub fn toggle_via_pin(&mut self, port: usize, value: u8) {
+        if self.port_spec(port).is_none() {
+            return;
+        }
         self.port[port] ^= value;
         self.report(port);
     }
 
-    /// Set the level a host drives onto a digital pin. Pins configured as
+    /// Set the level a host drives onto a host-facing pin. Pins configured as
     /// outputs ignore the host; the board is not allowed to fight the chip.
     pub fn set_input(&mut self, pin: u8, high: bool) {
-        if let Some((port, bit)) = digital_to_port(pin) {
+        let device = self.device;
+        if let Some((port, bit)) = device.port_of_pin(pin)
+            && device.ports.get(port).is_some()
+        {
             if high {
                 self.input[port] |= 1 << bit;
             } else {
@@ -308,10 +400,11 @@ impl Gpio {
 
     /// The raw external input latch for a port, used by tests.
     pub fn input(&self, port: usize) -> u8 {
-        self.input[port]
+        self.input.get(port).copied().unwrap_or(0)
     }
 
     fn report(&mut self, port: usize) {
+        let device = self.device;
         for bit in 0..8u8 {
             let index = port * 8 + usize::from(bit);
             let level = self.driven_level(port, bit);
@@ -320,7 +413,7 @@ impl Gpio {
             }
             self.reported[index] = level;
             if let Some(high) = level
-                && let Some(pin) = port_to_digital(port, bit)
+                && let Some(pin) = device.pin_of_port(port, bit)
             {
                 self.events.push((pin, high));
                 if let Some(callback) = self.callback.as_mut() {
@@ -365,21 +458,21 @@ impl Watchdog {
         self.control & 0x48 != 0 // WDE or WDIE
     }
 
-    fn timeout_cycles(&self) -> u64 {
-        // The watchdog runs from its own ~128 kHz oscillator, so one watchdog
-        // cycle is 125 CPU cycles at 16 MHz. WDP 0 is 2K watchdog cycles
-        // (16 ms); WDP 9 is 1024K (8 s).
+    /// Watchdog timeouts are measured in this part's CPU cycles. The watchdog
+    /// runs from its own ~128 kHz oscillator, so one watchdog cycle is 125 CPU
+    /// cycles at 16 MHz; WDP 0 is 2K watchdog cycles (16 ms), WDP 9 is 1024K.
+    fn timeout_cycles(&self, cpu_hz: u64) -> u64 {
         let code = ((self.control >> 2) & 0x08) | (self.control & 0x07);
-        (2048u64 << u32::from(code)) * 125
+        (2048u64 << u32::from(code)) * cpu_hz / 128_000
     }
 
-    fn advance(&mut self, cycles: u64) {
+    fn advance(&mut self, cycles: u64, cpu_hz: u64) {
         if !self.enabled() {
             self.counter = 0;
             return;
         }
         self.counter = self.counter.saturating_add(cycles);
-        if self.counter >= self.timeout_cycles() {
+        if self.counter >= self.timeout_cycles(cpu_hz) {
             self.counter = 0;
             self.flag = true;
         }
@@ -400,237 +493,517 @@ impl Watchdog {
 
 /// Every peripheral behind the data bus.
 pub struct Peripherals {
+    device: &'static Device,
     pub gpio: Gpio,
-    pub timer0: Timer0,
-    pub timer1: Timer1,
-    pub timer2: Timer2,
+    pub timer0: Timer,
+    pub timer1: Timer,
+    pub timer2: Timer,
+    pub timer3: Timer,
+    pub timer4: Timer,
+    pub timer5: Timer,
     pub usart0: Usart0,
+    pub usart1: Usart0,
+    pub usart2: Usart0,
+    pub usart3: Usart0,
     pub adc: Adc,
     pub spi: Spi,
     pub twi: Twi,
+    pub usi: Usi,
     pub eeprom: Eeprom,
     pub watchdog: Watchdog,
     pub eicra: u8,
+    pub eicrb: u8,
     pub eimsk: u8,
     pub eifr: u8,
+    /// The ATtiny's combined `GIMSK`/`GIFR`, which carry `INT0`, `PCIE` and
+    /// their flags.
+    pub gimsk: u8,
+    pub gifr: u8,
+    pub mcucr: u8,
     pub pcicr: u8,
     pub pcifr: u8,
     pub pcmsk: [u8; 3],
     pub spmcsr: u8,
     pub acsr: u8,
-    last_pins: [u8; 3],
-    last_icp1: bool,
+    last_pins: [u8; MAX_PORTS],
+    last_capture: [bool; 6],
     last_aco: bool,
     /// Backing store for I/O registers that are modelled as plain storage.
-    io: [u8; 0xe0],
+    io: Vec<u8>,
 }
 
 impl Default for Peripherals {
     fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Peripherals {
+    /// An ATmega328P peripheral set.
+    pub fn new() -> Self {
+        Self::for_device(&ATMEGA328P)
+    }
+
+    /// The peripheral set of `device`.
+    pub fn for_device(device: &'static Device) -> Self {
+        let mut timers: [Timer; 6] = core::array::from_fn(|_| Timer::empty());
+        for spec in device.timers {
+            if let Some(slot) = timers.get_mut(usize::from(spec.index)) {
+                *slot = Timer::new(spec);
+            }
+        }
+        let [timer0, timer1, timer2, timer3, timer4, timer5] = timers;
+        let write_cycles = (device.cpu_hz / 1000 * 3400 / 1000) as u32;
         Self {
-            gpio: Gpio::default(),
-            timer0: Timer0::default(),
-            timer1: Timer1::default(),
-            timer2: Timer2::default(),
+            device,
+            gpio: Gpio::new(device),
+            timer0,
+            timer1,
+            timer2,
+            timer3,
+            timer4,
+            timer5,
             usart0: Usart0::default(),
-            adc: Adc::default(),
+            usart1: Usart0::default(),
+            usart2: Usart0::default(),
+            usart3: Usart0::default(),
+            adc: Adc::new(&device.adc),
             spi: Spi::new(),
             twi: Twi::new(),
-            eeprom: Eeprom::default(),
+            usi: Usi::new(),
+            eeprom: Eeprom::new(device.eeprom_size, write_cycles),
             watchdog: Watchdog::default(),
             eicra: 0,
+            eicrb: 0,
             eimsk: 0,
             eifr: 0,
+            gimsk: 0,
+            gifr: 0,
+            mcucr: 0,
             pcicr: 0,
             pcifr: 0,
             pcmsk: [0; 3],
             spmcsr: 0,
             acsr: 0,
-            last_pins: [0; 3],
-            last_icp1: false,
+            last_pins: [0; MAX_PORTS],
+            last_capture: [false; 6],
             last_aco: false,
-            io: [0; 0xe0],
+            io: vec![0; 0x1e0],
         }
     }
-}
 
-impl Peripherals {
-    pub fn new() -> Self {
-        Self::default()
+    /// The device this peripheral set belongs to.
+    pub fn device(&self) -> &'static Device {
+        self.device
     }
 
-    /// Read one peripheral register. `addr` is a data-space address in
-    /// `0x20..=0xff`; anything else reads as zero.
+    fn timer(&self, index: usize) -> &Timer {
+        match index {
+            0 => &self.timer0,
+            1 => &self.timer1,
+            2 => &self.timer2,
+            3 => &self.timer3,
+            4 => &self.timer4,
+            _ => &self.timer5,
+        }
+    }
+
+    fn timer_mut(&mut self, index: usize) -> &mut Timer {
+        match index {
+            0 => &mut self.timer0,
+            1 => &mut self.timer1,
+            2 => &mut self.timer2,
+            3 => &mut self.timer3,
+            4 => &mut self.timer4,
+            _ => &mut self.timer5,
+        }
+    }
+
+    fn usart_mut(&mut self, index: usize) -> &mut Usart0 {
+        match index {
+            0 => &mut self.usart0,
+            1 => &mut self.usart1,
+            2 => &mut self.usart2,
+            _ => &mut self.usart3,
+        }
+    }
+
+    fn usart(&self, index: usize) -> &Usart0 {
+        match index {
+            0 => &self.usart0,
+            1 => &self.usart1,
+            2 => &self.usart2,
+            _ => &self.usart3,
+        }
+    }
+
+    fn in_range(&self, addr: u16) -> Option<usize> {
+        let index = usize::from(addr.checked_sub(0x20)?);
+        (index < self.io.len()).then_some(index)
+    }
+
+    /// Read one peripheral register. `addr` is a data-space address; a
+    /// register the device does not have reads as zero.
     pub fn read(&mut self, addr: u16) -> u8 {
-        let Some(index) = addr.checked_sub(0x20).map(usize::from) else {
+        let Some(index) = self.in_range(addr) else {
             return 0;
         };
-        if index >= self.io.len() {
-            return 0;
+        let regs = self.device.regs;
+        let ports = self.device.ports;
+        let usarts = self.device.usarts;
+
+        for port in ports {
+            if addr == port.pin {
+                return self.gpio.pin(port.index);
+            }
+            if addr == port.ddr {
+                return self.gpio.ddr(port.index);
+            }
+            if addr == port.port {
+                return self.gpio.port(port.index);
+            }
         }
-        match addr {
-            addr::PINB => self.gpio.pin(PORT_B),
-            addr::PINC => self.gpio.pin(PORT_C),
-            addr::PIND => self.gpio.pin(PORT_D),
-            addr::DDRB => self.gpio.ddr(PORT_B),
-            addr::DDRC => self.gpio.ddr(PORT_C),
-            addr::DDRD => self.gpio.ddr(PORT_D),
-            addr::PORTB => self.gpio.port(PORT_B),
-            addr::PORTC => self.gpio.port(PORT_C),
-            addr::PORTD => self.gpio.port(PORT_D),
-            addr::TIFR0 => self.timer0.tifr,
-            addr::TIFR1 => self.timer1.tifr,
-            addr::TIFR2 => self.timer2.tifr,
-            addr::PCIFR => self.pcifr,
-            addr::EIFR => self.eifr,
-            addr::EIMSK => self.eimsk,
-            addr::EICRA => self.eicra,
-            addr::PCICR => self.pcicr,
-            addr::PCMSK0 => self.pcmsk[0],
-            addr::PCMSK1 => self.pcmsk[1],
-            addr::PCMSK2 => self.pcmsk[2],
-            addr::TCCR0A => self.timer0.tccr_a,
-            addr::TCCR0B => self.timer0.tccr_b,
-            addr::TCNT0 => self.timer0.count,
-            addr::OCR0A => self.timer0.ocr_a,
-            addr::OCR0B => self.timer0.ocr_b,
-            addr::TIMSK0 => self.timer0.timsk,
-            addr::TCCR1A => self.timer1.tccr_a,
-            addr::TCCR1B => self.timer1.tccr_b,
-            addr::TCCR1C => self.timer1.tccr_c,
-            addr::TCNT1L => self.timer1.count as u8,
-            addr::TCNT1H => (self.timer1.count >> 8) as u8,
-            addr::ICR1L => self.timer1.icr as u8,
-            addr::ICR1H => (self.timer1.icr >> 8) as u8,
-            addr::OCR1AL => self.timer1.ocr_a as u8,
-            addr::OCR1AH => (self.timer1.ocr_a >> 8) as u8,
-            addr::OCR1BL => self.timer1.ocr_b as u8,
-            addr::OCR1BH => (self.timer1.ocr_b >> 8) as u8,
-            addr::TIMSK1 => self.timer1.timsk,
-            addr::TCCR2A => self.timer2.tccr_a,
-            addr::TCCR2B => self.timer2.tccr_b,
-            addr::TCNT2 => self.timer2.count,
-            addr::OCR2A => self.timer2.ocr_a,
-            addr::OCR2B => self.timer2.ocr_b,
-            addr::TIMSK2 => self.timer2.timsk,
-            addr::SPCR => self.spi.spcr,
-            addr::SPSR => self.spi.read_status(),
-            addr::SPDR => self.spi.read_data(),
-            addr::ACSR => self.acsr,
-            addr::SPMCSR => self.spmcsr,
-            addr::WDTCSR => self.watchdog.read_control(),
-            addr::ADCL => self.adc.adcl,
-            addr::ADCH => self.adc.adch,
-            addr::ADCSRA => self.adc.read_control(),
-            addr::ADCSRB => self.adc.adcsrb,
-            addr::ADMUX => self.adc.admux,
-            addr::TWBR => self.twi.twbr,
-            addr::TWSR => self.twi.read_status(),
-            addr::TWAR => self.twi.twar,
-            addr::TWDR => self.twi.twdr,
-            addr::TWCR => self.twi.read_control(),
-            addr::TWAMR => self.twi.twamr,
-            addr::EECR => self.eeprom.read_control(),
-            addr::EEDR => self.eeprom.eedr,
-            addr::EEARL => self.eeprom.read_low(),
-            addr::EEARH => self.eeprom.read_high(),
-            addr::UCSR0A => self.usart0.status(),
-            addr::UCSR0B => self.usart0.ucsr_b,
-            addr::UCSR0C => self.usart0.ucsr_c,
-            addr::UBRR0L => self.usart0.ubrr_l,
-            addr::UBRR0H => self.usart0.ubrr_h,
-            addr::UDR0 => self.usart0.read_data(),
-            _ => self.io[index],
+
+        if regs.shared_timer_irq {
+            let first = self.timer0.spec().map(|spec| spec.regs);
+            if let Some(first) = first {
+                if addr == first.timsk {
+                    return self.timer0.timsk | self.timer1.timsk;
+                }
+                if addr == first.tifr {
+                    return self.timer0.tifr | self.timer1.tifr;
+                }
+            }
         }
+        for counter in 0..6 {
+            if let Some(value) = self.timer_mut(counter).read_register(addr) {
+                return value;
+            }
+        }
+
+        for (number, usart) in usarts.iter().enumerate() {
+            if usart.control_a != NONE && addr == usart.control_a {
+                return self.usart(number).status();
+            }
+            if usart.control_b != NONE && addr == usart.control_b {
+                return self.usart(number).ucsr_b;
+            }
+            if usart.control_c != NONE && addr == usart.control_c {
+                return self.usart(number).ucsr_c;
+            }
+            if usart.baud_low != NONE && addr == usart.baud_low {
+                return self.usart(number).ubrr_l;
+            }
+            if usart.baud_high != NONE && addr == usart.baud_high {
+                return self.usart(number).ubrr_h;
+            }
+            if usart.data != NONE && addr == usart.data {
+                return self.usart_mut(number).read_data();
+            }
+        }
+
+        let adc = self.device.adc;
+        if addr == adc.control {
+            return self.adc.read_control();
+        }
+        if addr == adc.control_b {
+            return self.adc.adcsrb;
+        }
+        if addr == adc.mux {
+            return self.adc.admux;
+        }
+        if addr == adc.data_low {
+            return self.adc.adcl;
+        }
+        if addr == adc.data_high {
+            return self.adc.adch;
+        }
+
+        if regs.spi_status != NONE && addr == regs.spi_status {
+            return self.spi.read_status();
+        }
+        if regs.spi_control != NONE && addr == regs.spi_control {
+            return self.spi.spcr;
+        }
+        if regs.spi_data != NONE && addr == regs.spi_data {
+            return self.spi.read_data();
+        }
+        if addr == regs.analog_comparator {
+            return self.acsr;
+        }
+        if addr == regs.spm_control {
+            return self.spmcsr;
+        }
+        if addr == regs.watchdog_control {
+            return self.watchdog.read_control();
+        }
+        if regs.twi_status != NONE && addr == regs.twi_status {
+            return self.twi.read_status();
+        }
+        if regs.twi_bit_rate != NONE && addr == regs.twi_bit_rate {
+            return self.twi.twbr;
+        }
+        if regs.twi_address != NONE && addr == regs.twi_address {
+            return self.twi.twar;
+        }
+        if regs.twi_data != NONE && addr == regs.twi_data {
+            return self.twi.twdr;
+        }
+        if regs.twi_control != NONE && addr == regs.twi_control {
+            return self.twi.read_control();
+        }
+        if regs.twi_mask != NONE && addr == regs.twi_mask {
+            return self.twi.twamr;
+        }
+        if regs.eeprom_control != NONE && addr == regs.eeprom_control {
+            return self.eeprom.read_control();
+        }
+        if regs.eeprom_data != NONE && addr == regs.eeprom_data {
+            return self.eeprom.eedr;
+        }
+        if regs.eeprom_address_low != NONE && addr == regs.eeprom_address_low {
+            return self.eeprom.read_low();
+        }
+        if regs.eeprom_address_high != NONE && addr == regs.eeprom_address_high {
+            return self.eeprom.read_high();
+        }
+        if regs.usi_data != NONE && addr == regs.usi_data {
+            return self.usi.usidr;
+        }
+        if regs.usi_buffer != NONE && addr == regs.usi_buffer {
+            return self.usi.usibr;
+        }
+        if regs.usi_status != NONE && addr == regs.usi_status {
+            return self.usi.read_status();
+        }
+        if regs.usi_control != NONE && addr == regs.usi_control {
+            return self.usi.usicr;
+        }
+
+        if regs.ext_int_control_a != NONE && addr == regs.ext_int_control_a {
+            return self.eicra;
+        }
+        if regs.ext_int_control_b != NONE && addr == regs.ext_int_control_b {
+            return self.eicrb;
+        }
+        if regs.mcu_control != NONE && addr == regs.mcu_control {
+            return self.mcucr;
+        }
+        if regs.ext_int_mask != NONE && addr == regs.ext_int_mask {
+            return self.eimsk;
+        }
+        if regs.ext_int_flags != NONE && addr == regs.ext_int_flags {
+            return self.eifr;
+        }
+        if regs.general_int_mask != NONE && addr == regs.general_int_mask {
+            return self.gimsk;
+        }
+        if regs.general_int_flags != NONE && addr == regs.general_int_flags {
+            return self.gifr;
+        }
+        if regs.pin_change_control != NONE && addr == regs.pin_change_control {
+            return self.pcicr;
+        }
+        if regs.pin_change_flags != NONE && addr == regs.pin_change_flags {
+            return self.pcifr;
+        }
+        for (slot, &mask) in regs.pin_change_mask.iter().enumerate() {
+            if mask != NONE && addr == mask {
+                return self.pcmsk[slot];
+            }
+        }
+
+        self.io[index]
     }
 
-    /// Write one peripheral register. Bad addresses are ignored.
+    /// Write one peripheral register. A register the device does not have is
+    /// plain storage.
     pub fn write(&mut self, addr: u16, value: u8) {
-        let Some(index) = addr.checked_sub(0x20).map(usize::from) else {
+        let Some(index) = self.in_range(addr) else {
             return;
         };
-        if index >= self.io.len() {
-            return;
+        let regs = self.device.regs;
+        let ports = self.device.ports;
+        let usarts = self.device.usarts;
+
+        let mut handled = true;
+        let mut port_written = None;
+        for port in ports {
+            if addr == port.pin {
+                self.gpio.toggle_via_pin(port.index, value);
+                port_written = Some(port.index);
+            } else if addr == port.ddr {
+                self.gpio.set_ddr(port.index, value);
+                port_written = Some(port.index);
+            } else if addr == port.port {
+                self.gpio.set_port(port.index, value);
+                port_written = Some(port.index);
+            }
         }
-        match addr {
-            addr::PINB => self.gpio.toggle_via_pin(PORT_B, value),
-            addr::PINC => self.gpio.toggle_via_pin(PORT_C, value),
-            addr::PIND => self.gpio.toggle_via_pin(PORT_D, value),
-            addr::DDRB => self.gpio.set_ddr(PORT_B, value),
-            addr::DDRC => self.gpio.set_ddr(PORT_C, value),
-            addr::DDRD => self.gpio.set_ddr(PORT_D, value),
-            addr::PORTB => self.gpio.set_port(PORT_B, value),
-            addr::PORTC => self.gpio.set_port(PORT_C, value),
-            addr::PORTD => self.gpio.set_port(PORT_D, value),
-            // Interrupt flags are write-one-to-clear.
-            addr::TIFR0 => self.timer0.tifr &= !value,
-            addr::TIFR1 => self.timer1.tifr &= !value,
-            addr::TIFR2 => self.timer2.tifr &= !value,
-            addr::PCIFR => self.pcifr &= !value,
-            addr::EIFR => self.eifr &= !value,
-            addr::EIMSK => self.eimsk = value,
-            addr::EICRA => self.eicra = value,
-            addr::PCICR => self.pcicr = value,
-            addr::PCMSK0 => self.pcmsk[0] = value,
-            addr::PCMSK1 => self.pcmsk[1] = value,
-            addr::PCMSK2 => self.pcmsk[2] = value,
-            addr::TCCR0A => self.timer0.tccr_a = value,
-            addr::TCCR0B => self.timer0.tccr_b = value,
-            addr::TCNT0 => self.timer0.count = value,
-            addr::OCR0A => self.timer0.ocr_a = value,
-            addr::OCR0B => self.timer0.ocr_b = value,
-            addr::TIMSK0 => self.timer0.timsk = value,
-            addr::TCCR1A => self.timer1.tccr_a = value,
-            addr::TCCR1B => self.timer1.tccr_b = value,
-            addr::TCCR1C => self.timer1.tccr_c = value,
-            addr::TCNT1L => self.timer1.count = (self.timer1.count & 0xff00) | u16::from(value),
-            addr::TCNT1H => {
-                self.timer1.count = (self.timer1.count & 0x00ff) | (u16::from(value) << 8);
-            }
-            addr::ICR1L => self.timer1.icr = (self.timer1.icr & 0xff00) | u16::from(value),
-            addr::ICR1H => self.timer1.icr = (self.timer1.icr & 0x00ff) | (u16::from(value) << 8),
-            addr::OCR1AL => self.timer1.ocr_a = (self.timer1.ocr_a & 0xff00) | u16::from(value),
-            addr::OCR1AH => {
-                self.timer1.ocr_a = (self.timer1.ocr_a & 0x00ff) | (u16::from(value) << 8);
-            }
-            addr::OCR1BL => self.timer1.ocr_b = (self.timer1.ocr_b & 0xff00) | u16::from(value),
-            addr::OCR1BH => {
-                self.timer1.ocr_b = (self.timer1.ocr_b & 0x00ff) | (u16::from(value) << 8);
-            }
-            addr::TIMSK1 => self.timer1.timsk = value,
-            addr::TCCR2A => self.timer2.tccr_a = value,
-            addr::TCCR2B => self.timer2.tccr_b = value,
-            addr::TCNT2 => self.timer2.count = value,
-            addr::OCR2A => self.timer2.ocr_a = value,
-            addr::OCR2B => self.timer2.ocr_b = value,
-            addr::TIMSK2 => self.timer2.timsk = value,
-            addr::SPCR => self.spi.spcr = value,
-            addr::SPSR => self.spi.write_status(value),
-            addr::SPDR => self.spi.write_data(value),
-            addr::ACSR => self.write_acsr(value),
-            addr::SPMCSR => self.spmcsr = value,
-            addr::WDTCSR => self.watchdog.write_control(value),
-            addr::ADCSRA => self.adc.write_control(value),
-            addr::ADCSRB => self.adc.adcsrb = value,
-            addr::ADMUX => self.adc.admux = value,
-            addr::TWBR => self.twi.twbr = value,
-            addr::TWSR => self.twi.write_status(value),
-            addr::TWAR => self.twi.twar = value,
-            addr::TWDR => self.twi.twdr = value,
-            addr::TWCR => self.twi.write_control(value),
-            addr::TWAMR => self.twi.twamr = value,
-            addr::EECR => self.eeprom.write_control(value),
-            addr::EEDR => self.eeprom.eedr = value,
-            addr::EEARL => self.eeprom.write_low(value),
-            addr::EEARH => self.eeprom.write_high(value),
-            addr::UCSR0A => self.usart0.write_status(value),
-            addr::UCSR0B => self.usart0.ucsr_b = value,
-            addr::UCSR0C => self.usart0.ucsr_c = value,
-            addr::UBRR0L => self.usart0.ubrr_l = value,
-            addr::UBRR0H => self.usart0.ubrr_h = value,
-            addr::UDR0 => self.usart0.write_data(value),
-            _ => self.io[index] = value,
+        if port_written.is_none() {
+            handled = false;
         }
+
+        if !handled && regs.shared_timer_irq {
+            if let Some(first) = self.timer0.spec().map(|spec| spec.regs) {
+                if addr == first.timsk {
+                    self.timer0.timsk = value;
+                    self.timer1.timsk = value;
+                    handled = true;
+                } else if addr == first.tifr {
+                    self.timer0.tifr &= !value;
+                    self.timer1.tifr &= !value;
+                    handled = true;
+                }
+            }
+        }
+        if !handled {
+            for counter in 0..6 {
+                if self.timer_mut(counter).write_register(addr, value) {
+                    handled = true;
+                    break;
+                }
+            }
+        }
+
+        if !handled {
+            for (number, usart) in usarts.iter().enumerate() {
+                if usart.control_a != NONE && addr == usart.control_a {
+                    self.usart_mut(number).write_status(value);
+                    handled = true;
+                } else if usart.control_b != NONE && addr == usart.control_b {
+                    self.usart_mut(number).ucsr_b = value;
+                    handled = true;
+                } else if usart.control_c != NONE && addr == usart.control_c {
+                    self.usart_mut(number).ucsr_c = value;
+                    handled = true;
+                } else if usart.baud_low != NONE && addr == usart.baud_low {
+                    self.usart_mut(number).ubrr_l = value;
+                    handled = true;
+                } else if usart.baud_high != NONE && addr == usart.baud_high {
+                    self.usart_mut(number).ubrr_h = value;
+                    handled = true;
+                } else if usart.data != NONE && addr == usart.data {
+                    self.usart_mut(number).write_data(value);
+                    handled = true;
+                }
+                if handled {
+                    break;
+                }
+            }
+        }
+
+        if !handled {
+            let adc = self.device.adc;
+            if addr == adc.control {
+                self.adc.write_control(value);
+                handled = true;
+            } else if addr == adc.control_b {
+                self.adc.adcsrb = value;
+                handled = true;
+            } else if addr == adc.mux {
+                self.adc.admux = value;
+                handled = true;
+            }
+        }
+
+        if !handled {
+            if regs.spi_control != NONE && addr == regs.spi_control {
+                self.spi.spcr = value;
+                handled = true;
+            } else if regs.spi_status != NONE && addr == regs.spi_status {
+                self.spi.write_status(value);
+                handled = true;
+            } else if regs.spi_data != NONE && addr == regs.spi_data {
+                self.spi.write_data(value);
+                handled = true;
+            } else if addr == regs.analog_comparator {
+                self.write_acsr(value);
+                handled = true;
+            } else if addr == regs.spm_control {
+                self.spmcsr = value;
+                handled = true;
+            } else if addr == regs.watchdog_control {
+                self.watchdog.write_control(value);
+                handled = true;
+            } else if regs.twi_bit_rate != NONE && addr == regs.twi_bit_rate {
+                self.twi.twbr = value;
+                handled = true;
+            } else if regs.twi_status != NONE && addr == regs.twi_status {
+                self.twi.write_status(value);
+                handled = true;
+            } else if regs.twi_address != NONE && addr == regs.twi_address {
+                self.twi.twar = value;
+                handled = true;
+            } else if regs.twi_data != NONE && addr == regs.twi_data {
+                self.twi.twdr = value;
+                handled = true;
+            } else if regs.twi_control != NONE && addr == regs.twi_control {
+                self.twi.write_control(value);
+                handled = true;
+            } else if regs.twi_mask != NONE && addr == regs.twi_mask {
+                self.twi.twamr = value;
+                handled = true;
+            } else if regs.eeprom_control != NONE && addr == regs.eeprom_control {
+                self.eeprom.write_control(value);
+                handled = true;
+            } else if regs.eeprom_data != NONE && addr == regs.eeprom_data {
+                self.eeprom.eedr = value;
+                handled = true;
+            } else if regs.eeprom_address_low != NONE && addr == regs.eeprom_address_low {
+                self.eeprom.write_low(value);
+                handled = true;
+            } else if regs.eeprom_address_high != NONE && addr == regs.eeprom_address_high {
+                self.eeprom.write_high(value);
+                handled = true;
+            } else if regs.usi_data != NONE && addr == regs.usi_data {
+                self.usi.usidr = value;
+                handled = true;
+            } else if regs.usi_buffer != NONE && addr == regs.usi_buffer {
+                self.usi.usibr = value;
+                handled = true;
+            } else if regs.usi_status != NONE && addr == regs.usi_status {
+                self.usi.write_status(value);
+                handled = true;
+            } else if regs.usi_control != NONE && addr == regs.usi_control {
+                self.usi.write_control(value);
+                handled = true;
+            }
+        }
+
+        if !handled {
+            if regs.ext_int_control_a != NONE && addr == regs.ext_int_control_a {
+                self.eicra = value;
+            } else if regs.ext_int_control_b != NONE && addr == regs.ext_int_control_b {
+                self.eicrb = value;
+            } else if regs.mcu_control != NONE && addr == regs.mcu_control {
+                self.mcucr = value;
+            } else if regs.ext_int_mask != NONE && addr == regs.ext_int_mask {
+                self.eimsk = value;
+            } else if regs.ext_int_flags != NONE && addr == regs.ext_int_flags {
+                self.eifr &= !value;
+            } else if regs.general_int_mask != NONE && addr == regs.general_int_mask {
+                self.gimsk = value;
+            } else if regs.general_int_flags != NONE && addr == regs.general_int_flags {
+                self.gifr &= !value;
+            } else if regs.pin_change_control != NONE && addr == regs.pin_change_control {
+                self.pcicr = value;
+            } else if regs.pin_change_flags != NONE && addr == regs.pin_change_flags {
+                self.pcifr &= !value;
+            } else {
+                for (slot, &mask) in regs.pin_change_mask.iter().enumerate() {
+                    if mask != NONE && addr == mask {
+                        self.pcmsk[slot] = value;
+                        handled = true;
+                        break;
+                    }
+                }
+                if !handled {
+                    self.io[index] = value;
+                }
+            }
+        }
+
         self.sync_oc();
         self.sample_pins();
         self.update_comparator();
@@ -647,87 +1020,125 @@ impl Peripherals {
     /// interrupt entry) retired.
     pub fn advance(&mut self, cycles: u8) {
         let cycles = u64::from(cycles);
-        self.timer0.advance(cycles);
-        self.timer1.advance(cycles);
-        self.timer2.advance(cycles);
+        for counter in 0..6 {
+            self.timer_mut(counter).advance(cycles);
+        }
         self.adc.advance(cycles);
         self.spi.advance(cycles);
         self.eeprom.advance(cycles);
-        self.watchdog.advance(cycles);
+        self.watchdog.advance(cycles, self.device.cpu_hz);
         self.sync_oc();
         self.sample_pins();
         self.update_comparator();
     }
 
-    /// Drive the six compare-output pins from the timer state. Called after
-    /// every advance and every register write so `analogWrite` takes effect on
-    /// the very next edge.
+    /// Drive the compare-output pins from the timer state. Called after every
+    /// advance and every register write so `analogWrite` takes effect on the
+    /// very next edge.
     pub(crate) fn sync_oc(&mut self) {
-        let outputs = [
-            (PORT_D, 6u8, self.timer0.oc_a_level()),
-            (PORT_D, 5u8, self.timer0.oc_b_level()),
-            (PORT_B, 1u8, self.timer1.oc_a_level()),
-            (PORT_B, 2u8, self.timer1.oc_b_level()),
-            (PORT_B, 3u8, self.timer2.oc_a_level()),
-            (PORT_D, 3u8, self.timer2.oc_b_level()),
-        ];
-        for (port, bit, level) in outputs {
-            self.gpio.set_override(port, bit, level);
+        let mut levels = [(0usize, 0u8, None); 24];
+        let mut count = 0;
+        let timers = self.device.timers;
+        for spec in timers {
+            let timer = self.timer(usize::from(spec.index));
+            for (channel, output) in spec.outputs.iter().enumerate() {
+                if let Some(pin) = output {
+                    levels[count] = (pin.port, pin.bit, timer.oc_level_of(channel));
+                    count += 1;
+                }
+            }
+        }
+        for (port, bit, level) in &levels[..count] {
+            self.gpio.set_override(*port, *bit, *level);
         }
     }
 
     /// Sample every pin after a change: pin-change flags, external interrupt
-    /// flags, Timer1 input capture and the analog comparator all watch pin
-    /// levels.
+    /// flags, input capture and the analog comparator all watch pin levels.
     fn sample_pins(&mut self) {
+        let device = self.device;
+        let port_count = device.ports.len().min(MAX_PORTS);
         let old = self.last_pins;
-        let mut now = [0u8; 3];
-        for (port, slot) in now.iter_mut().enumerate() {
-            *slot = self.gpio.pin(port);
+        let mut now = [0u8; MAX_PORTS];
+        for port in 0..port_count {
+            now[port] = self.gpio.pin(port);
         }
-        for port in 0..3 {
-            let changed = now[port] ^ old[port];
-            if changed != 0 {
-                let enable = 1u8 << port;
-                if self.pcicr & enable != 0 && changed & self.pcmsk[port] != 0 {
-                    self.pcifr |= enable;
+
+        let pin_flag_register = device.regs.general_int_flags != NONE;
+        for change in device.pin_changes {
+            let changed = now[change.port] ^ old[change.port];
+            let enabled = if pin_flag_register {
+                self.gimsk & change.enable_mask != 0
+            } else {
+                self.pcicr & change.enable_mask != 0
+            };
+            if changed & self.pcmsk[change.mask_index] != 0 && enabled {
+                if pin_flag_register {
+                    self.gifr |= change.flag_mask;
+                } else {
+                    self.pcifr |= change.flag_mask;
                 }
             }
         }
-        self.update_external_interrupt(0, 0x04, old[PORT_D], now[PORT_D]);
-        self.update_external_interrupt(1, 0x08, old[PORT_D], now[PORT_D]);
 
-        let icp1 = now[PORT_B] & 0x01 != 0;
-        let rising = self.timer1.tccr_b & 0x40 != 0;
-        if icp1 != self.last_icp1 && ((rising && icp1) || (!rising && !icp1)) {
-            self.timer1.capture();
+        for interrupt in device.ext_ints {
+            let old_level = old[interrupt.port] & (1 << interrupt.bit) != 0;
+            let new_level = now[interrupt.port] & (1 << interrupt.bit) != 0;
+            let sense = match interrupt.sense_register {
+                0x69 => self.eicra,
+                0x6a => self.eicrb,
+                0x55 => self.mcucr,
+                _ => 0,
+            };
+            let isc = (sense >> interrupt.sense_shift) & 0x03;
+            let fire = match isc {
+                0 => !new_level,
+                1 => old_level != new_level,
+                2 => old_level && !new_level,
+                _ => !old_level && new_level,
+            };
+            if fire {
+                if device.regs.general_int_flags != NONE {
+                    self.gifr |= 1 << interrupt.mask_bit;
+                } else {
+                    self.eifr |= 1 << interrupt.mask_bit;
+                }
+            }
         }
-        self.last_icp1 = icp1;
+
+        for spec in device.timers {
+            let Some(pin) = spec.capture_pin else {
+                continue;
+            };
+            let level = now[pin.port] & (1 << pin.bit) != 0;
+            let index = usize::from(spec.index).min(5);
+            let rising = self.timer(index).tccr_b & 0x40 != 0;
+            if level != self.last_capture[index] && ((rising && level) || (!rising && !level)) {
+                self.timer_mut(index).capture();
+            }
+            self.last_capture[index] = level;
+        }
+
         self.last_pins = now;
-    }
-
-    fn update_external_interrupt(&mut self, index: u8, mask: u8, old: u8, now: u8) {
-        let isc = (self.eicra >> (index * 2)) & 0x03;
-        let changed = (old ^ now) & mask != 0;
-        let high = now & mask != 0;
-        let fire = match isc {
-            0 => !high,            // low level
-            1 => changed,          // any logical change
-            2 => changed && !high, // falling edge
-            _ => changed && high,  // rising edge
-        };
-        if fire {
-            self.eifr |= 1 << index;
-        }
     }
 
     fn update_comparator(&mut self) {
         let disabled = self.acsr & 0x80 != 0;
         let bandgap = self.acsr & 0x40 != 0;
-        let pins = self.gpio.pin(PORT_D);
-        let positive = pins & 0x40 != 0; // AIN0 = PD6
-        let negative = if bandgap { false } else { pins & 0x80 != 0 }; // AIN1 = PD7
-        let output = !disabled && positive && !negative;
+        let comparator = self.device.comparator;
+        let output = match comparator {
+            Some((positive, negative)) if !disabled => {
+                let pins = self.gpio.pin(positive.port);
+                let positive_high = pins & (1 << positive.bit) != 0;
+                let negative_high = if bandgap {
+                    false
+                } else {
+                    self.gpio.pin(negative.port) & (1 << negative.bit) != 0
+                };
+                positive_high && !negative_high
+            }
+            _ => false,
+        };
         if !disabled && output != self.last_aco {
             self.acsr |= 0x10; // ACI
         }
@@ -735,116 +1146,202 @@ impl Peripherals {
         self.last_aco = output;
     }
 
-    /// The highest-priority pending interrupt, or `None`. Only sources whose
-    /// enable bits are set are considered, and the scan is in vector order, so
-    /// the first match is the one hardware would take.
+    fn ext_flag(&self, bit: u8) -> bool {
+        if self.device.regs.general_int_flags != NONE {
+            self.gifr & bit != 0
+        } else {
+            self.eifr & bit != 0
+        }
+    }
+
+    fn ext_enabled(&self, bit: u8) -> bool {
+        if self.device.regs.general_int_mask != NONE {
+            self.gimsk & bit != 0
+        } else {
+            self.eimsk & bit != 0
+        }
+    }
+
+    fn pin_change_flag(&self, bit: u8) -> bool {
+        if self.device.regs.general_int_flags != NONE {
+            self.gifr & bit != 0
+        } else {
+            self.pcifr & bit != 0
+        }
+    }
+
+    fn pin_change_enabled(&self, bit: u8) -> bool {
+        if self.device.regs.general_int_mask != NONE {
+            self.gimsk & bit != 0
+        } else {
+            self.pcicr & bit != 0
+        }
+    }
+
+    /// The highest-priority pending interrupt, or `None`. The scan returns the
+    /// lowest vector number whose enable is set and whose flag is raised, which
+    /// is the order the part's datasheet gives.
     pub fn pending_interrupt(&self) -> Option<u8> {
-        if self.eifr & 0x01 != 0 && self.eimsk & 0x01 != 0 {
-            return Some(vector::INT0);
+        let mut best: Option<u8> = None;
+        let mut take = |vector: u8| {
+            best = Some(match best {
+                Some(current) => current.min(vector),
+                None => vector,
+            });
+        };
+
+        for interrupt in self.device.ext_ints {
+            if self.ext_flag(1 << interrupt.mask_bit) && self.ext_enabled(1 << interrupt.mask_bit) {
+                take(interrupt.vector);
+            }
         }
-        if self.eifr & 0x02 != 0 && self.eimsk & 0x02 != 0 {
-            return Some(vector::INT1);
-        }
-        for (bit, vector) in [
-            (0x01, vector::PCINT0),
-            (0x02, vector::PCINT1),
-            (0x04, vector::PCINT2),
-        ] {
-            if self.pcifr & bit != 0 && self.pcicr & bit != 0 {
-                return Some(vector);
+        for change in self.device.pin_changes {
+            if self.pin_change_flag(change.flag_mask) && self.pin_change_enabled(change.enable_mask)
+            {
+                take(change.vector);
             }
         }
         if self.watchdog.interrupt_pending() {
-            return Some(vector::WDT);
+            take(self.device.vectors.watchdog);
         }
-        if self.timer2.tifr & 0x02 != 0 && self.timer2.timsk & 0x02 != 0 {
-            return Some(vector::TIMER2_COMPA);
+        for spec in self.device.timers {
+            let timer = self.timer(usize::from(spec.index));
+            for (vector, mask) in timer.interrupt_sources() {
+                if timer.tifr & mask != 0 && timer.timsk & mask != 0 {
+                    take(vector);
+                }
+            }
         }
-        if self.timer2.tifr & 0x04 != 0 && self.timer2.timsk & 0x04 != 0 {
-            return Some(vector::TIMER2_COMPB);
+        if let Some(vector) = self.device.vectors.spi
+            && self.spi.interrupt_pending()
+        {
+            take(vector);
         }
-        if self.timer2.tifr & 0x01 != 0 && self.timer2.timsk & 0x01 != 0 {
-            return Some(vector::TIMER2_OVF);
-        }
-        if self.timer1.tifr & 0x20 != 0 && self.timer1.timsk & 0x20 != 0 {
-            return Some(vector::TIMER1_CAPT);
-        }
-        if self.timer1.tifr & 0x02 != 0 && self.timer1.timsk & 0x02 != 0 {
-            return Some(vector::TIMER1_COMPA);
-        }
-        if self.timer1.tifr & 0x04 != 0 && self.timer1.timsk & 0x04 != 0 {
-            return Some(vector::TIMER1_COMPB);
-        }
-        if self.timer1.tifr & 0x01 != 0 && self.timer1.timsk & 0x01 != 0 {
-            return Some(vector::TIMER1_OVF);
-        }
-        if self.timer0.tifr & 0x02 != 0 && self.timer0.timsk & 0x02 != 0 {
-            return Some(vector::TIMER0_COMPA);
-        }
-        if self.timer0.tifr & 0x04 != 0 && self.timer0.timsk & 0x04 != 0 {
-            return Some(vector::TIMER0_COMPB);
-        }
-        if self.timer0.tifr & 0x01 != 0 && self.timer0.timsk & 0x01 != 0 {
-            return Some(vector::TIMER0_OVF);
-        }
-        if self.spi.interrupt_pending() {
-            return Some(vector::SPI_STC);
-        }
-        if self.usart0.rx_interrupt_enabled() && self.usart0.rxc() {
-            return Some(vector::USART_RX);
-        }
-        if self.usart0.udre_interrupt_enabled() && self.usart0.udre() {
-            return Some(vector::USART_UDRE);
-        }
-        if self.usart0.tx_interrupt_enabled() && self.usart0.txc() {
-            return Some(vector::USART_TX);
+        for (number, usart) in self.device.usarts.iter().enumerate() {
+            let state = self.usart(number);
+            if let Some(vector) = usart.vector_rx
+                && state.rx_interrupt_enabled()
+                && state.rxc()
+            {
+                take(vector);
+            }
+            if let Some(vector) = usart.vector_udre
+                && state.udre_interrupt_enabled()
+                && state.udre()
+            {
+                take(vector);
+            }
+            if let Some(vector) = usart.vector_tx
+                && state.tx_interrupt_enabled()
+                && state.txc()
+            {
+                take(vector);
+            }
         }
         if self.adc.interrupt_pending() {
-            return Some(vector::ADC);
+            take(self.device.vectors.adc);
         }
         if self.eeprom.interrupt_pending() {
-            return Some(vector::EE_READY);
+            take(self.device.vectors.eeprom);
         }
         if self.acsr & 0x10 != 0 && self.acsr & 0x08 != 0 {
-            return Some(vector::ANALOG_COMP);
+            take(self.device.vectors.analog_comparator);
         }
-        if self.twi.interrupt_pending() {
-            return Some(vector::TWI);
+        if let Some(vector) = self.device.vectors.twi
+            && self.twi.interrupt_pending()
+        {
+            take(vector);
         }
-        if self.spmcsr & 0x80 != 0 {
-            return Some(vector::SPM_READY);
+        if let Some(vector) = self.device.vectors.spm
+            && self.spmcsr & 0x80 != 0
+        {
+            take(vector);
         }
-        None
+        if let Some(vector) = self.device.vectors.usi_start
+            && self.usi.start_pending()
+        {
+            take(vector);
+        }
+        if let Some(vector) = self.device.vectors.usi_overflow
+            && self.usi.overflow_pending()
+        {
+            take(vector);
+        }
+        // The USB controller's registers are storage only, so its two vectors
+        // never become pending.
+        best
     }
 
     /// Clear the flag a vector owns, as hardware does when it services the
-    /// interrupt. Level-triggered sources (`RXC0`, `UDRE0`) are left alone;
-    /// their ISR clears them by touching `UDR0`.
+    /// interrupt. Level-triggered sources are left alone; their ISR clears
+    /// them by touching the data register.
     pub fn acknowledge(&mut self, vector: u8) {
-        match vector {
-            vector::INT0 => self.eifr &= !0x01,
-            vector::INT1 => self.eifr &= !0x02,
-            vector::PCINT0 => self.pcifr &= !0x01,
-            vector::PCINT1 => self.pcifr &= !0x02,
-            vector::PCINT2 => self.pcifr &= !0x04,
-            vector::WDT => self.watchdog.acknowledge(),
-            vector::TIMER2_COMPA => self.timer2.tifr &= !0x02,
-            vector::TIMER2_COMPB => self.timer2.tifr &= !0x04,
-            vector::TIMER2_OVF => self.timer2.tifr &= !0x01,
-            vector::TIMER1_CAPT => self.timer1.tifr &= !0x20,
-            vector::TIMER1_COMPA => self.timer1.tifr &= !0x02,
-            vector::TIMER1_COMPB => self.timer1.tifr &= !0x04,
-            vector::TIMER1_OVF => self.timer1.tifr &= !0x01,
-            vector::TIMER0_COMPA => self.timer0.tifr &= !0x02,
-            vector::TIMER0_COMPB => self.timer0.tifr &= !0x04,
-            vector::TIMER0_OVF => self.timer0.tifr &= !0x01,
-            vector::SPI_STC => self.spi.acknowledge(),
-            vector::USART_TX => self.usart0.acknowledge_tx(),
-            vector::ADC => self.adc.acknowledge(),
-            vector::EE_READY => self.eeprom.acknowledge(),
-            vector::ANALOG_COMP => self.acsr &= !0x10,
-            vector::TWI => self.twi.acknowledge(),
-            _ => {}
+        let device = self.device;
+        let regs = device.regs;
+        let vectors = device.vectors;
+        for interrupt in device.ext_ints {
+            if interrupt.vector == vector {
+                if regs.general_int_flags != NONE {
+                    self.gifr &= !(1 << interrupt.mask_bit);
+                } else {
+                    self.eifr &= !(1 << interrupt.mask_bit);
+                }
+                return;
+            }
+        }
+        for change in device.pin_changes {
+            if change.vector == vector {
+                if regs.general_int_flags != NONE {
+                    self.gifr &= !change.flag_mask;
+                } else {
+                    self.pcifr &= !change.flag_mask;
+                }
+                return;
+            }
+        }
+        if vector == vectors.watchdog {
+            self.watchdog.acknowledge();
+            return;
+        }
+        let timers = device.timers;
+        for spec in timers {
+            let timer = self.timer_mut(usize::from(spec.index));
+            let sources: Vec<(u8, u8)> = timer.interrupt_sources().collect();
+            for (source, mask) in sources {
+                if source == vector {
+                    timer.tifr &= !mask;
+                    return;
+                }
+            }
+        }
+        if vectors.spi == Some(vector) {
+            self.spi.acknowledge();
+            return;
+        }
+        for (number, usart) in device.usarts.iter().enumerate() {
+            if usart.vector_tx == Some(vector) {
+                self.usart_mut(number).acknowledge_tx();
+                return;
+            }
+        }
+        if vector == vectors.adc {
+            self.adc.acknowledge();
+            return;
+        }
+        if vector == vectors.eeprom {
+            self.eeprom.acknowledge();
+            return;
+        }
+        if vector == vectors.analog_comparator {
+            self.acsr &= !0x10;
+            return;
+        }
+        if vectors.twi == Some(vector) {
+            self.twi.acknowledge();
+            return;
+        }
+        if let (Some(start), Some(overflow)) = (vectors.usi_start, vectors.usi_overflow) {
+            self.usi.acknowledge(vector, start, overflow);
         }
     }
 
@@ -852,31 +1349,44 @@ impl Peripherals {
     /// enabled but has no way to change state on its own (a stopped timer, an
     /// idle ADC) is not counted.
     pub fn any_interrupt_enabled(&self) -> bool {
-        self.eimsk != 0
-            || self.pcicr != 0
-            || self.watchdog.can_wake()
-            || (self.timer0.running() && self.timer0.timsk & 0x07 != 0)
-            || (self.timer1.running() && self.timer1.timsk & 0x27 != 0)
-            || (self.timer2.running() && self.timer2.timsk & 0x07 != 0)
+        let mut enabled = self.watchdog.can_wake()
             || self.spi.can_wake()
-            || self.usart0.rx_interrupt_enabled()
-            || (self.usart0.udre_interrupt_enabled() && self.usart0.udre())
-            || (self.usart0.tx_interrupt_enabled() && self.usart0.txc())
             || self.adc.can_wake()
             || self.eeprom.can_wake()
             || self.acsr & 0x08 != 0
             || self.twi.can_wake()
             || self.spmcsr & 0x80 != 0
+            || self.usi.any_enabled();
+        for interrupt in self.device.ext_ints {
+            enabled |= self.ext_enabled(1 << interrupt.mask_bit);
+        }
+        for change in self.device.pin_changes {
+            enabled |= self.pin_change_enabled(change.enable_mask);
+        }
+        for spec in self.device.timers {
+            let timer = self.timer(usize::from(spec.index));
+            enabled |= timer.running() && timer.timsk != 0;
+        }
+        for (number, usart) in self.device.usarts.iter().enumerate() {
+            let state = self.usart(number);
+            enabled |= usart.vector_rx.is_some() && state.rx_interrupt_enabled();
+            enabled |=
+                usart.vector_udre.is_some() && state.udre_interrupt_enabled() && state.udre();
+            enabled |= usart.vector_tx.is_some() && state.tx_interrupt_enabled() && state.txc();
+        }
+        enabled
     }
 
-    /// Queue a byte for the firmware's receive path.
+    /// Queue a byte for the console USART's receive path.
     pub fn receive(&mut self, value: u8) {
-        self.usart0.receive_byte(value);
+        let console = self.device.console_usart;
+        self.usart_mut(console).receive_byte(value);
     }
 
-    /// Bytes the firmware has written to `UDR0`, drained.
+    /// Bytes the firmware has written to the console USART, drained.
     pub fn take_console(&mut self) -> Vec<u8> {
-        self.usart0.take()
+        let console = self.device.console_usart;
+        self.usart_mut(console).take()
     }
 
     /// Install the GPIO output callback.
@@ -889,25 +1399,28 @@ impl Peripherals {
         self.gpio.take_events()
     }
 
-    /// The high-time fraction each compare-output pin is programmed to, in
-    /// board (Arduino header) numbering: `OC0A` D6, `OC0B` D5, `OC1A` D9,
-    /// `OC1B` D10, `OC2A` D11, `OC2B` D3. A timer whose compare output is
-    /// disconnected or stopped contributes nothing.
+    /// The high-time fraction each compare-output pin is programmed to, in the
+    /// part's host pin numbering.
     pub fn pwm_duties(&self) -> Vec<(u8, f64)> {
-        [
-            (6, self.timer0.oc_a_duty()),
-            (5, self.timer0.oc_b_duty()),
-            (9, self.timer1.oc_a_duty()),
-            (10, self.timer1.oc_b_duty()),
-            (11, self.timer2.oc_a_duty()),
-            (3, self.timer2.oc_b_duty()),
-        ]
-        .into_iter()
-        .filter_map(|(gpio, duty)| duty.map(|duty| (gpio, duty)))
-        .collect()
+        let mut duties = Vec::new();
+        for spec in self.device.timers {
+            let timer = self.timer(usize::from(spec.index));
+            for (channel, output) in spec.outputs.iter().enumerate() {
+                let Some(pin) = output else {
+                    continue;
+                };
+                let Some(duty) = timer.duty_of(channel) else {
+                    continue;
+                };
+                if let Some(host) = self.device.pin_of_port(pin.port, pin.bit) {
+                    duties.push((host, duty));
+                }
+            }
+        }
+        duties
     }
 
-    /// Drive an Arduino digital pin from the host.
+    /// Drive a host-facing pin from the host.
     pub fn set_input(&mut self, pin: u8, high: bool) {
         self.gpio.set_input(pin, high);
         self.sync_oc();
@@ -941,8 +1454,9 @@ impl Peripherals {
 impl fmt::Debug for Peripherals {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Peripherals")
-            .field("ddr_b", &self.gpio.ddr(PORT_B))
-            .field("port_b", &self.gpio.port(PORT_B))
+            .field("device", &self.device.name)
+            .field("ddr_b", &self.gpio.ddr(0))
+            .field("port_b", &self.gpio.port(0))
             .field("tcnt0", &self.timer0.count)
             .field("tifr0", &self.timer0.tifr)
             .field("tcnt1", &self.timer1.count)

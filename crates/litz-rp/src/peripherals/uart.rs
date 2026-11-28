@@ -1,17 +1,16 @@
 //! The PL011 UART: TX/RX FIFOs, baud divisors, line control and the maskable
 //! interrupt set.
 //!
-//! A byte written to `DR` reaches the host immediately when the UART and its
-//! transmitter are enabled; the host drains [`Uart::tx`] every advance, so the
-//! FIFO behaves as a 16-entry buffer between the guest and the console. A byte
-//! the host pushes into [`Uart::rx`] is visible to the guest only while the
-//! receiver is enabled, which is what the real block does: bytes that arrive
-//! with `RXE` clear are lost.
-//!
-//! The block is byte-granular. The shift register, the baud generator and
-//! framing are not timed; `IBRD`/`FBRD` are stored and
-//! [`Uart::baud_hz`] exposes the divisor so the adapter can report the line
-//! rate. The FIFO depth is 16 entries, as the task specifies for this model.
+//! A byte written to `DR` waits in the 16-entry transmit FIFO until the shifter
+//! takes it, then leaves one bit at a time at the baud rate `IBRD`/`FBRD`
+//! divide out of `clk_peri`. [`Uart::tx`] collects a byte once its stop bit has
+//! been on the line, which is when the host hears it, and [`Uart::line_level`]
+//! is the level the transmitter drives onto its pin — start bit, eight data
+//! bits low bit first, stop bit — so a scope on a UART pin sees the frame the
+//! console received. A byte the host pushes into [`Uart::rx`] is visible to the
+//! guest only while the receiver is enabled, which is what the real block
+//! does: bytes that arrive with `RXE` clear are lost; reception itself is not
+//! timed.
 
 use std::collections::VecDeque;
 
@@ -56,17 +55,28 @@ pub mod cr {
 
 /// The 125 MHz peripheral clock the unit tests feed the divider.
 #[cfg(test)]
-const PERI_HZ: u64 = 125_000_000;
+const PERI_HZ: u32 = 125_000_000;
 /// Both FIFOs hold 16 bytes in this model.
 const FIFO_DEPTH: usize = 16;
 
 #[derive(Debug)]
 pub struct Uart {
     regs: RegisterFile,
-    /// Bytes the guest wrote, in the order the host sees them.
+    /// Bytes the shifter has finished, in the order the host sees them.
     pub tx: Vec<u8>,
     /// Bytes from the host waiting to be read from the data register.
     pub rx: VecDeque<u8>,
+    /// The transmit FIFO: bytes the guest wrote, waiting for the shifter.
+    wire: VecDeque<u8>,
+    /// The frame on the line, shifted out low bit first: a zero start bit,
+    /// eight data bits and a one stop bit.
+    frame: u16,
+    /// Bits of `frame` still to come, including the one on the line.
+    frame_bits: u8,
+    /// The byte `frame` carries, handed to the host when the stop bit ends it.
+    frame_byte: u8,
+    /// Cycles spent in the current bit of the frame.
+    bit_cycles: u64,
     ibrd: u32,
     fbrd: u32,
     /// Latched raw interrupt status. Receive and transmit bits are refreshed
@@ -92,6 +102,11 @@ impl Uart {
             regs: RegisterFile::new(0x100 / 4),
             tx: Vec::new(),
             rx: VecDeque::new(),
+            wire: VecDeque::new(),
+            frame: 0,
+            frame_bits: 0,
+            frame_byte: 0,
+            bit_cycles: 0,
             ibrd: 0,
             fbrd: 0,
             ris: 0,
@@ -115,17 +130,22 @@ impl Uart {
     }
 
     fn framebuf(&self) -> u32 {
-        let mut word = 1 << 7; // TXFE: nothing queued.
+        let mut word = 0;
+        if self.tx.is_empty() && self.wire.is_empty() {
+            word |= 1 << 7; // TXFE: nothing queued behind the shifter.
+        }
         if self.rx.is_empty() {
             word |= 1 << 4; // RXFE
         }
-        if self.tx.len() >= FIFO_DEPTH {
+        if self.wire.len() >= FIFO_DEPTH {
             word |= 1 << 5; // TXFF
         }
         if self.rx.len() >= FIFO_DEPTH {
             word |= 1 << 6; // RXFF
         }
-        // BUSY (bit 3) is clear: a write reaches the host in the same cycle.
+        if self.frame_bits != 0 || !self.wire.is_empty() {
+            word |= 1 << 3; // BUSY
+        }
         word
     }
 
@@ -182,10 +202,10 @@ impl Uart {
     pub fn write(&mut self, off: u32, value: u32) {
         match off {
             reg::DR => {
-                if self.tx_enabled() && self.tx.len() < FIFO_DEPTH {
-                    self.tx.push(value as u8);
+                if self.tx_enabled() && self.wire.len() < FIFO_DEPTH {
+                    self.wire.push_back(value as u8);
                 }
-                if self.tx.len() >= FIFO_DEPTH {
+                if self.wire.len() >= FIFO_DEPTH {
                     // Nothing more fits, so there is no room event to report.
                     self.tx_ready = false;
                 }
@@ -220,10 +240,69 @@ impl Uart {
         }
     }
 
-    pub fn tick(&mut self, _cycles: u64) {
-        // The machine drains `tx` directly after every advance, so the only
-        // thing that can change here is the space-based transmit condition.
+    /// Advance the transmitter by `cycles` of the system clock.
+    ///
+    /// `sys_hz` converts those cycles into the peripheral clock the baud
+    /// divisor counts, so a line rate stays put when `clk_peri` is slowed
+    /// independently of `clk_sys` — which is what MicroPython does.
+    pub fn tick(&mut self, cycles: u64, sys_hz: u32, peri_hz: u32) {
+        self.shift(cycles, sys_hz, peri_hz);
         self.refresh_tx();
+    }
+
+    /// The level the transmitter drives onto its pin: high between frames,
+    /// which is the stop bit and the idle line.
+    pub fn line_level(&self) -> bool {
+        self.frame_bits == 0 || self.frame & 1 != 0
+    }
+
+    /// Clock the current frame out over `cycles`, starting the next queued
+    /// byte as soon as a stop bit ends.
+    fn shift(&mut self, cycles: u64, sys_hz: u32, peri_hz: u32) {
+        let per_bit = self.cycles_per_bit(sys_hz, peri_hz);
+        let mut left = cycles;
+        loop {
+            if self.frame_bits == 0 {
+                // Draining the FIFO needs the transmitter on; a frame already
+                // in the shifter always finishes.
+                let Some(byte) = self.wire.front().copied().filter(|_| self.tx_enabled()) else {
+                    self.bit_cycles = 0;
+                    return;
+                };
+                self.wire.pop_front();
+                // Start bit, the byte low bit first, stop bit.
+                self.frame_byte = byte;
+                self.frame = 0x200 | (u16::from(byte) << 1);
+                self.frame_bits = 10;
+                self.bit_cycles = 0;
+            }
+            let until_next = per_bit - self.bit_cycles;
+            if left < until_next {
+                self.bit_cycles += left;
+                return;
+            }
+            left -= until_next;
+            self.bit_cycles = 0;
+            self.frame >>= 1;
+            self.frame_bits -= 1;
+            if self.frame_bits == 0 {
+                // The stop bit has been on the line for its full period, so
+                // the host hears the byte now.
+                self.tx.push(self.frame_byte);
+            }
+        }
+    }
+
+    /// System-clock cycles one bit occupies at the programmed baud rate.
+    fn cycles_per_bit(&self, sys_hz: u32, peri_hz: u32) -> u64 {
+        let divisor = 64 * u64::from(self.ibrd) + u64::from(self.fbrd & 0x3f);
+        if divisor == 0 || peri_hz == 0 {
+            // No divider to divide: the shifter runs as fast as the core.
+            return 1;
+        }
+        // 16 × (IBRD + FBRD/64) peripheral cycles per bit.
+        let peri_cycles = (divisor / 4).max(1);
+        u64::from(sys_hz.max(1)) * peri_cycles / u64::from(peri_hz)
     }
 
     pub fn irq(&self) -> bool {
@@ -247,8 +326,9 @@ impl Uart {
         self.refresh_rx();
     }
 
-    /// A byte has left the transmit FIFO. The machine calls this once it has
-    /// taken the byte, which is the moment the space became available.
+    /// The transmitter finished a byte and the host has taken it. The machine
+    /// calls this once per drain, which is what turns the transmit interrupt
+    /// into one event per byte rather than a level.
     pub fn tx_shifted(&mut self) {
         self.tx_ready = true;
         self.refresh_tx();
@@ -303,18 +383,90 @@ mod tests {
     fn transmitter_only_accepts_bytes_when_enabled() {
         let mut uart = Uart::new();
         uart.write(reg::DR, u32::from(b'x'));
-        assert!(uart.tx.is_empty());
+        assert!(uart.wire.is_empty());
 
         uart.write(reg::CR, cr::UARTEN);
         uart.write(reg::DR, u32::from(b'y'));
-        assert!(uart.tx.is_empty(), "TXE is clear");
+        assert!(uart.wire.is_empty(), "TXE is clear");
 
         uart.write(reg::CR, cr::UARTEN | cr::TXE);
         uart.write(reg::DR, u32::from(b'z'));
-        assert_eq!(uart.tx, b"z");
-        assert_eq!(uart.read(reg::FR) & (1 << 7), 1 << 7, "TXFE when empty");
+        assert_eq!(
+            uart.wire.iter().copied().collect::<Vec<_>>(),
+            b"z",
+            "the byte waits for the shifter"
+        );
+        assert_eq!(
+            uart.read(reg::FR) & (1 << 7),
+            0,
+            "TXFE is clear while queued"
+        );
+        uart.tick(10 * 16, PERI_HZ, PERI_HZ);
         uart.tx.clear();
-        assert_eq!(uart.read(reg::FR) & (1 << 7), 1 << 7);
+        assert_eq!(uart.read(reg::FR) & (1 << 7), 1 << 7, "TXFE when empty");
+    }
+
+    #[test]
+    fn the_pin_carries_the_frame_the_host_hears_after_it() {
+        let mut uart = enabled_tx_rx();
+        // IBRD 1 puts one bit every 16 peripheral cycles.
+        uart.write(reg::IBRD, 1);
+        uart.write(reg::FBRD, 0);
+        let bit = 16;
+        assert!(uart.line_level(), "the idle line rests at the stop level");
+
+        uart.write(reg::DR, u32::from(b'A')); // 0x41, low bit first
+        assert_eq!(uart.read(reg::FR) & (1 << 3), 1 << 3, "BUSY");
+        uart.tick(1, PERI_HZ, PERI_HZ);
+        assert!(!uart.line_level(), "the start bit begins as it loads");
+
+        for (index, expected) in [true, false, false, false, false, false, true, false]
+            .into_iter()
+            .enumerate()
+        {
+            uart.tick(bit, PERI_HZ, PERI_HZ);
+            assert_eq!(uart.line_level(), expected, "data bit {index}");
+        }
+        uart.tick(bit, PERI_HZ, PERI_HZ);
+        assert!(uart.line_level(), "the stop bit follows the last data bit");
+        assert!(uart.tx.is_empty(), "the byte is not the host's yet");
+        uart.tick(bit, PERI_HZ, PERI_HZ);
+        assert_eq!(uart.tx, b"A", "the host hears the byte after the stop bit");
+        assert!(uart.line_level());
+        assert_eq!(uart.read(reg::FR) & (1 << 3), 0, "BUSY drops when idle");
+    }
+
+    #[test]
+    fn a_slow_line_takes_longer_than_a_fast_one() {
+        let mut uart = enabled_tx_rx();
+        uart.write(reg::IBRD, 1);
+        uart.write(reg::DR, u32::from(b'x'));
+        uart.tick(10 * 16 - 1, PERI_HZ, PERI_HZ);
+        assert!(
+            uart.tx.is_empty(),
+            "nine bits and a bit less is not a frame"
+        );
+        uart.tick(1, PERI_HZ, PERI_HZ);
+        assert_eq!(uart.tx, b"x");
+
+        // The same byte at a quarter of the line rate needs four times the
+        // cycles; clk_peri slower than clk_sys stretches each bit further.
+        let mut slow = enabled_tx_rx();
+        slow.write(reg::IBRD, 4);
+        slow.write(reg::DR, u32::from(b'x'));
+        slow.tick(10 * 64 - 1, PERI_HZ, PERI_HZ);
+        assert!(slow.tx.is_empty());
+        slow.tick(1, PERI_HZ, PERI_HZ);
+        assert_eq!(slow.tx, b"x");
+
+        let mut divided = enabled_tx_rx();
+        divided.write(reg::IBRD, 1);
+        divided.write(reg::DR, u32::from(b'x'));
+        // clk_peri at half of clk_sys: 32 system cycles per bit.
+        divided.tick(10 * 32 - 1, PERI_HZ, PERI_HZ / 2);
+        assert!(divided.tx.is_empty());
+        divided.tick(1, PERI_HZ, PERI_HZ / 2);
+        assert_eq!(divided.tx, b"x");
     }
 
     #[test]
@@ -366,12 +518,12 @@ mod tests {
         // 115200 baud: IBRD 67, FBRD 52.
         uart.write(reg::IBRD, 67);
         uart.write(reg::FBRD, 52);
-        let baud = uart.baud_hz(PERI_HZ);
+        let baud = uart.baud_hz(u64::from(PERI_HZ));
         assert!((baud as i64 - 115_200).abs() < 20, "got {baud}");
         // 125 MHz / (16 * 1) = 7.8125 Mbaud.
         uart.write(reg::IBRD, 1);
         uart.write(reg::FBRD, 0);
-        assert_eq!(uart.baud_hz(PERI_HZ), 7_812_500);
+        assert_eq!(uart.baud_hz(u64::from(PERI_HZ)), 7_812_500);
     }
 
     #[test]

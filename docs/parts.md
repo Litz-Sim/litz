@@ -228,7 +228,12 @@ The builtin boards and their MCUs:
 | `board-arduino-uno` | `atmega328p` |
 | `board-arduino-nano` | `atmega328p` |
 | `board-arduino-pro-mini` | `atmega328p` |
+| `board-arduino-leonardo` | `atmega32u4` |
+| `board-arduino-mega2560` | `atmega2560` |
+| `board-attiny85` | `attiny85` |
+| `board-ch32v003` | `ch32v003` |
 | `board-esp32-c3-devkitm-1` | `esp32c3` |
+| `board-esp32-c3-supermini` | `esp32c3` |
 | `board-esp32-c6-devkitc-1` | `esp32c6` |
 | `board-esp32-c6-devkitm-1` | `esp32c6` |
 | `board-esp32-devkit-c-v4` | `esp32` |
@@ -238,6 +243,9 @@ The builtin boards and their MCUs:
 | `board-esp32-s31-coreboard` | `esp32s31` |
 | `board-litz-rv32` | wasm component, `litz-mcu-1` |
 | `board-raspberry-pi-pico` | `rp2040` |
+| `board-seeed-xiao-esp32c6` | `esp32c6` |
+| `board-seeed-xiao-rp2040` | `rp2040` |
+| `board-stc89c52` | `stc89c52` |
 
 The builtin catalog's per-part attributes and behaviour are described in [formats.md](formats.md) for the models that document covers.
 
@@ -281,7 +289,7 @@ const session = litz.createSession({
 
 The JavaScript side instantiates each transpiled component and answers its host calls through `chipImports` in `js/src/jco.js` and the `litz_host` bridge. The Rust side implements `HostPart` and `HostChip`; the `litz:mcu@0.2.0` host calls are answered by `crates/litz-mcu-wasm/src/host.rs`, which is wasmtime-free and reached from the wasm build through `litz_guest_call` in `crates/litz-wasm`. The same board description therefore runs in a browser, under Node, or through the native wasmtime path.
 
-The package boots every builtin chip a diagram's board names: ESP32-C3 (`esp32c3`), ESP32-C6 (`esp32c6`), ESP32-P4 (`esp32p4`) and ESP32-S31 (`esp32s31`) on RISC-V, ATmega328P (`atmega328p`) and RP2040 (`rp2040`). The classic ESP32 (`esp32`) and ESP32-S3 (`esp32s3`) are Xtensa; their simulator executes guest blocks through a host JIT, which the wasm build does not carry, so `createSession` reports that instead of booting them. A custom chip of either ABI version is bridged in full: images, pins, console and fault, and for `litz:mcu@0.2.0` the analog, bus, Wi-Fi, socket and BLE host calls. The only chips the wasm build excludes are the two Xtensa parts above.
+The package boots every builtin chip a diagram's board names: ESP32-C3 (`esp32c3`), ESP32-C6 (`esp32c6`), ESP32-P4 (`esp32p4`) and ESP32-S31 (`esp32s31`) on RISC-V, the AVR parts ATmega328P (`atmega328p`), ATmega2560 (`atmega2560`), ATmega32U4 (`atmega32u4`) and ATtiny85 (`attiny85`), RP2040 (`rp2040`), STC89C52RC (`stc89c52`) and CH32V003 (`ch32v003`). The classic ESP32 (`esp32`) and ESP32-S3 (`esp32s3`) are Xtensa; their simulator executes guest blocks through a host JIT, which the wasm build does not carry, so `createSession` reports that instead of booting them. A custom chip of either ABI version is bridged in full: images, pins, console and fault, and for `litz:mcu@0.2.0` the analog, bus, Wi-Fi, socket and BLE host calls. The only chips the wasm build excludes are the two Xtensa parts above.
 
 ## The part and MCU ABIs
 

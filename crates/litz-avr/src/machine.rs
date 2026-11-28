@@ -1,9 +1,9 @@
-//! The ATmega328P as a whole: core, SRAM, and peripherals behind one data
-//! bus.
+//! One AVR part as a whole: core, SRAM, and peripherals behind one data bus.
 
 use std::fmt;
 
-use crate::cpu::{Cpu, DataBus, FLASH_SIZE, FLASH_WORDS, Fault, SRAM_END, SRAM_SIZE, SRAM_START};
+use crate::cpu::{Cpu, DataBus, FLASH_SIZE, FLASH_WORDS, Fault};
+use crate::device::{ATMEGA328P, Device};
 use crate::hex::{self, HexError};
 use crate::peripherals::{I2cRead, I2cWrite, Peripherals, SpiTransfer};
 
@@ -27,7 +27,7 @@ pub enum LoadError {
     Hex(HexError),
     /// A raw binary ran past the end of flash.
     BinaryOutOfRange { offset: u64, length: usize },
-    /// Extended records addressed outside the 32 KiB flash.
+    /// Extended records addressed outside the flash.
     NotInFlash,
 }
 
@@ -37,7 +37,7 @@ impl fmt::Display for LoadError {
             LoadError::Hex(error) => write!(f, "{error}"),
             LoadError::BinaryOutOfRange { offset, length } => write!(
                 f,
-                "binary of {length} bytes at {offset:#x} does not fit in {FLASH_SIZE} bytes of flash"
+                "binary of {length} bytes at {offset:#x} does not fit in flash"
             ),
             LoadError::NotInFlash => write!(f, "the image does not fit in flash"),
         }
@@ -55,24 +55,32 @@ impl From<HexError> for LoadError {
 /// The part of the data space the core reaches through [`DataBus`]: SRAM and
 /// every peripheral register.
 pub(crate) struct Data {
-    sram: [u8; SRAM_SIZE],
+    sram: Vec<u8>,
+    device: &'static Device,
     pub(crate) periph: Peripherals,
 }
 
 impl Data {
-    fn new() -> Self {
+    fn new(device: &'static Device) -> Self {
         Self {
-            sram: [0; SRAM_SIZE],
-            periph: Peripherals::new(),
+            sram: vec![0; device.sram_size],
+            device,
+            periph: Peripherals::for_device(device),
         }
+    }
+
+    fn sram(&self, addr: u16) -> usize {
+        usize::from(addr - self.device.sram_start)
     }
 }
 
 impl DataBus for Data {
     fn read_data(&mut self, addr: u16) -> Result<u8, Fault> {
         match addr {
-            0x0020..=0x00ff => Ok(self.periph.read(addr)),
-            SRAM_START..=SRAM_END => Ok(self.sram[usize::from(addr - SRAM_START)]),
+            a if a >= 0x0020 && a < self.device.sram_start => Ok(self.periph.read(a)),
+            a if a >= self.device.sram_start && a <= self.device.ramend => {
+                Ok(self.sram[self.sram(a)])
+            }
             _ => Err(Fault::DataOutOfBounds {
                 addr: u32::from(addr),
             }),
@@ -81,12 +89,13 @@ impl DataBus for Data {
 
     fn write_data(&mut self, addr: u16, value: u8) -> Result<(), Fault> {
         match addr {
-            0x0020..=0x00ff => {
-                self.periph.write(addr, value);
+            a if a >= 0x0020 && a < self.device.sram_start => {
+                self.periph.write(a, value);
                 Ok(())
             }
-            SRAM_START..=SRAM_END => {
-                self.sram[usize::from(addr - SRAM_START)] = value;
+            a if a >= self.device.sram_start && a <= self.device.ramend => {
+                let index = self.sram(a);
+                self.sram[index] = value;
                 Ok(())
             }
             _ => Err(Fault::DataOutOfBounds {
@@ -100,7 +109,7 @@ impl DataBus for Data {
     }
 }
 
-/// An ATmega328P.
+/// One AVR microcontroller.
 pub struct Machine {
     cpu: Cpu,
     data: Data,
@@ -114,13 +123,23 @@ impl Default for Machine {
 }
 
 impl Machine {
-    /// A machine at reset, with blank flash.
+    /// An ATmega328P at reset, with blank flash.
     pub fn new() -> Self {
+        Self::for_device(&ATMEGA328P)
+    }
+
+    /// A machine for any modelled part at reset, with blank flash.
+    pub fn for_device(device: &'static Device) -> Self {
         Self {
-            cpu: Cpu::new(),
-            data: Data::new(),
+            cpu: Cpu::for_device(device),
+            data: Data::new(device),
             fault: None,
         }
+    }
+
+    /// The device this machine runs as.
+    pub fn device(&self) -> &'static Device {
+        self.data.device
     }
 
     /// Reset the core and peripherals and clear SRAM. Flash survives, so an
@@ -132,13 +151,17 @@ impl Machine {
         let spi = self.data.periph.take_spi_callback();
         let (i2c_write, i2c_read) = self.data.periph.take_i2c_callbacks();
         let spi_cs = self.data.periph.spi.cs_pin();
-        let eeprom = *self.data.periph.eeprom.memory();
+        let eeprom = self.data.periph.eeprom.memory().to_vec();
         let analog: [u32; 16] =
             core::array::from_fn(|channel| self.data.periph.adc.input(channel as u8));
         let reference = self.data.periph.adc.reference_microvolts();
-        self.data = Data::new();
+        self.data = Data::new(self.device());
         self.data.periph.spi.set_cs_pin(spi_cs);
-        *self.data.periph.eeprom.memory_mut() = eeprom;
+        self.data
+            .periph
+            .eeprom
+            .memory_mut()
+            .copy_from_slice(&eeprom);
         for (channel, microvolts) in analog.into_iter().enumerate() {
             self.data.periph.adc.set_input(channel as u8, microvolts);
         }
@@ -174,11 +197,12 @@ impl Machine {
         &mut self.data.periph
     }
 
-    pub fn flash(&self) -> &[u8; FLASH_SIZE] {
+    /// The flash image, padded with `0xff` to the part's size.
+    pub fn flash(&self) -> &[u8] {
         self.cpu.flash()
     }
 
-    pub fn flash_mut(&mut self) -> &mut [u8; FLASH_SIZE] {
+    pub fn flash_mut(&mut self) -> &mut [u8] {
         self.cpu.flash_mut()
     }
 
@@ -200,7 +224,7 @@ impl Machine {
     /// Load Intel HEX text into flash.
     pub fn load_hex(&mut self, text: &str) -> Result<(), LoadError> {
         let image = hex::parse_hex(text)?;
-        if image.len() > FLASH_SIZE {
+        if image.len() > self.cpu.flash().len() {
             return Err(LoadError::NotInFlash);
         }
         self.flash_mut()[..image.len()].copy_from_slice(&image);
@@ -212,7 +236,7 @@ impl Machine {
         let start = usize::try_from(offset).unwrap_or(usize::MAX);
         let end = start.checked_add(bytes.len());
         match end {
-            Some(end) if end <= FLASH_SIZE => {
+            Some(end) if end <= self.cpu.flash().len() => {
                 self.flash_mut()[start..end].copy_from_slice(bytes);
                 Ok(())
             }
@@ -245,10 +269,11 @@ impl Machine {
     ///
     /// An interrupt is taken before the next instruction when `I` is set and a
     /// source is pending: the core pushes the return address, clears `I`, jumps
-    /// to the vector's flash address and retires [`crate::peripherals::INTERRUPT_CYCLES`]
-    /// cycles. A sleeping core wakes on a pending interrupt; while it sleeps
-    /// with an interrupt enabled the peripheral clock still advances one cycle
-    /// per call, so a timer can be the wake-up source.
+    /// to the vector's flash address and retires
+    /// [`crate::peripherals::INTERRUPT_CYCLES`] cycles (or the part's own
+    /// entry cost). A sleeping core wakes on a pending interrupt; while it
+    /// sleeps with an interrupt enabled the peripheral clock still advances
+    /// one cycle per call, so a timer can be the wake-up source.
     pub fn step(&mut self) -> Result<u8, Fault> {
         if self.cpu.halted() {
             return Ok(0);
@@ -339,7 +364,7 @@ impl Machine {
         }
     }
 
-    /// Drive an Arduino digital pin from the host.
+    /// Drive a host-facing pin from the host.
     pub fn set_input(&mut self, pin: u8, high: bool) {
         self.data.periph.set_input(pin, high);
     }
@@ -347,9 +372,8 @@ impl Machine {
     /// Set the voltage the ADC reads on one channel, in microvolts.
     ///
     /// The board's analog solver works in volts; multiply by `1_000_000` when
-    /// injecting. `MUX = 0..=7` are the Arduino `A0..A7` channels (A6/A7 exist
-    /// on the SMD package), `MUX = 14` reads the 1.1 V bandgap and `15` reads
-    /// ground.
+    /// injecting. Channel `0..=7` are the Arduino `A0..A7` inputs on the
+    /// ATmega328P; on the other parts the channel is the datasheet's `ADCn`.
     pub fn set_analog_input(&mut self, channel: u8, microvolts: u32) {
         self.data.periph.set_analog_input(channel, microvolts);
     }
@@ -359,19 +383,19 @@ impl Machine {
         self.data.periph.adc.set_reference(microvolts);
     }
 
-    /// Queue a byte on USART0's receive path.
+    /// Queue a byte on the console USART's receive path.
     pub fn receive_byte(&mut self, byte: u8) {
         self.data.periph.receive(byte);
     }
 
-    /// Queue host bytes for the firmware's USART0 receive path.
+    /// Queue host bytes for the firmware's console USART receive path.
     pub fn write_console(&mut self, bytes: &[u8]) {
         for byte in bytes {
             self.data.periph.receive(*byte);
         }
     }
 
-    /// Bytes the firmware wrote to `UDR0`, drained.
+    /// Bytes the firmware wrote to the console USART's data register, drained.
     pub fn take_console(&mut self) -> Vec<u8> {
         self.data.periph.take_console()
     }
@@ -398,8 +422,8 @@ impl Machine {
         self.data.periph.spi.set_callback(callback);
     }
 
-    /// The Arduino digital pin reported to the SPI callback as chip select.
-    /// Defaults to D10, the Uno's SS pin.
+    /// The host pin reported to the SPI callback as chip select. Defaults to
+    /// the board's SS pin.
     pub fn set_spi_cs_pin(&mut self, pin: u8) {
         self.data.periph.spi.set_cs_pin(pin);
     }
@@ -421,7 +445,7 @@ impl Machine {
     }
 
     /// Program counter in words.
-    pub fn pc(&self) -> u16 {
+    pub fn pc(&self) -> u32 {
         self.cpu.pc()
     }
 
@@ -430,8 +454,15 @@ impl Machine {
         self.cpu.pc_bytes()
     }
 
-    /// Flash size in instruction words.
+    /// Flash size in instruction words of the ATmega328P, kept for callers
+    /// that predate variable flash sizes. Use [`Machine::device`] for another
+    /// part.
     pub const fn flash_words() -> usize {
         FLASH_WORDS
+    }
+
+    /// Flash size in bytes of the ATmega328P, kept for the same reason.
+    pub const fn flash_size() -> usize {
+        FLASH_SIZE
     }
 }

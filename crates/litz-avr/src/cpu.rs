@@ -1,10 +1,16 @@
 //! The AVR8 core: thirty-two registers, the status register, and the
-//! instruction decoder for an ATmega328P.
+//! instruction decoder shared by every device this crate models.
 //!
 //! The core owns the register file, `SREG`, the stack pointer, the program
-//! counter and flash. Everything outside that window — I/O registers and
-//! SRAM — is reached through [`DataBus`], so the same core can be paired with
-//! a bare memory in a unit test or with the full [`crate::Machine`].
+//! counter, `RAMPZ`/`EIND` where the part has them, and flash. Everything
+//! outside that window — I/O registers and SRAM — is reached through
+//! [`DataBus`], so the same core can be paired with a bare memory in a unit
+//! test or with the full [`crate::Machine`].
+//!
+//! Instructions a part does not implement are rejected as
+//! [`Fault::UnknownOpcode`] rather than silently executed: the ATtiny85 has no
+//! `MUL`/`MULS`/`MULSU`, no absolute `JMP`/`CALL` and no `ELPM`, so those
+//! words trap on that part and run on the others.
 //!
 //! Program addresses are word addresses everywhere in this module. A fault
 //! reports a byte address because that is what a map file and a HEX record
@@ -12,17 +18,19 @@
 
 use core::fmt;
 
-/// Flash size in bytes.
+use crate::device::{ATMEGA328P, Device};
+
+/// Flash size in bytes of the ATmega328P.
 pub const FLASH_SIZE: usize = 32 * 1024;
-/// Flash size in 16-bit words.
+/// Flash size in 16-bit words of the ATmega328P.
 pub const FLASH_WORDS: usize = FLASH_SIZE / 2;
-/// SRAM size in bytes.
+/// SRAM size in bytes of the ATmega328P.
 pub const SRAM_SIZE: usize = 2 * 1024;
-/// First data-space address of SRAM.
+/// First data-space address of the ATmega328P's SRAM.
 pub const SRAM_START: u16 = 0x0100;
-/// Last data-space address (inclusive).
+/// Last data-space address (inclusive) of the ATmega328P's SRAM.
 pub const SRAM_END: u16 = SRAM_START + SRAM_SIZE as u16 - 1;
-/// Reset value of the stack pointer.
+/// Reset value of the ATmega328P's stack pointer.
 pub const RAMEND: u16 = SRAM_END;
 
 /// `SREG` bit positions.
@@ -114,8 +122,9 @@ pub enum Fault {
     FlashOutOfBounds { addr: u32 },
     /// A load, store or stack access left the data address space.
     DataOutOfBounds { addr: u32 },
-    /// A word that is not an implemented AVR instruction. `addr` is a byte
-    /// address inside flash, the form a disassembly or a map file reports.
+    /// A word that is not an implemented AVR instruction, or one this part
+    /// does not have. `addr` is a byte address inside flash, the form a
+    /// disassembly or a map file reports.
     UnknownOpcode { addr: u32, opcode: u16 },
 }
 
@@ -140,10 +149,10 @@ impl std::error::Error for Fault {}
 
 /// The part of the address space the core does not own.
 ///
-/// Addresses below `0x20` and the three registers at `0x5d`–`0x5f` are handled
-/// by [`Cpu`] itself; every other data-space address arrives here. An
-/// implementation must reject addresses it cannot serve rather than silently
-/// aliasing them.
+/// Addresses below `0x20`, the stack pointer and status registers, and
+/// `RAMPZ`/`EIND` on parts that have them, are handled by [`Cpu`] itself;
+/// every other data-space address arrives here. An implementation must reject
+/// addresses it cannot serve rather than silently aliasing them.
 pub trait DataBus {
     fn read_data(&mut self, addr: u16) -> Result<u8, Fault>;
     fn write_data(&mut self, addr: u16, value: u8) -> Result<(), Fault>;
@@ -159,13 +168,18 @@ pub struct Cpu {
     sreg: Sreg,
     sp: u16,
     /// Program counter in words.
-    pc: u16,
+    pc: u32,
     /// Retired cycles since reset.
     cycles: u64,
-    flash: [u8; FLASH_SIZE],
+    flash: Vec<u8>,
+    device: &'static Device,
+    /// `RAMPZ` on parts with more than 64 KiB of flash.
+    rampz: u8,
+    /// `EIND` on parts with a 22-bit program counter.
+    eind: u8,
     sleeping: bool,
     halted: bool,
-    /// Set by [`Cpu::step`] when the core executes `SLEEP`.
+    /// Set by [`Cpu::step`] when the instruction traps.
     fault: Option<Fault>,
 }
 
@@ -176,22 +190,35 @@ impl Default for Cpu {
 }
 
 impl Cpu {
-    /// A core in its reset state, with blank flash.
+    /// An ATmega328P core in its reset state, with blank flash.
     pub fn new() -> Self {
+        Self::for_device(&ATMEGA328P)
+    }
+
+    /// A core for `device` in its reset state, with blank flash.
+    pub fn for_device(device: &'static Device) -> Self {
         Self {
             regs: [0; 32],
             sreg: Sreg::new(),
-            sp: RAMEND,
+            sp: device.ramend,
             pc: 0,
             cycles: 0,
             // Erased AVR flash reads as 0xffff, which is not a valid
             // instruction, so running off the end of a small image traps
             // instead of silently executing NOPs.
-            flash: [0xff; FLASH_SIZE],
+            flash: vec![0xff; device.flash_size],
+            device,
+            rampz: 0,
+            eind: 0,
             sleeping: false,
             halted: false,
             fault: None,
         }
+    }
+
+    /// The device this core runs as.
+    pub fn device(&self) -> &'static Device {
+        self.device
     }
 
     /// Return registers, flags and counters to their reset values. Flash and
@@ -199,9 +226,11 @@ impl Cpu {
     pub fn reset(&mut self) {
         self.regs = [0; 32];
         self.sreg = Sreg::new();
-        self.sp = RAMEND;
+        self.sp = self.device.ramend;
         self.pc = 0;
         self.cycles = 0;
+        self.rampz = 0;
+        self.eind = 0;
         self.sleeping = false;
         self.halted = false;
         self.fault = None;
@@ -250,17 +279,35 @@ impl Cpu {
     }
 
     /// Program counter in words.
-    pub fn pc(&self) -> u16 {
+    pub fn pc(&self) -> u32 {
         self.pc
     }
 
     /// Program counter as a byte address.
     pub fn pc_bytes(&self) -> u32 {
-        u32::from(self.pc) * 2
+        self.pc * 2
     }
 
-    pub fn set_pc(&mut self, word: u16) {
-        self.pc = word & (FLASH_WORDS as u16 - 1);
+    pub fn set_pc(&mut self, word: u32) {
+        self.pc = word & (self.device.flash_words() - 1);
+    }
+
+    /// `RAMPZ`, the high flash byte for `ELPM`/`SPM`.
+    pub fn rampz(&self) -> u8 {
+        self.rampz
+    }
+
+    pub fn set_rampz(&mut self, value: u8) {
+        self.rampz = value;
+    }
+
+    /// `EIND`, the high target bit for `EIJMP`/`EICALL`.
+    pub fn eind(&self) -> u8 {
+        self.eind
+    }
+
+    pub fn set_eind(&mut self, value: u8) {
+        self.eind = value;
     }
 
     pub fn cycles(&self) -> u64 {
@@ -281,11 +328,11 @@ impl Cpu {
         self.fault
     }
 
-    pub fn flash(&self) -> &[u8; FLASH_SIZE] {
+    pub fn flash(&self) -> &[u8] {
         &self.flash
     }
 
-    pub fn flash_mut(&mut self) -> &mut [u8; FLASH_SIZE] {
+    pub fn flash_mut(&mut self) -> &mut [u8] {
         &mut self.flash
     }
 
@@ -297,8 +344,9 @@ impl Cpu {
     /// Enter an interrupt handler: push the return address, clear `I`, jump to
     /// the vector's word address and retire the vector-entry cycles.
     ///
-    /// `vector` is the datasheet vector number; vector `n` lives at word
-    /// address `2 * n` (byte `4 * n`). The caller clears the peripheral flag
+    /// `vector` is the zero-based datasheet vector index; vector `n` lives at
+    /// word address `n * vector_words` (one word on parts with `RJMP` slots,
+    /// two where the slot holds `JMP`). The caller clears the peripheral flag
     /// with `Peripherals::acknowledge` after this succeeds.
     pub fn take_interrupt<B: DataBus + ?Sized>(
         &mut self,
@@ -312,11 +360,11 @@ impl Cpu {
         }
         self.sreg.set(sreg::I, false);
         self.sleeping = false;
-        self.pc = (u16::from(vector) * 2) & (FLASH_WORDS as u16 - 1);
-        self.cycles = self
-            .cycles
-            .wrapping_add(u64::from(crate::peripherals::INTERRUPT_CYCLES));
-        Ok(crate::peripherals::INTERRUPT_CYCLES)
+        self.pc = (u32::from(vector) * u32::from(self.device.vector_words))
+            & (self.device.flash_words() - 1);
+        let cycles = self.device.interrupt_cycles;
+        self.cycles = self.cycles.wrapping_add(u64::from(cycles));
+        Ok(cycles)
     }
 
     /// Retire one idle cycle while the core is in `SLEEP`, so a peripheral
@@ -350,13 +398,13 @@ impl Cpu {
     }
 
     fn fetch_word(&mut self) -> Result<u16, Fault> {
-        let word = usize::from(self.pc) & (FLASH_WORDS - 1);
-        let at = word * 2;
-        if at + 1 >= FLASH_SIZE {
+        let word = self.pc & (self.device.flash_words() - 1);
+        let at = (word * 2) as usize;
+        if at + 1 >= self.device.flash_size {
             return Err(Fault::FlashOutOfBounds { addr: at as u32 });
         }
         let value = u16::from_le_bytes([self.flash[at], self.flash[at + 1]]);
-        self.pc = ((word + 1) & (FLASH_WORDS - 1)) as u16;
+        self.pc = (word + 1) & (self.device.flash_words() - 1);
         Ok(value)
     }
 
@@ -372,6 +420,8 @@ impl Cpu {
             0x5d => Ok(self.sp as u8),
             0x5e => Ok((self.sp >> 8) as u8),
             0x5f => Ok(self.sreg.to_byte()),
+            0x5b if self.device.features.rampz => Ok(self.rampz),
+            0x5c if self.device.features.eind => Ok(self.eind),
             _ => bus.read_data(addr),
         }
     }
@@ -399,6 +449,14 @@ impl Cpu {
                 self.sreg = Sreg::from_byte(value);
                 Ok(())
             }
+            0x5b if self.device.features.rampz => {
+                self.rampz = value;
+                Ok(())
+            }
+            0x5c if self.device.features.eind => {
+                self.eind = value;
+                Ok(())
+            }
             _ => bus.write_data(addr, value),
         }
     }
@@ -418,15 +476,24 @@ impl Cpu {
 
     fn push_return_address<B: DataBus + ?Sized>(&mut self, bus: &mut B) -> Result<(), Fault> {
         // The low byte is pushed first, so it sits at the higher address and
-        // is popped last.
+        // is popped last. Parts with more than 64 KiB of flash push a third
+        // byte, the extended program counter.
         self.push(self.pc as u8, bus)?;
-        self.push((self.pc >> 8) as u8, bus)
+        self.push((self.pc >> 8) as u8, bus)?;
+        if self.device.pc_bytes >= 3 {
+            self.push((self.pc >> 16) as u8, bus)?;
+        }
+        Ok(())
     }
 
-    fn pop_return_address<B: DataBus + ?Sized>(&mut self, bus: &mut B) -> Result<u16, Fault> {
-        let high = self.pop(bus)?;
-        let low = self.pop(bus)?;
-        Ok(u16::from_le_bytes([low, high]) & (FLASH_WORDS as u16 - 1))
+    fn pop_return_address<B: DataBus + ?Sized>(&mut self, bus: &mut B) -> Result<u32, Fault> {
+        let mut value = 0u32;
+        if self.device.pc_bytes >= 3 {
+            value |= u32::from(self.pop(bus)?) << 16;
+        }
+        value |= u32::from(self.pop(bus)?) << 8;
+        value |= u32::from(self.pop(bus)?);
+        Ok(value & (self.device.flash_words() - 1))
     }
 
     fn pair(&self, low: u8) -> u16 {
@@ -494,13 +561,13 @@ impl Cpu {
     ) -> Result<u8, Fault> {
         // Exact single-word opcodes first.
         match opcode {
-            0x0000 => return Ok(1),                // NOP
-            0x9508 => return self.ret(bus, false), // RET
-            0x9518 => return self.ret(bus, true),  // RETI
-            0x9409 => return self.ijmp(),          // IJMP
-            0x9419 => return self.ijmp(),          // EIJMP (same 32 KiB view)
-            0x9509 => return self.icall(bus),      // ICALL
-            0x9519 => return self.icall(bus),      // EICALL
+            0x0000 => return Ok(1),                                             // NOP
+            0x9508 => return self.ret(bus, false),                              // RET
+            0x9518 => return self.ret(bus, true),                               // RETI
+            0x9409 => return self.ijmp(),                                       // IJMP
+            0x9509 => return self.icall(bus),                                   // ICALL
+            0x9419 if self.device.features.jmp_call => return self.eijmp(),     // EIJMP
+            0x9519 if self.device.features.jmp_call => return self.eicall(bus), // EICALL
             0x9588 => {
                 self.sleeping = true;
                 return Ok(1);
@@ -514,6 +581,7 @@ impl Cpu {
                 return Ok(1);
             }
             0x95c8 => return self.lpm(None, bus), // LPM
+            0x95d8 if self.device.features.elpm => return self.elpm(None, false, bus), // ELPM
             _ => {}
         }
 
@@ -526,6 +594,9 @@ impl Cpu {
             return Ok(1);
         }
         if opcode & 0xff00 == 0x0200 {
+            if !self.device.features.mul {
+                return Err(Fault::UnknownOpcode { addr: at, opcode });
+            }
             let d = 16 + (((opcode >> 4) as u8) & 0x0f);
             let r = 16 + (opcode & 0x0f) as u8;
             let product = i16::from(self.regs[usize::from(d)] as i8)
@@ -534,6 +605,9 @@ impl Cpu {
             return Ok(2);
         }
         if opcode & 0xff88 == 0x0300 {
+            if !self.device.features.mul {
+                return Err(Fault::UnknownOpcode { addr: at, opcode });
+            }
             let d = 16 + (((opcode >> 4) as u8) & 0x07);
             let r = 16 + (opcode & 0x07) as u8;
             let product = i16::from(self.regs[usize::from(d)] as i8)
@@ -570,6 +644,9 @@ impl Cpu {
                 return Ok(1);
             }
             0x9c00 => {
+                if !self.device.features.mul {
+                    return Err(Fault::UnknownOpcode { addr: at, opcode });
+                }
                 let product =
                     u16::from(self.regs[usize::from(d)]) * u16::from(self.regs[usize::from(r)]);
                 self.store_product(product);
@@ -642,6 +719,8 @@ impl Cpu {
                     self.set_pair(30, z);
                     return Ok(cycles);
                 }
+                0x9006 if self.device.features.elpm => return self.elpm(Some(d), false, bus),
+                0x9007 if self.device.features.elpm => return self.elpm(Some(d), true, bus),
                 0x900f => {
                     // POP Rd
                     self.regs[usize::from(d)] = self.pop(bus)?;
@@ -675,15 +754,21 @@ impl Cpu {
             return Ok(1);
         }
         if opcode & 0xfe0e == 0x940c {
+            if !self.device.features.jmp_call {
+                return Err(Fault::UnknownOpcode { addr: at, opcode });
+            }
             let target = self.jump_target(opcode)?;
             self.pc = target;
             return Ok(3);
         }
         if opcode & 0xfe0e == 0x940e {
+            if !self.device.features.jmp_call {
+                return Err(Fault::UnknownOpcode { addr: at, opcode });
+            }
             let target = self.jump_target(opcode)?;
             self.push_return_address(bus)?;
             self.pc = target;
-            return Ok(4);
+            return Ok(self.device.call_cycles);
         }
         if opcode & 0xfe0f == 0x9400 {
             let reg = usize::from(d);
@@ -786,13 +871,13 @@ impl Cpu {
         // RJMP / RCALL.
         if opcode & 0xf000 == 0xc000 {
             let offset = sign_extend(opcode & 0x0fff, 12);
-            self.pc = wrap_pc(self.pc as i32 + offset);
+            self.pc = self.wrap_pc(self.pc as i32 + offset);
             return Ok(2);
         }
         if opcode & 0xf000 == 0xd000 {
             let offset = sign_extend(opcode & 0x0fff, 12);
             self.push_return_address(bus)?;
-            self.pc = wrap_pc(self.pc as i32 + offset);
+            self.pc = self.wrap_pc(self.pc as i32 + offset);
             return Ok(3);
         }
 
@@ -834,7 +919,7 @@ impl Cpu {
             let bit = (opcode & 0x07) as u8;
             let offset = sign_extend((opcode >> 3) & 0x7f, 7);
             if self.sreg.get(bit) {
-                self.pc = wrap_pc(self.pc as i32 + offset);
+                self.pc = self.wrap_pc(self.pc as i32 + offset);
                 return Ok(2);
             }
             return Ok(1);
@@ -843,7 +928,7 @@ impl Cpu {
             let bit = (opcode & 0x07) as u8;
             let offset = sign_extend((opcode >> 3) & 0x7f, 7);
             if !self.sreg.get(bit) {
-                self.pc = wrap_pc(self.pc as i32 + offset);
+                self.pc = self.wrap_pc(self.pc as i32 + offset);
                 return Ok(2);
             }
             return Ok(1);
@@ -1076,18 +1161,46 @@ impl Cpu {
         _bus: &mut B,
     ) -> Result<u8, Fault> {
         let address = usize::from(self.pair(30));
-        let byte = if address < FLASH_SIZE {
-            self.flash[address]
-        } else {
-            return Err(Fault::FlashOutOfBounds {
-                addr: address as u32,
-            });
-        };
+        let byte = self.flash_byte(address)?;
         match destination {
             Some(register) => self.regs[usize::from(register)] = byte,
             None => self.regs[0] = byte,
         }
         Ok(3)
+    }
+
+    /// `ELPM`: the byte address is `RAMPZ:Z`, and the post-increment form
+    /// carries into `RAMPZ` when `Z` wraps.
+    fn elpm<B: DataBus + ?Sized>(
+        &mut self,
+        destination: Option<u8>,
+        post_increment: bool,
+        _bus: &mut B,
+    ) -> Result<u8, Fault> {
+        let address = (u32::from(self.rampz) << 16) | u32::from(self.pair(30));
+        let byte = self.flash_byte(address as usize)?;
+        match destination {
+            Some(register) => self.regs[usize::from(register)] = byte,
+            None => self.regs[0] = byte,
+        }
+        if post_increment {
+            let z = self.pair(30).wrapping_add(1);
+            self.set_pair(30, z);
+            if z == 0 {
+                self.rampz = self.rampz.wrapping_add(1);
+            }
+        }
+        Ok(3)
+    }
+
+    fn flash_byte(&self, address: usize) -> Result<u8, Fault> {
+        if address < self.device.flash_size {
+            Ok(self.flash[address])
+        } else {
+            Err(Fault::FlashOutOfBounds {
+                addr: address as u32,
+            })
+        }
     }
 
     fn sbi_like<B: DataBus + ?Sized>(
@@ -1136,15 +1249,39 @@ impl Cpu {
     }
 
     fn ijmp(&mut self) -> Result<u8, Fault> {
-        self.pc = self.pair(30) & (FLASH_WORDS as u16 - 1);
+        self.pc = u32::from(self.pair(30)) & (self.device.flash_words() - 1);
+        Ok(2)
+    }
+
+    /// `EIJMP`: the high target bit comes from `EIND` on the ATmega2560. On a
+    /// part without `EIND` it is the same as `IJMP`.
+    fn eijmp(&mut self) -> Result<u8, Fault> {
+        let high = if self.device.features.eind {
+            u32::from(self.eind & 0x01) << 16
+        } else {
+            0
+        };
+        self.pc = (u32::from(self.pair(30)) | high) & (self.device.flash_words() - 1);
         Ok(2)
     }
 
     fn icall<B: DataBus + ?Sized>(&mut self, bus: &mut B) -> Result<u8, Fault> {
-        let target = self.pair(30) & (FLASH_WORDS as u16 - 1);
+        let target = u32::from(self.pair(30)) & (self.device.flash_words() - 1);
         self.push_return_address(bus)?;
         self.pc = target;
         Ok(3)
+    }
+
+    fn eicall<B: DataBus + ?Sized>(&mut self, bus: &mut B) -> Result<u8, Fault> {
+        let high = if self.device.features.eind {
+            u32::from(self.eind & 0x01) << 16
+        } else {
+            0
+        };
+        let target = (u32::from(self.pair(30)) | high) & (self.device.flash_words() - 1);
+        self.push_return_address(bus)?;
+        self.pc = target;
+        Ok(self.device.call_cycles)
     }
 
     fn ret<B: DataBus + ?Sized>(&mut self, bus: &mut B, interrupt: bool) -> Result<u8, Fault> {
@@ -1152,15 +1289,20 @@ impl Cpu {
         if interrupt {
             self.sreg.set(sreg::I, true);
         }
-        Ok(4)
+        Ok(self.device.ret_cycles)
     }
 
     /// JMP/CALL immediate target: the high address bits live in the first
-    /// word, the low sixteen in the operand word.
-    fn jump_target(&mut self, first: u16) -> Result<u16, Fault> {
+    /// word, the low sixteen in the operand word. The target is a word
+    /// address and is masked to the part's flash.
+    fn jump_target(&mut self, first: u16) -> Result<u32, Fault> {
         let low = self.fetch_operand_word()?;
         let high = (u32::from((first >> 4) & 0x1f) << 17) | (u32::from(first & 1) << 16);
-        Ok(((high | u32::from(low)) & 0x3fff) as u16)
+        Ok((high | u32::from(low)) & (self.device.flash_words() - 1))
+    }
+
+    fn wrap_pc(&self, value: i32) -> u32 {
+        (value as u32) & (self.device.flash_words() - 1)
     }
 }
 
@@ -1181,10 +1323,6 @@ enum PtrMode {
 fn sign_extend(value: u16, bits: u32) -> i32 {
     let shift = 32 - bits;
     (i32::from(value) << shift) >> shift
-}
-
-fn wrap_pc(value: i32) -> u16 {
-    (value & (FLASH_WORDS as i32 - 1)) as u16
 }
 
 fn is_two_word(opcode: u16) -> bool {

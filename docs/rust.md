@@ -11,7 +11,7 @@ Litz is a Rust workspace before it is a CLI or a JavaScript package. The same cr
 | `litz-catalog` | `Registry`: builtin and project manifests, board expansion. |
 | `litz-board` | `FlatBoard`, `Board`, the builtin parts, buses, probes, the analog solver, and the `Chip` trait. |
 | `litz-engine` | Project loading, `machine::boot`, the runner and assertions, decoders and scenarios. This is the crate a host normally depends on. |
-| `litz-esp`, `litz-avr`, `litz-rp` | The builtin chip backends: ESP32 family, ATmega328P, RP2040. |
+| `litz-esp`, `litz-avr`, `litz-rp`, `litz-8051`, `litz-ch32v003` | The builtin chip backends: ESP32 family, the AVR parts, the RP2040, the STC89C52RC and the CH32V003. |
 | `litz-mcu-wasm` | `WasmChip`: a `litz:mcu` component hosted by wasmtime. Native only. |
 | `litz-part-wasm` | `WasmPart`: a `litz:part` component hosted by wasmtime. Native only. |
 | `litz-net`, `litz-ble`, `litz-radio` | The Wi-Fi/802.11 network, Bluetooth and packet-radio models the board attaches to its parts. |
@@ -210,7 +210,7 @@ The manifest's `abi` field selects the contract; a 0.1 module stays loadable. Ev
 
 `litz-core`, `litz-board`, `litz-engine` and the chip adapters compile for `wasm32-unknown-unknown`; that is how the browser package is built. Two differences:
 
-- Xtensa execution (classic ESP32 and ESP32-S3) needs a host JIT and is not compiled into the zero-import browser module. The RISC-V ESP parts, the ATmega328P and the RP2040 are.
+- Xtensa execution (classic ESP32 and ESP32-S3) needs a host JIT and is not compiled into the zero-import browser module. The RISC-V ESP parts, the AVR parts, the RP2040 and the CH32V003 are.
 - `litz-mcu-wasm` and `litz-part-wasm` are native only: a browser has no wasmtime. On wasm32 the JavaScript host instantiates a jco-transpiled component and `litz-board::host::HostChip`/`HostPart` forward the calls through `litz_host`.
 
 The analog solver, the SD model and the displays are available on both sides because the board and its parts compile on both targets.

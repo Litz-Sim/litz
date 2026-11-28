@@ -740,6 +740,14 @@ impl Registry {
                 include_str!("../builtin/boards/board-raspberry-pi-pico.toml"),
             ),
             (
+                "board-stc89c52",
+                include_str!("../builtin/boards/board-stc89c52.toml"),
+            ),
+            (
+                "board-ch32v003",
+                include_str!("../builtin/boards/board-ch32v003.toml"),
+            ),
+            (
                 "litz-74hc139",
                 include_str!("../builtin/parts/litz-74hc139.toml"),
             ),
@@ -843,6 +851,30 @@ impl Registry {
             (
                 "board-esp32-s3-devkitc-1-n16r8",
                 include_str!("../builtin/boards/board-esp32-s3-devkitc-1-n16r8.toml"),
+            ),
+            (
+                "board-esp32-c3-supermini",
+                include_str!("../builtin/boards/board-esp32-c3-supermini.toml"),
+            ),
+            (
+                "board-seeed-xiao-esp32c6",
+                include_str!("../builtin/boards/board-seeed-xiao-esp32c6.toml"),
+            ),
+            (
+                "board-seeed-xiao-rp2040",
+                include_str!("../builtin/boards/board-seeed-xiao-rp2040.toml"),
+            ),
+            (
+                "board-arduino-mega2560",
+                include_str!("../builtin/boards/board-arduino-mega2560.toml"),
+            ),
+            (
+                "board-arduino-leonardo",
+                include_str!("../builtin/boards/board-arduino-leonardo.toml"),
+            ),
+            (
+                "board-attiny85",
+                include_str!("../builtin/boards/board-attiny85.toml"),
             ),
         ] {
             r.insert_text(text)
@@ -986,6 +1018,30 @@ impl Registry {
             )),
             "board-arduino-pro-mini" => Some(include_str!(
                 "../builtin/boards/board-arduino-pro-mini.onboard.json"
+            )),
+            "board-esp32-c3-supermini" => Some(include_str!(
+                "../builtin/boards/board-esp32-c3-supermini.onboard.json"
+            )),
+            "board-seeed-xiao-esp32c6" => Some(include_str!(
+                "../builtin/boards/board-seeed-xiao-esp32c6.onboard.json"
+            )),
+            "board-seeed-xiao-rp2040" => Some(include_str!(
+                "../builtin/boards/board-seeed-xiao-rp2040.onboard.json"
+            )),
+            "board-stc89c52" => Some(include_str!(
+                "../builtin/boards/board-stc89c52.onboard.json"
+            )),
+            "board-ch32v003" => Some(include_str!(
+                "../builtin/boards/board-ch32v003.onboard.json"
+            )),
+            "board-arduino-mega2560" => Some(include_str!(
+                "../builtin/boards/board-arduino-mega2560.onboard.json"
+            )),
+            "board-arduino-leonardo" => Some(include_str!(
+                "../builtin/boards/board-arduino-leonardo.onboard.json"
+            )),
+            "board-attiny85" => Some(include_str!(
+                "../builtin/boards/board-attiny85.onboard.json"
             )),
             _ => None,
         }
@@ -1638,6 +1694,37 @@ mod tests {
             board.board.as_ref().unwrap().chip.as_deref(),
             Some("esp32c3")
         );
+    }
+
+    #[test]
+    fn builtin_board_schematics_only_wire_exposed_pins() {
+        // An onboard schematic reaches the chip by header pin name, so a wire
+        // to a pad the board does not break out fails only when a session
+        // boots. Check every builtin board here instead.
+        let r = Registry::builtin();
+        for id in r.ids() {
+            let Some(text) = r.builtin_schematic(id) else {
+                continue;
+            };
+            let board = r
+                .get(id)
+                .and_then(|manifest| manifest.board.as_ref())
+                .unwrap_or_else(|| panic!("{id} has a schematic but no [board] table"));
+            let circuit = litz_diagram::Circuit::from_json(text)
+                .unwrap_or_else(|e| panic!("{id} schematic does not parse: {e}"));
+            for connection in &circuit.connections {
+                for end in [&connection.from, &connection.to] {
+                    if end.part != "$chip" {
+                        continue;
+                    }
+                    assert!(
+                        board.header.iter().any(|pin| pin.name == end.name),
+                        "{id} schematic wires $chip:{}, which its header does not expose",
+                        end.name
+                    );
+                }
+            }
+        }
     }
 
     #[test]

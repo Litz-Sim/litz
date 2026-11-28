@@ -6,6 +6,15 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-28
+
+### Added
+
+- The RP2040 backend covers the rest of the silicon: PIO0 and PIO1 run four state machines each with the clock divider, delays, side-set, autopush/autopull and all nine instructions, and their pins reach the pads through IO_BANK0; SIO's two interpolators run the lane shift/mask/sign, base stepping, crossover, blend and clamp modes; core 1 is a second core with its own NVIC, SysTick and VTOR, released by the launch message core 0 writes to the SIO FIFO. IO_BANK0 raises its interrupt (one enable mask per core), PIO raises its four lines, SIO raises its per-core FIFO line, and the DMA engine honours a channel's `TREQ_SEL` instead of running every channel flat out. Pin levels follow `GPIOx_CTRL.FUNCSEL` in both directions, a pin that stops being driven is reported as high-impedance, and a UART transmitter's pin carries its frame at the baud its divisor names — start bit, eight data bits, stop bit — so a scope on the pin decodes the bytes the console heard.
+- Three more AVR parts in `litz-avr`: the ATmega2560 (`atmega2560`, 256 KiB flash, ports A–L, `JMP`/`CALL`/`ELPM`/`EIND`), the ATmega32U4 (`atmega32u4`, 32 KiB, ports B–F with the USB block's registers) and the ATtiny85 (`attiny85`, 8 KiB, the USI instead of a TWI/SPI pair), each with a board: the Arduino Mega 2560, the Arduino Leonardo and an ATtiny85 DIP-8 breakout.
+- Two chip backends: the STC89C52RC (`stc89c52`, `litz-8051`) and the CH32V003 (`ch32v003`, `litz-ch32v003`), each with its own board on the shelf.
+- Three boards on the parts shelf: the ESP32-C3 SuperMini, the Seeed XIAO ESP32C6 and the Seeed XIAO RP2040, each with its header pin map, its onboard power LED and, on the SuperMini, the blue user LED on GPIO8.
+
 ## [0.9.1] - 2026-11-28
 
 ### Fixed
@@ -166,7 +175,8 @@ Every crate in the workspace and the npm package carry the same version. Release
 - The RP2040 USB controller completes its control handshake.
 - Example firmware is committed, so the CLI tests boot real images.
 
-[Unreleased]: https://github.com/Litz-Sim/litz/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/Litz-Sim/litz/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/Litz-Sim/litz/compare/v0.9.1...v0.10.0
 [0.4.1]: https://github.com/Litz-Sim/litz/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Litz-Sim/litz/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Litz-Sim/litz/compare/v0.2.1...v0.3.0

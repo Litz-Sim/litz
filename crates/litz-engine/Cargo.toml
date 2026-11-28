@@ -11,15 +11,17 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
+litz-8051 = { workspace = true }
 litz-avr = { workspace = true }
-litz-rp = { workspace = true }
 litz-ble = { workspace = true }
 litz-board = { workspace = true }
 litz-catalog = { workspace = true }
+litz-ch32v003 = { workspace = true }
 litz-core = { workspace = true }
 litz-decode = { workspace = true }
 litz-diagram = { workspace = true }
 litz-net = { workspace = true }
+litz-rp = { workspace = true }
 png = "0.18.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_yaml_ng = "0.10.0"

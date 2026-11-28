@@ -1,0 +1,127 @@
+[board]
+id = "board-arduino-leonardo"
+name = "Arduino Leonardo"
+version = "1.0.0"
+description = "ATmega32U4 at 16 MHz, 32 KiB flash, Leonardo header (D0-D13, A0-A5)"
+chip = "atmega32u4"
+flash_size = "32KB"
+psram = false
+schematic = "board-arduino-leonardo.onboard.json"
+
+[[pins]]
+name = "D0"
+gpio = 18
+label = "RX"
+functions = ["serial"]
+
+[[pins]]
+name = "D1"
+gpio = 19
+label = "TX"
+functions = ["serial"]
+
+[[pins]]
+name = "D2"
+gpio = 17
+label = "SDA"
+functions = ["i2c"]
+
+[[pins]]
+name = "D3"
+gpio = 16
+label = "SCL"
+functions = ["i2c"]
+
+[[pins]]
+name = "D4"
+gpio = 20
+label = "ADC8"
+functions = ["adc"]
+
+[[pins]]
+name = "D5"
+gpio = 14
+functions = ["pwm"]
+
+[[pins]]
+name = "D6"
+gpio = 23
+label = "ADC10"
+functions = ["adc"]
+
+[[pins]]
+name = "D7"
+gpio = 30
+
+[[pins]]
+name = "D8"
+gpio = 4
+label = "ADC11"
+functions = ["adc"]
+
+[[pins]]
+name = "D9"
+gpio = 5
+functions = ["pwm"]
+
+[[pins]]
+name = "D10"
+gpio = 6
+functions = ["pwm"]
+
+[[pins]]
+name = "D11"
+gpio = 7
+functions = ["pwm"]
+
+[[pins]]
+name = "D12"
+gpio = 22
+label = "ADC9"
+functions = ["adc"]
+
+[[pins]]
+name = "D13"
+gpio = 15
+label = "LED"
+functions = ["pwm"]
+
+[[pins]]
+name = "A0"
+gpio = 39
+functions = ["adc"]
+
+[[pins]]
+name = "A1"
+gpio = 38
+functions = ["adc"]
+
+[[pins]]
+name = "A2"
+gpio = 37
+functions = ["adc"]
+
+[[pins]]
+name = "A3"
+gpio = 36
+functions = ["adc"]
+
+[[pins]]
+name = "A4"
+gpio = 33
+functions = ["adc"]
+
+[[pins]]
+name = "A5"
+gpio = 32
+functions = ["adc"]
+
+[[pins]]
+name = "5V"
+fixed = "5v"
+label = "5 V rail"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+repeat = 2

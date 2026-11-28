@@ -5,7 +5,8 @@
 //! them in host memory, a project holds them in files.
 //!
 //! The backend is chosen from the diagram's board manifest, so the ABI reaches
-//! every builtin chip: the ESP32 family, the ATmega328P and the RP2040.
+//! every builtin chip: the ESP32 family, the AVR parts, the RP2040, the
+//! STC89C52RC and the CH32V003.
 //!
 //! Everything the exports read back after that — simulated time, serial text,
 //! electrical conflicts, part state, the display — lives on this struct.

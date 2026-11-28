@@ -1,0 +1,51 @@
+[board]
+id = "board-attiny85"
+name = "ATtiny85 breakout"
+version = "1.0.0"
+description = "ATtiny85 at 8 MHz, 8 KiB flash, DIP-8 header (PB0-PB5)"
+chip = "attiny85"
+flash_size = "8KB"
+psram = false
+schematic = "board-attiny85.onboard.json"
+
+[[pins]]
+name = "PB0"
+gpio = 0
+label = "MOSI/ADC0"
+functions = ["adc", "spi"]
+
+[[pins]]
+name = "PB1"
+gpio = 1
+label = "MISO/ADC1"
+functions = ["adc", "spi"]
+
+[[pins]]
+name = "PB2"
+gpio = 2
+label = "SCK/SCL/ADC2"
+functions = ["adc", "i2c", "spi", "interrupt"]
+
+[[pins]]
+name = "PB3"
+gpio = 3
+label = "ADC3"
+functions = ["adc"]
+
+[[pins]]
+name = "PB4"
+gpio = 4
+
+[[pins]]
+name = "PB5"
+gpio = 5
+label = "RESET"
+
+[[pins]]
+name = "5V"
+fixed = "5v"
+label = "5 V rail"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"

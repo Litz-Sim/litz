@@ -16,6 +16,14 @@ const BOARDS: &[(&str, &str, u32)] = &[
     ("board-arduino-pro-mini", "atmega328p", 21),
     ("board-esp32-s3-devkitc-1-n16r8", "esp32s3", 48),
     ("board-esp32-c6-devkitm-1", "esp32c6", 23),
+    ("board-esp32-c3-supermini", "esp32c3", 21),
+    ("board-seeed-xiao-esp32c6", "esp32c6", 23),
+    ("board-seeed-xiao-rp2040", "rp2040", 29),
+    ("board-stc89c52", "stc89c52", 31),
+    ("board-ch32v003", "ch32v003", 17),
+    ("board-arduino-mega2560", "atmega2560", 87),
+    ("board-arduino-leonardo", "atmega32u4", 39),
+    ("board-attiny85", "attiny85", 5),
 ];
 
 fn load(id: &str) -> (Registry, String) {

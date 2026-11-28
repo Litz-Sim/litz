@@ -1,12 +1,13 @@
 //! The 12-channel DMA engine.
 //!
-//! The model implements unbounded, non-triggered transfers: once a channel's
-//! `EN` is set and `TRANS_COUNT` is non-zero it copies `DATA_SIZE` elements
-//! from `READ_ADDR` to `WRITE_ADDR`, advancing either address when its `INCR`
-//! bit is set. DREQ pacing, ring mode, byte swapping and sniffing are not
-//! modelled; a channel that names a peripheral trigger still moves data as
-//! fast as the engine is serviced, which is enough for the RAM-to-peripheral
-//! copies a firmware uses to fill a FIFO.
+//! Once a channel's `EN` is set and `TRANS_COUNT` is non-zero it copies
+//! `DATA_SIZE` elements from `READ_ADDR` to `WRITE_ADDR`, advancing either
+//! address when its `INCR` bit is set. A channel that names a peripheral
+//! trigger (`TREQ_SEL`) moves only while that trigger has an event waiting:
+//! the bus answers [`DmaBus::dreq_ready`] from the block's own FIFO state, so
+//! a PIO transmit channel fills the state machine's queue and then waits for
+//! it to drain. `TREQ_SEL = 0x3f` is the unconditional trigger. Ring mode and
+//! byte swapping are still not modelled.
 //!
 //! The bus is not part of this block: [`Dma::tick`] only marks time, and
 //! [`Dma::service`] performs at most one element against a [`DmaBus`]. The
@@ -47,7 +48,8 @@ pub mod ctrl {
     pub const CHAIN_TO_SHIFT: u32 = 11;
     pub const CHAIN_TO_MASK: u32 = 0xf << CHAIN_TO_SHIFT;
     pub const TREQ_SEL_SHIFT: u32 = 15;
-    pub const TREQ_SEL_MASK: u32 = 0x1f << TREQ_SEL_SHIFT;
+    /// Six bits wide: `0x3f` is the permanently-asserted trigger.
+    pub const TREQ_SEL_MASK: u32 = 0x3f << TREQ_SEL_SHIFT;
     pub const IRQ_QUIET: u32 = 1 << 21;
     pub const BSWAP: u32 = 1 << 22;
     pub const SNIFF_EN: u32 = 1 << 23;
@@ -95,6 +97,12 @@ pub trait DmaBus {
     fn dma_read(&mut self, addr: u32, size: Size) -> Option<u32>;
     /// Write one element; `false` when the address does not decode.
     fn dma_write(&mut self, addr: u32, value: u32, size: Size) -> bool;
+
+    /// Whether DMA trigger `sel` has an event waiting right now. The default
+    /// keeps an untriggered harness moving: every channel is always ready.
+    fn dreq_ready(&mut self, _sel: u32) -> bool {
+        true
+    }
 }
 
 /// One element ready to move.
@@ -151,9 +159,9 @@ impl Dma {
         (index < CHANNELS).then_some((index, register))
     }
 
-    /// Start a channel if its enable and count allow it. DREQ pacing is not
-    /// modelled, so every enabled channel with work is treated as
-    /// permanently triggered.
+    /// Start a channel if its enable and count allow it. The channel is busy
+    /// until its count drains; a trigger that has no event waiting only
+    /// holds [`Dma::service`] off, the way the engine waits on DREQ.
     fn start(&mut self, index: usize) {
         let channel = self.channels[index];
         if channel.ctrl & ctrl::EN != 0 && channel.trans_count > 0 {
@@ -266,10 +274,31 @@ impl Dma {
             })
     }
 
+    /// The next element whose trigger is ready, lowest channel first.
+    fn pending_ready(&mut self, bus: &mut impl DmaBus) -> Option<Burst> {
+        for index in 0..CHANNELS {
+            let channel = self.channels[index];
+            if !channel.busy || channel.trans_count == 0 {
+                continue;
+            }
+            let treq = (channel.ctrl & ctrl::TREQ_SEL_MASK) >> ctrl::TREQ_SEL_SHIFT;
+            if treq != 0x3f && !bus.dreq_ready(treq) {
+                continue;
+            }
+            return Some(Burst {
+                channel: index,
+                source: channel.read_addr,
+                destination: channel.write_addr,
+                size: Size::from_ctrl(channel.ctrl),
+            });
+        }
+        None
+    }
+
     /// Move one element through `bus`. Returns whether work was available.
     /// This is the "one burst per tick" step the machine calls.
     pub fn service(&mut self, bus: &mut impl DmaBus) -> bool {
-        let Some(burst) = self.pending() else {
+        let Some(burst) = self.pending_ready(bus) else {
             return false;
         };
         let ok = match bus.dma_read(burst.source, burst.size) {

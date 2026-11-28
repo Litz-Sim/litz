@@ -196,14 +196,25 @@ pub(crate) fn builtin_chip(
         "esp32s31" => {
             esp!(S31::new(mac, flash).with_shared_board(Rc::clone(&board), index))
         }
-        "atmega328p" => {
+        "atmega328p" | "atmega2560" | "atmega32u4" | "attiny85" => {
             if network.is_some() {
-                return Err("atmega328p has no Wi-Fi radio; remove [sim] wifi".into());
+                return Err(format!("{name} has no Wi-Fi radio; remove [sim] wifi"));
             }
             if bluetooth.is_some() {
-                return Err("atmega328p has no Bluetooth radio; remove the beacon".into());
+                return Err(format!("{name} has no Bluetooth radio; remove the beacon"));
             }
-            Box::new(litz_avr::Atmega328p::new().with_shared_board(board, index))
+            match name {
+                "atmega328p" => {
+                    Box::new(litz_avr::Atmega328p::new().with_shared_board(board, index))
+                }
+                "atmega2560" => {
+                    Box::new(litz_avr::Atmega2560::new().with_shared_board(board, index))
+                }
+                "atmega32u4" => {
+                    Box::new(litz_avr::Atmega32u4::new().with_shared_board(board, index))
+                }
+                _ => Box::new(litz_avr::Attiny85::new().with_shared_board(board, index)),
+            }
         }
         "rp2040" => {
             if network.is_some() {
@@ -214,6 +225,24 @@ pub(crate) fn builtin_chip(
             }
             Box::new(litz_rp::Rp2040::new().with_shared_board(board, index))
         }
+        "stc89c52" => {
+            if network.is_some() {
+                return Err("stc89c52 has no radio; remove [sim] wifi".into());
+            }
+            if bluetooth.is_some() {
+                return Err("stc89c52 has no Bluetooth radio; remove the beacon".into());
+            }
+            Box::new(litz_8051::Stc89c52::new().with_shared_board(board, index))
+        }
+        "ch32v003" => {
+            if network.is_some() {
+                return Err("ch32v003 has no radio; remove [sim] wifi".into());
+            }
+            if bluetooth.is_some() {
+                return Err("ch32v003 has no Bluetooth radio; remove the beacon".into());
+            }
+            Box::new(litz_ch32v003::Ch32v003::new().with_shared_board(board, index))
+        }
         other => return Err(format!("chip {other:?} is not built in")),
     })
 }
@@ -223,8 +252,8 @@ pub(crate) fn builtin_chip(
 fn xtensa_unavailable(name: &str) -> String {
     format!(
         "{name} runs on the Xtensa core, which executes guest blocks through a host JIT; \
-         the browser module has no imports, so use the RISC-V ESP parts, the ATmega328P or \
-         the RP2040, or run this diagram with the CLI"
+         the browser module has no imports, so use a RISC-V or 8/16-bit part or \
+         run this diagram with the CLI"
     )
 }
 

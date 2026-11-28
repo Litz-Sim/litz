@@ -1,0 +1,94 @@
+[board]
+id = "board-seeed-xiao-rp2040"
+name = "Seeed XIAO RP2040"
+version = "1.0.0"
+description = "Seeed Studio XIAO RP2040: the RP2040 with 2 MiB flash on the 17.8 x 21 mm XIAO footprint, 11 GPIO on the 14-pin header"
+chip = "rp2040"
+flash_size = "2MB"
+psram = false
+schematic = "board-seeed-xiao-rp2040.onboard.json"
+
+# The same 14-pin header as the XIAO ESP32C6, wired to RP2040 pads instead: the
+# four analog inputs are GP26 to GP29, which is why D0 to D3 are not GP0 to GP3.
+# The three channels of the onboard RGB LED are GP16 to GP17 and GP25 and are
+# not on the header.
+
+[[pins]]
+name = "5V"
+fixed = "5v"
+label = "USB 5 V"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+
+[[pins]]
+name = "3V3"
+fixed = "3v3"
+label = "3.3 V out"
+
+[[pins]]
+name = "D0"
+gpio = 26
+functions = ["adc"]
+label = "A0"
+
+[[pins]]
+name = "D1"
+gpio = 27
+functions = ["adc"]
+label = "A1"
+
+[[pins]]
+name = "D2"
+gpio = 28
+functions = ["adc"]
+label = "A2"
+
+[[pins]]
+name = "D3"
+gpio = 29
+functions = ["adc"]
+label = "A3"
+
+[[pins]]
+name = "D4"
+gpio = 6
+functions = ["i2c"]
+label = "I2C SDA"
+
+[[pins]]
+name = "D5"
+gpio = 7
+functions = ["i2c"]
+label = "I2C SCL"
+
+[[pins]]
+name = "D6"
+gpio = 0
+functions = ["uart"]
+label = "UART TX"
+
+[[pins]]
+name = "D7"
+gpio = 1
+functions = ["uart"]
+label = "UART RX"
+
+[[pins]]
+name = "D8"
+gpio = 2
+functions = ["spi"]
+label = "SPI SCK"
+
+[[pins]]
+name = "D9"
+gpio = 4
+functions = ["spi"]
+label = "SPI MISO"
+
+[[pins]]
+name = "D10"
+gpio = 3
+functions = ["spi"]
+label = "SPI MOSI"

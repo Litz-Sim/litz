@@ -1,10 +1,15 @@
-//! The [`litz_board::Chip`] view of the ATmega328P.
+//! The [`litz_board::Chip`] view of the AVR parts this crate models:
+//! [`Atmega328p`], [`Atmega2560`], [`Attiny85`] and [`Atmega32u4`].
+//!
+//! The four are one adapter ([`AvrChip`]) with a different [`Device`] table,
+//! so the board attachment, run loop and bus bridge are shared and only the
+//! memory sizes, pin numbering, vector table and peripheral inventory differ.
 //!
 //! # Board attachment
 //!
-//! [`Atmega328p::with_board`] puts the chip on a [`litz_board::Board`] and
-//! keeps the board behind `Rc<RefCell<Board>>`, so the adapter and a test hold
-//! the same ownership of the parts. The attachment does three things:
+//! `with_board` puts the chip on a [`litz_board::Board`] and keeps the board
+//! behind `Rc<RefCell<Board>>`, so the adapter and a test hold the same
+//! ownership of the parts. The attachment does three things:
 //!
 //! * The board's resolved pin levels become the chip's external input latch.
 //! * The chip's own output edges become strong drives on the board, and the
@@ -15,9 +20,9 @@
 //!
 //! ## Pin table
 //!
-//! Board GPIO numbers are the Arduino Uno's header numbering, which is also
-//! what [`Machine::set_input`] and the GPIO output events use. The chip's own
-//! [`crate::digital_to_port`] turns each into a port bit:
+//! The ATmega328P's board GPIO numbers are the Arduino Uno's header numbering,
+//! which is also what [`Machine::set_input`] and the GPIO output events use.
+//! The chip's own [`crate::digital_to_port`] turns each into a port bit:
 //!
 //! | Board GPIO | Arduino pin | Port bit | Notes |
 //! |------------|-------------|----------|-------|
@@ -26,13 +31,15 @@
 //! | 14–19      | A0–A5       | `PORTC[0..6]` | also ADC channels 0–5 |
 //! | 20–21      | A6–A7       | none          | ADC channels 6–7 only (Nano/Pro Mini) |
 //!
-//! A board that names a header pin with a different GPIO number is a board
-//! manifest problem, not an adapter one: this adapter is the Uno's point of
-//! view and expects the numeric header pins.
+//! The other parts use the datasheet's linear numbering: `pin = port position
+//! * 8 + bit`, with the ports in datasheet order and unbonded bits absent. An
+//! ATmega2560's `PA0` is GPIO 0 and `PL7` is GPIO 87; an ATtiny85's `PB0..PB5`
+//! are GPIO 0..5.
 //!
-//! The analog pins are fed each pass from [`Board::analog_inputs`], so a
-//! potentiometer's divider (or a solved net voltage when analog
-//! co-simulation is on) reaches `A0..A7` as microvolts.
+//! The analog pins are fed each pass from [`Board::analog_inputs`], mapped
+//! through the device's analog table, so a potentiometer's divider (or a
+//! solved net voltage when analog co-simulation is on) reaches the ADC as
+//! microvolts.
 //!
 //! ## Run-loop order
 //!
@@ -42,22 +49,22 @@
 //! 1. Apply host actions from [`Chip::schedule`] whose time has come.
 //! 2. Advance the board to the chip's time (`board.advance_to(now_ns)`), then
 //!    drain `board.take_chip_inputs()` into `machine.set_input`.
-//! 3. Publish `board.analog_inputs()` on `A0..A7` as microvolts.
+//! 3. Publish `board.analog_inputs()` on the part's analog pins as microvolts.
 //! 4. Run the machine for the budget, shortened when a board part's
 //!    `next_event` or a scheduled host input is due sooner.
 //! 5. Publish `machine.take_outputs()` as `Drive::strong` on the board at the
 //!    time the slice reached, then advance the board again so events the new
 //!    drives caused are waiting for the next pass.
 //!
-//! Cycles become nanoseconds at [`CPU_HZ`]. A board event deadline is rounded
-//! up to a cycle, so the machine never overshoots the event and the board
-//! always has its edge ready when the chip next polls.
+//! Cycles become nanoseconds at the part's clock. A board event deadline is
+//! rounded up to a cycle, so the machine never overshoots the event and the
+//! board always has its edge ready when the chip next polls.
 
 use core::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use crate::cpu::{FLASH_SIZE, FLASH_WORDS};
+use crate::device::{ATMEGA32U4, ATMEGA328P, ATMEGA2560, ATTINY85, Device};
 use crate::hex;
 use crate::machine::Machine;
 use litz_board::{
@@ -68,12 +75,12 @@ use litz_core::{Drive, Level, PartState};
 /// The ATmega328P on an Arduino Uno runs at 16 MHz.
 pub const CPU_HZ: u64 = 16_000_000;
 
-/// The board's single I²C controller. The ATmega328P has one TWI controller,
-/// so both sides number it 0.
+/// The board's single I²C controller. Every modelled AVR has at most one TWI
+/// controller, so both sides number it 0.
 pub const I2C_CONTROLLER: u8 = 0;
 
-/// The board's SPI controller the ATmega328P's SPI master talks to. Boards in
-/// the catalog expose one controller as `spi0`.
+/// The board's SPI controller the AVR's SPI master talks to. Boards in the
+/// catalog expose one controller as `spi0`.
 pub const SPI_CONTROLLER: u8 = 0;
 
 /// The first board GPIO that is an Uno analog header pin (`A0`).
@@ -85,19 +92,21 @@ pub const ANALOG_FIRST_GPIO: u8 = 14;
 /// `A6`/`A7` on GPIO 20/21 as the chip's dedicated `ADC6`/`ADC7` inputs.
 pub const ANALOG_LAST_GPIO: u8 = 21;
 
-/// The ADC channel for a board GPIO, when it is one of `A0..A7`.
+/// The ADC channel for an ATmega328P board GPIO, when it is one of `A0..A7`.
 pub fn analog_channel(gpio: u8) -> Option<u8> {
     (ANALOG_FIRST_GPIO..=ANALOG_LAST_GPIO)
         .contains(&gpio)
         .then_some(gpio - ANALOG_FIRST_GPIO)
 }
 
-/// An ATmega328P adapter for the board runtime.
-pub struct Atmega328p {
+/// One AVR part attached to the board runtime. The public chip types below are
+/// thin newtypes over this, so the run loop and bus bridge exist once.
+pub struct AvrChip {
+    device: &'static Device,
     machine: Machine,
     scheduled: Vec<Input>,
     fault: Option<String>,
-    break_at: Option<u16>,
+    break_at: Option<u32>,
     /// The flattened board the chip drives, when one is attached. Shared so a
     /// test can inspect parts without taking the board away from the adapter.
     board: Option<Rc<RefCell<Board>>>,
@@ -106,12 +115,6 @@ pub struct Atmega328p {
     /// The duty last published per compare-output pin, so a slice that did
     /// not touch a timer does not re-stamp the analog view.
     pwm: BTreeMap<u8, f64>,
-}
-
-impl Default for Atmega328p {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 /// Why one bounded slice of the machine came back.
@@ -123,10 +126,17 @@ enum Slice {
     Breakpoint(u32),
 }
 
-impl Atmega328p {
+impl AvrChip {
+    /// An ATmega328P adapter, for callers that predate the other parts.
     pub fn new() -> Self {
+        Self::for_device(&ATMEGA328P)
+    }
+
+    /// An adapter for any modelled part.
+    pub fn for_device(device: &'static Device) -> Self {
         Self {
-            machine: Machine::new(),
+            device,
+            machine: Machine::for_device(device),
             scheduled: Vec::new(),
             fault: None,
             break_at: None,
@@ -134,6 +144,11 @@ impl Atmega328p {
             board_index: 0,
             pwm: BTreeMap::new(),
         }
+    }
+
+    /// The device table this adapter runs.
+    pub fn device(&self) -> &'static Device {
+        self.device
     }
 
     /// Attach a flattened board. The board stays shared so a test (or a UI)
@@ -171,11 +186,6 @@ impl Atmega328p {
         // the first read after such a write uses the board's `write_read`, so
         // a device that treats the write as a register pointer sees it before
         // it answers. A plain read (no preceding write) goes through `read`.
-        //
-        // The port's TWI core does not report the write phase of a repeated
-        // start, so a firmware `Wire.requestFrom` that writes a pointer and
-        // immediately restarts reaches the device as a plain read; the device
-        // keeps its own cursor in that case.
         #[derive(Default)]
         struct Pending {
             address: Option<u8>,
@@ -251,13 +261,13 @@ impl Atmega328p {
 
     /// The chip's clock in nanoseconds.
     fn now_ns(&self) -> u64 {
-        (u128::from(self.machine.cycles()) * 1_000_000_000 / u128::from(CPU_HZ)) as u64
+        (u128::from(self.machine.cycles()) * 1_000_000_000 / u128::from(self.device.cpu_hz)) as u64
     }
 
     /// The first cycle at or after `ns`, so a deadline is never rounded down
     /// into the past.
-    fn cycles_for(ns: u64) -> u64 {
-        let cycles = u128::from(ns) * u128::from(CPU_HZ);
+    fn cycles_for(&self, ns: u64) -> u64 {
+        let cycles = u128::from(ns) * u128::from(self.device.cpu_hz);
         cycles.div_ceil(1_000_000_000) as u64
     }
 
@@ -270,7 +280,7 @@ impl Atmega328p {
         let Some(board) = &self.board else {
             return;
         };
-        let cpu_hz = CPU_HZ as u32;
+        let cpu_hz = self.device.cpu_hz as u32;
         let periph = self.machine.peripherals();
         let i2c = periph.twi.scl_hz(cpu_hz);
         let spi = periph.spi.clock_hz(cpu_hz);
@@ -295,7 +305,7 @@ impl Atmega328p {
             match level {
                 Level::High => self.machine.set_input(gpio, true),
                 Level::Low => self.machine.set_input(gpio, false),
-                // A floating pad has no level to apply. The ATmega's external
+                // A floating pad has no level to apply. The AVR's external
                 // latch keeps its last value, which is the closest the core
                 // has to "released" (there is no pull-up model).
                 Level::HighZ => {}
@@ -303,12 +313,12 @@ impl Atmega328p {
         }
     }
 
-    /// Publish the board's analog voltages on `A0..A7` as microvolts.
+    /// Publish the board's analog voltages on the part's analog pins.
     fn publish_analog(&mut self) {
         let Some(board) = &self.board else { return };
         let analog = board.borrow().analog_inputs_on(self.board_index);
         for (gpio, volts) in analog {
-            let Some(channel) = analog_channel(gpio) else {
+            let Some(channel) = self.device.analog_channel(gpio) else {
                 continue;
             };
             let microvolts =
@@ -348,13 +358,13 @@ impl Atmega328p {
         let now_cycles = self.machine.cycles();
         let mut limit = remaining;
         if let Some(input) = self.scheduled.first() {
-            let due = Self::cycles_for(Self::input_ns(input));
+            let due = self.cycles_for(Self::input_ns(input));
             limit = limit.min(due.saturating_sub(now_cycles).max(1));
         }
         if let Some(board) = &self.board
             && let Some(at_ns) = board.borrow().next_event()
         {
-            let due = Self::cycles_for(at_ns);
+            let due = self.cycles_for(at_ns);
             limit = limit.min(due.saturating_sub(now_cycles).max(1));
         }
         limit.max(1)
@@ -369,7 +379,7 @@ impl Atmega328p {
                 && self.machine.pc() == word
                 && self.machine.cycles() > start
             {
-                return Slice::Breakpoint(u32::from(word) * 2);
+                return Slice::Breakpoint(word * 2);
             }
             if self.machine.cpu().halted() {
                 return match self.machine.fault() {
@@ -433,7 +443,7 @@ impl Atmega328p {
         let cycles = self.machine.cycles();
         let now: u128 = u128::from(cycles) * 1_000_000_000;
         while let Some(input) = self.scheduled.first() {
-            let due = u128::from(Self::input_ns(input)) * u128::from(CPU_HZ);
+            let due = u128::from(Self::input_ns(input)) * u128::from(self.device.cpu_hz);
             if due > now {
                 break;
             }
@@ -452,13 +462,19 @@ impl Atmega328p {
     }
 }
 
-impl Chip for Atmega328p {
+impl Default for AvrChip {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Chip for AvrChip {
     fn info(&self) -> ChipInfo {
         ChipInfo {
-            name: "atmega328p".into(),
-            cpu_hz: CPU_HZ,
+            name: self.device.name.into(),
+            cpu_hz: self.device.cpu_hz,
             flash: FlashLayout {
-                size: FLASH_SIZE as u64,
+                size: self.device.flash_size as u64,
                 bootloader: 0,
                 partition_table: 0,
                 app: 0,
@@ -469,7 +485,8 @@ impl Chip for Atmega328p {
     fn load_image(&mut self, kind: ImageKind, offset: u64, bytes: &[u8]) -> Result<(), String> {
         if kind != ImageKind::Firmware {
             return Err(format!(
-                "atmega328p loads a firmware image only, not {kind:?}"
+                "{} loads a firmware image only, not {kind:?}",
+                self.device.name
             ));
         }
         if hex::looks_like_hex(bytes) {
@@ -546,7 +563,7 @@ impl Chip for Atmega328p {
     }
 
     fn seconds(&self) -> f64 {
-        self.machine.cycles() as f64 / CPU_HZ as f64
+        self.machine.cycles() as f64 / self.device.cpu_hz as f64
     }
 
     fn write_console(&mut self, bytes: &[u8]) {
@@ -632,7 +649,7 @@ impl Chip for Atmega328p {
     }
 
     fn break_at(&mut self, pc: u32) {
-        self.break_at = Some((pc / 2) as u16 & (FLASH_WORDS as u16 - 1));
+        self.break_at = Some((pc / 2) & (self.device.flash_words() - 1));
     }
 
     fn registers(&self) -> String {
@@ -658,4 +675,146 @@ impl Chip for Atmega328p {
             .clone()
             .or_else(|| self.machine.fault().map(|fault| fault.to_string()))
     }
+}
+
+macro_rules! avr_parts {
+    ($($(#[$doc:meta])* $name:ident => $device:path;)*) => {
+        $(
+            $(#[$doc])*
+            pub struct $name(AvrChip);
+
+            impl Default for $name {
+                fn default() -> Self {
+                    Self::new()
+                }
+            }
+
+            impl $name {
+                /// A chip in its reset state for this part.
+                pub fn new() -> Self {
+                    Self(AvrChip::for_device(&$device))
+                }
+
+                /// Attach a flattened board.
+                pub fn with_board(self, board: Board) -> Self {
+                    Self(self.0.with_board(board))
+                }
+
+                /// Attach a board another chip already shares.
+                pub fn with_shared_board(
+                    self,
+                    board: Rc<RefCell<Board>>,
+                    index: u16,
+                ) -> Self {
+                    Self(self.0.with_shared_board(board, index))
+                }
+            }
+
+            impl core::ops::Deref for $name {
+                type Target = AvrChip;
+                fn deref(&self) -> &AvrChip {
+                    &self.0
+                }
+            }
+
+            impl core::ops::DerefMut for $name {
+                fn deref_mut(&mut self) -> &mut AvrChip {
+                    &mut self.0
+                }
+            }
+
+            impl Chip for $name {
+                fn info(&self) -> ChipInfo {
+                    self.0.info()
+                }
+                fn load_image(
+                    &mut self,
+                    kind: ImageKind,
+                    offset: u64,
+                    bytes: &[u8],
+                ) -> Result<(), String> {
+                    self.0.load_image(kind, offset, bytes)
+                }
+                fn flash_image(&self) -> Option<Vec<u8>> {
+                    self.0.flash_image()
+                }
+                fn boot(&mut self) -> Result<u32, String> {
+                    self.0.boot()
+                }
+                fn schedule(&mut self, inputs: Vec<Input>) -> Result<(), String> {
+                    self.0.schedule(inputs)
+                }
+                fn run(&mut self, budget_cycles: u64) -> RunResult {
+                    self.0.run(budget_cycles)
+                }
+                fn seconds(&self) -> f64 {
+                    self.0.seconds()
+                }
+                fn write_console(&mut self, bytes: &[u8]) {
+                    self.0.write_console(bytes)
+                }
+                fn take_console(&mut self) -> Vec<u8> {
+                    self.0.take_console()
+                }
+                fn state(&self, part: &str) -> Option<PartState> {
+                    self.0.state(part)
+                }
+                fn press(&mut self, part: &str, pressed: bool) -> bool {
+                    self.0.press(part, pressed)
+                }
+                fn set_control(&mut self, part: &str, value: u16) -> bool {
+                    self.0.set_control(part, value)
+                }
+                fn set_named_control(&mut self, part: &str, name: &str, value: &str) -> bool {
+                    self.0.set_named_control(part, name, value)
+                }
+                fn save_part_display(
+                    &mut self,
+                    part: &str,
+                    path: &std::path::Path,
+                ) -> Result<(), String> {
+                    self.0.save_part_display(part, path)
+                }
+                fn part_pin_level(&self, part: &str, pin: Option<&str>) -> Option<Level> {
+                    self.0.part_pin_level(part, pin)
+                }
+                fn gpio_level(&self, gpio: u8) -> Option<Level> {
+                    self.0.gpio_level(gpio)
+                }
+                fn conflicts(&self) -> Vec<Conflict> {
+                    self.0.conflicts()
+                }
+                fn start_trace(&mut self) {
+                    self.0.start_trace()
+                }
+                fn vcd(&self) -> String {
+                    self.0.vcd()
+                }
+                fn break_at(&mut self, pc: u32) {
+                    self.0.break_at(pc)
+                }
+                fn registers(&self) -> String {
+                    self.0.registers()
+                }
+                fn fault(&self) -> Option<String> {
+                    self.0.fault()
+                }
+            }
+        )*
+    };
+}
+
+avr_parts! {
+    /// The ATmega328P: 32 KiB flash, 2 KiB SRAM, ports B/C/D, the Arduino
+    /// Uno's numbering and a four-byte vector slot.
+    Atmega328p => ATMEGA328P;
+    /// The ATmega2560: 256 KiB flash, 8 KiB SRAM, ports A through L, a 22-bit
+    /// program counter and five-cycle interrupt entry.
+    Atmega2560 => ATMEGA2560;
+    /// The ATtiny85: 8 KiB flash, 512 B SRAM, port B only, no hardware
+    /// multiply and no absolute `JMP`/`CALL`.
+    Attiny85 => ATTINY85;
+    /// The ATmega32U4: 32 KiB flash, 2.5 KiB SRAM, ports B through F and the
+    /// USB device controller's registers as storage.
+    Atmega32u4 => ATMEGA32U4;
 }

@@ -709,7 +709,7 @@ The reference MCU implementation is `crates/litz-chip-rv32`: RV32IMC plus enough
 
 `app` is required; every other key may be omitted. Unknown keys are an error, so a typo is reported rather than ignored. A successful call returns a session handle; a failure returns `0` and leaves the reason for `litz_last_error`.
 
-The backend is chosen from the board the diagram names, through the same `builtin_chip` selection the file-based runner uses. The wasm build carries the RISC-V ESP parts (ESP32-C3, C6, P4 and S31), the ATmega328P and the RP2040. Classic ESP32 and ESP32-S3 are Xtensa, whose esp32sim backend executes guest blocks through host JIT imports; the module has only the `litz_host` namespace, so those two are compiled out and a diagram naming one reports the reason. An in-memory session runs one board; a diagram with several is refused.
+The backend is chosen from the board the diagram names, through the same `builtin_chip` selection the file-based runner uses. The wasm build carries the RISC-V ESP parts (ESP32-C3, C6, P4 and S31), the AVR parts (ATmega328P, ATmega2560, ATmega32U4 and ATtiny85), the RP2040, the STC89C52RC and the CH32V003. Classic ESP32 and ESP32-S3 are Xtensa, whose esp32sim backend executes guest blocks through host JIT imports; the module has only the `litz_host` namespace, so those two are compiled out and a diagram naming one reports the reason. An in-memory session runs one board; a diagram with several is refused.
 
 ### 12.2 `litz_host` imports
 

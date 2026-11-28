@@ -1,0 +1,157 @@
+[board]
+id = "board-stc89c52"
+name = "STC89C52RC board"
+version = "1.0.0"
+description = "STC89C52RC (MCS-51) at 11.0592 MHz, 8 KiB flash, 40-pin DIP header"
+chip = "stc89c52"
+flash_size = "8KB"
+psram = false
+schematic = "board-stc89c52.onboard.json"
+
+[[pins]]
+name = "VCC"
+fixed = "5v"
+label = "5 V supply"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+repeat = 2
+
+[[pins]]
+name = "P0.0"
+gpio = 0
+
+[[pins]]
+name = "P0.1"
+gpio = 1
+
+[[pins]]
+name = "P0.2"
+gpio = 2
+
+[[pins]]
+name = "P0.3"
+gpio = 3
+
+[[pins]]
+name = "P0.4"
+gpio = 4
+
+[[pins]]
+name = "P0.5"
+gpio = 5
+
+[[pins]]
+name = "P0.6"
+gpio = 6
+
+[[pins]]
+name = "P0.7"
+gpio = 7
+
+[[pins]]
+name = "P1.0"
+gpio = 8
+
+[[pins]]
+name = "P1.1"
+gpio = 9
+
+[[pins]]
+name = "P1.2"
+gpio = 10
+
+[[pins]]
+name = "P1.3"
+gpio = 11
+
+[[pins]]
+name = "P1.4"
+gpio = 12
+
+[[pins]]
+name = "P1.5"
+gpio = 13
+
+[[pins]]
+name = "P1.6"
+gpio = 14
+
+[[pins]]
+name = "P1.7"
+gpio = 15
+
+[[pins]]
+name = "P2.0"
+gpio = 16
+
+[[pins]]
+name = "P2.1"
+gpio = 17
+
+[[pins]]
+name = "P2.2"
+gpio = 18
+
+[[pins]]
+name = "P2.3"
+gpio = 19
+
+[[pins]]
+name = "P2.4"
+gpio = 20
+
+[[pins]]
+name = "P2.5"
+gpio = 21
+
+[[pins]]
+name = "P2.6"
+gpio = 22
+
+[[pins]]
+name = "P2.7"
+gpio = 23
+
+[[pins]]
+name = "P3.0"
+gpio = 24
+label = "RXD"
+functions = ["serial"]
+
+[[pins]]
+name = "P3.1"
+gpio = 25
+label = "TXD"
+functions = ["serial"]
+
+[[pins]]
+name = "P3.2"
+gpio = 26
+functions = ["interrupt"]
+
+[[pins]]
+name = "P3.3"
+gpio = 27
+functions = ["interrupt"]
+
+[[pins]]
+name = "P3.4"
+gpio = 28
+functions = ["timer"]
+
+[[pins]]
+name = "P3.5"
+gpio = 29
+functions = ["timer"]
+
+[[pins]]
+name = "P3.6"
+gpio = 30
+label = "bus strobe"
+
+[[pins]]
+name = "P3.7"
+gpio = 31
+label = "bus strobe"

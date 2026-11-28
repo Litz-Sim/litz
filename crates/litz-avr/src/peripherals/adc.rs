@@ -7,6 +7,12 @@
 //! thirteen ADC clocks, and the ADC clock is the CPU clock divided by the
 //! `ADPS` prescaler.
 //!
+//! How the channel is encoded in `ADMUX` (and `ADCSRB` on the parts that need
+//! a fifth MUX bit), which reference codes select the internal source and
+//! which codes read the bandgap or ground all come from the part's
+//! [`AdcConfig`]. On the ATmega2560 and ATmega32U4, `MUX5 = 1` moves the
+//! channel into the ADC8..ADC15 bank.
+//!
 //! # Injecting a voltage
 //!
 //! The converter has no pins of its own to sample. The host supplies a voltage
@@ -22,11 +28,12 @@
 //! ```
 //!
 //! The reference is `AVcc` (5 V by default, settable with
-//! [`Adc::set_reference`]), the internal 1.1 V bandgap for `REFS = 11`, and
-//! `MUX = 14`/`15` read the bandgap and ground respectively. Differential
-//! modes and the temperature channel share the single-ended channel numbers;
-//! `MUX = 8` reads the injected channel 8 and is not converted to a
-//! temperature.
+//! [`Adc::set_reference`]) or the part's internal 1.1 V source for the
+//! reference code its table names. Differential modes, gain stages and the
+//! temperature channel are not modelled: those codes read the injected
+//! single-ended channel of the same number, or zero.
+
+use crate::device::{ATMEGA328P, AdcConfig};
 
 /// CPU cycles per ADC clock for each `ADPS` value.
 fn adc_divisor(adps: u8) -> u32 {
@@ -38,6 +45,7 @@ fn adc_divisor(adps: u8) -> u32 {
 
 /// The ADC register block, result registers and injected channel voltages.
 pub struct Adc {
+    config: &'static AdcConfig,
     pub admux: u8,
     /// Stored bits of `ADCSRA`; `ADSC` and `ADIF` are kept separately.
     adcsra: u8,
@@ -55,7 +63,15 @@ pub struct Adc {
 
 impl Default for Adc {
     fn default() -> Self {
+        Self::new(&ATMEGA328P.adc)
+    }
+}
+
+impl Adc {
+    /// An ADC with the register layout of `config`.
+    pub fn new(config: &'static AdcConfig) -> Self {
         Self {
+            config,
             admux: 0,
             adcsra: 0,
             adcsrb: 0,
@@ -68,9 +84,12 @@ impl Default for Adc {
             adif: false,
         }
     }
-}
 
-impl Adc {
+    /// The part's ADC table.
+    pub fn config(&self) -> &'static AdcConfig {
+        self.config
+    }
+
     /// Set the voltage the converter reads on `channel`, in microvolts. Values
     /// above the reference are clamped to full scale.
     pub fn set_input(&mut self, channel: u8, microvolts: u32) {
@@ -143,7 +162,7 @@ impl Adc {
 
     fn complete(&mut self) {
         let value = self.sample();
-        if self.admux & 0x20 != 0 {
+        if self.admux & (1 << self.config.adlar_bit) != 0 {
             // ADLAR: left-adjusted, ADCH holds bits 9:2.
             self.adcl = (value << 6) as u8;
             self.adch = (value >> 2) as u8;
@@ -160,18 +179,37 @@ impl Adc {
         }
     }
 
+    /// The channel code the MUX bits and `MUX5` select.
+    fn channel_code(&self) -> u16 {
+        let mut code = u16::from(self.admux & self.config.mux_mask);
+        if let Some(mask) = self.config.mux5_mask
+            && self.adcsrb & mask != 0
+        {
+            code |= 0x20;
+        }
+        code
+    }
+
+    /// The single-ended channel a code names, after the high-bank offset.
+    fn channel_of(code: u16) -> u8 {
+        (if code >= 32 { code - 24 } else { code }) as u8
+    }
+
     fn sample(&self) -> u16 {
-        let mux = self.admux & 0x0f;
-        let microvolts = match mux {
-            14 => 1_100_000, // internal 1.1 V bandgap
-            15 => 0,         // ground
-            other => self.inputs[usize::from(other) & 0x0f],
-        };
-        let reference = if self.admux & 0xc0 == 0xc0 {
+        let code = self.channel_code();
+        let microvolts = if self.config.bandgap_mux == Some(code as u8) {
             1_100_000
+        } else if self.config.ground_mux == Some(code as u8) {
+            0
         } else {
-            self.reference
+            self.inputs[usize::from(Self::channel_of(code)) & 0x0f]
         };
+        let reference =
+            if self.admux & self.config.internal_ref_mask == self.config.internal_ref_value {
+                self.config.internal_ref_microvolts
+            } else {
+                self.reference
+            };
         let scaled = (u64::from(microvolts) * 1024) / u64::from(reference);
         scaled.min(1023) as u16
     }

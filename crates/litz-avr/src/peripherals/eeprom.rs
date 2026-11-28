@@ -1,16 +1,18 @@
-//! The 1 KiB EEPROM.
+//! The EEPROM: 1 KiB on the ATmega328P, 4 KiB on the ATmega2560, 512 B on the
+//! ATtiny85.
 //!
 //! `EEAR` selects the byte, `EEDR` carries it and `EECR` starts the access.
 //! A read (`EERE`) completes immediately and self-clears. A write follows the
 //! datasheet's two-step protection: `EEMPE` must be set first (it clears
 //! itself after four cycles) and `EEPE` starts the write, which holds `EEPE`
-//! high for 3.4 ms of simulated clock — 54 400 CPU cycles at 16 MHz. The
-//! EEPROM-ready interrupt flag rises when the write completes.
+//! high for 3.4 ms of simulated clock — 54 400 CPU cycles at 16 MHz, and
+//! proportionally fewer on a slower part. The EEPROM-ready interrupt flag
+//! rises when the write completes.
 
-/// EEPROM size in bytes.
+/// EEPROM size in bytes of the ATmega328P.
 pub const EEPROM_SIZE: usize = 1024;
 
-/// Cycles `EEPE` stays set for one write: 3.4 ms at 16 MHz.
+/// Cycles `EEPE` stays set for one write on the ATmega328P: 3.4 ms at 16 MHz.
 pub const WRITE_CYCLES: u32 = 54_400;
 
 /// The EEPROM array and its registers.
@@ -18,9 +20,11 @@ pub struct Eeprom {
     /// Writable control bits: `EERIE`, `EEPM1:0`.
     control: u8,
     pub eedr: u8,
-    /// `EEARH:EEARL`, ten bits.
+    /// `EEARH:EEARL`.
     address: u16,
-    memory: [u8; EEPROM_SIZE],
+    memory: Vec<u8>,
+    address_mask: u16,
+    write_cycles: u32,
     master_enable: bool,
     master_enable_remaining: u32,
     write_remaining: u32,
@@ -30,11 +34,21 @@ pub struct Eeprom {
 
 impl Default for Eeprom {
     fn default() -> Self {
+        Self::new(EEPROM_SIZE, WRITE_CYCLES)
+    }
+}
+
+impl Eeprom {
+    /// An EEPROM of `size` bytes whose writes take `write_cycles` CPU cycles.
+    pub fn new(size: usize, write_cycles: u32) -> Self {
+        let size = size.max(1);
         Self {
             control: 0,
             eedr: 0,
             address: 0,
-            memory: [0xff; EEPROM_SIZE],
+            memory: vec![0xff; size],
+            address_mask: (size - 1) as u16,
+            write_cycles: write_cycles.max(1),
             master_enable: false,
             master_enable_remaining: 0,
             write_remaining: 0,
@@ -42,18 +56,21 @@ impl Default for Eeprom {
             ready_flag: false,
         }
     }
-}
 
-impl Eeprom {
     /// The byte array, for a host that wants to preload or inspect it.
-    pub fn memory(&self) -> &[u8; EEPROM_SIZE] {
+    pub fn memory(&self) -> &[u8] {
         &self.memory
     }
 
     /// Mutable access, for a host that preloads a calibration or a program
     /// that expects a previous run's data.
-    pub fn memory_mut(&mut self) -> &mut [u8; EEPROM_SIZE] {
+    pub fn memory_mut(&mut self) -> &mut [u8] {
         &mut self.memory
+    }
+
+    /// Size in bytes.
+    pub fn size(&self) -> usize {
+        self.memory.len()
     }
 
     /// Whether a write is in progress.
@@ -66,9 +83,9 @@ impl Eeprom {
         !self.busy
     }
 
-    /// `EEAR` as a ten-bit address.
+    /// `EEAR` as an address inside the array.
     pub fn address(&self) -> u16 {
-        self.address & 0x03ff
+        self.address & self.address_mask
     }
 
     pub(crate) fn read_low(&self) -> u8 {
@@ -76,15 +93,16 @@ impl Eeprom {
     }
 
     pub(crate) fn read_high(&self) -> u8 {
-        ((self.address >> 8) & 0x03) as u8
+        ((self.address >> 8) & (self.address_mask >> 8)) as u8
     }
 
     pub(crate) fn write_low(&mut self, value: u8) {
-        self.address = (self.address & 0x0300) | u16::from(value);
+        self.address = (self.address & !0x00ff) | u16::from(value);
     }
 
     pub(crate) fn write_high(&mut self, value: u8) {
-        self.address = (self.address & 0x00ff) | (u16::from(value & 0x03) << 8);
+        let high = u16::from(value) & (self.address_mask >> 8);
+        self.address = (self.address & 0x00ff) | (high << 8);
     }
 
     /// `EECR` as firmware reads it.
@@ -102,7 +120,7 @@ impl Eeprom {
         }
         if value & 0x02 != 0 && self.master_enable && !self.busy {
             self.busy = true;
-            self.write_remaining = WRITE_CYCLES;
+            self.write_remaining = self.write_cycles;
             self.master_enable = false;
             self.master_enable_remaining = 0;
         }

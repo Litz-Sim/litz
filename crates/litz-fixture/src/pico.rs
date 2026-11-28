@@ -34,6 +34,12 @@ pub const APP_CODE: u32 = APP_ADDR + 8;
 pub const CPU_HZ: u32 = 125_000_000;
 
 const UART0_BASE: u32 = 0x4003_4000;
+/// IO_BANK0: one 8-byte window per pin, the status word first and the
+/// function select after it.
+const IO_BANK0_BASE: u32 = 0x4001_4000;
+/// Function selects: UART0's transmit signal, and SIO.
+const FUNCSEL_UART: u32 = 2;
+const FUNCSEL_SIO: u32 = 5;
 const SIO_OUT_SET: u32 = 0xd000_0014;
 const SIO_OUT_CLR: u32 = 0xd000_0018;
 const SIO_OE_SET: u32 = 0xd000_0024;
@@ -76,6 +82,16 @@ pub fn blink(gpio: u8, period_ms: u32) -> Vec<u8> {
 
     let mut t = Thumb::new();
     t.push(0x00f0); // r4-r7, lr
+    // IO_BANK0: GP0 carries UART0's transmitter and the blinking pin belongs
+    // to SIO, the routing `gpio_set_function` performs. A pin the mux has not
+    // handed to a block stays on its reset function and drives nothing.
+    t.ldr_const(0, IO_BANK0_BASE + 0x004);
+    t.ldr_const(1, FUNCSEL_UART);
+    t.str(1, 0, 0);
+    t.ldr_const(0, IO_BANK0_BASE + 0x004 + 8 * u32::from(gpio));
+    t.ldr_const(1, FUNCSEL_SIO);
+    t.str(1, 0, 0);
+
     // SIO: make the pin an output.
     t.ldr_const(5, SIO_OE_SET);
     t.ldr_const(7, mask);

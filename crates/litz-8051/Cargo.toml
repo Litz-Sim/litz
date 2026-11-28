@@ -1,0 +1,19 @@
+[package]
+name = "litz-8051"
+description = "A pure-Rust MCS-51 (8051) interpreter for Litz: the 8051 core, its SFRs, timers, UART and interrupts, and an STC89C52RC board backend."
+keywords = ["simulator", "emulator", "8051", "mcs-51", "embedded"]
+categories = ["emulators", "embedded"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+litz-board = { workspace = true }
+litz-core = { workspace = true }
+
+[dev-dependencies]
+litz-catalog.workspace = true
+litz-diagram.workspace = true

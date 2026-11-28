@@ -249,8 +249,8 @@ pub mod abi {
     /// `rom`, `boot` (the second-stage bootloader) and `ptable` (the partition
     /// table) may each be absent by passing `(0, 0)`; the application is required.
     /// The backend is chosen from the board the diagram names, so every
-    /// builtin chip boots the same way: the ESP32 family, the ATmega328P and
-    /// the RP2040.
+    /// builtin chip boots the same way: the ESP32 family, the AVR parts, the
+    /// RP2040, the STC89C52RC and the CH32V003.
     ///
     /// With a bootloader and partition table the images are placed at the
     /// chip's own offsets and the bootloader runs; without them the

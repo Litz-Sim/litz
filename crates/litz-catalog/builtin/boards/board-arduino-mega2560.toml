@@ -1,0 +1,371 @@
+[board]
+id = "board-arduino-mega2560"
+name = "Arduino Mega 2560"
+version = "1.0.0"
+description = "ATmega2560 at 16 MHz, 256 KiB flash, Mega header (D0-D53, A0-A15)"
+chip = "atmega2560"
+flash_size = "256KB"
+psram = false
+schematic = "board-arduino-mega2560.onboard.json"
+
+[[pins]]
+name = "D0"
+gpio = 32
+label = "RX0"
+functions = ["serial"]
+
+[[pins]]
+name = "D1"
+gpio = 33
+label = "TX0"
+functions = ["serial"]
+
+[[pins]]
+name = "D2"
+gpio = 36
+functions = ["interrupt"]
+
+[[pins]]
+name = "D3"
+gpio = 37
+functions = ["interrupt", "pwm"]
+
+[[pins]]
+name = "D4"
+gpio = 53
+label = "OC0B"
+functions = ["pwm"]
+
+[[pins]]
+name = "D5"
+gpio = 35
+label = "OC3A"
+functions = ["pwm"]
+
+[[pins]]
+name = "D6"
+gpio = 59
+label = "OC4A"
+functions = ["pwm"]
+
+[[pins]]
+name = "D7"
+gpio = 60
+label = "OC4B"
+functions = ["pwm"]
+
+[[pins]]
+name = "D8"
+gpio = 61
+label = "OC4C"
+functions = ["pwm"]
+
+[[pins]]
+name = "D9"
+gpio = 62
+label = "OC2B"
+functions = ["pwm"]
+
+[[pins]]
+name = "D10"
+gpio = 12
+label = "SS/OC2A"
+functions = ["spi", "pwm"]
+
+[[pins]]
+name = "D11"
+gpio = 13
+label = "MOSI/OC1A"
+functions = ["spi", "pwm"]
+
+[[pins]]
+name = "D12"
+gpio = 14
+label = "MISO/OC1B"
+functions = ["spi", "pwm"]
+
+[[pins]]
+name = "D13"
+gpio = 15
+label = "SCK/OC0A/LED"
+functions = ["spi", "pwm"]
+
+[[pins]]
+name = "D14"
+gpio = 65
+label = "TX3"
+functions = ["serial"]
+
+[[pins]]
+name = "D15"
+gpio = 64
+label = "RX3"
+functions = ["serial"]
+
+[[pins]]
+name = "D16"
+gpio = 57
+label = "TX2"
+functions = ["serial"]
+
+[[pins]]
+name = "D17"
+gpio = 56
+label = "RX2"
+functions = ["serial"]
+
+[[pins]]
+name = "D18"
+gpio = 27
+label = "TX1/INT3"
+functions = ["serial", "interrupt"]
+
+[[pins]]
+name = "D19"
+gpio = 26
+label = "RX1/INT2"
+functions = ["serial", "interrupt"]
+
+[[pins]]
+name = "D20"
+gpio = 25
+label = "SDA/INT1"
+functions = ["i2c", "interrupt"]
+
+[[pins]]
+name = "D21"
+gpio = 24
+label = "SCL/INT0"
+functions = ["i2c", "interrupt"]
+
+[[pins]]
+name = "D22"
+gpio = 0
+
+[[pins]]
+name = "D23"
+gpio = 1
+
+[[pins]]
+name = "D24"
+gpio = 2
+
+[[pins]]
+name = "D25"
+gpio = 3
+
+[[pins]]
+name = "D26"
+gpio = 4
+
+[[pins]]
+name = "D27"
+gpio = 5
+
+[[pins]]
+name = "D28"
+gpio = 6
+
+[[pins]]
+name = "D29"
+gpio = 7
+
+[[pins]]
+name = "D30"
+gpio = 23
+
+[[pins]]
+name = "D31"
+gpio = 22
+
+[[pins]]
+name = "D32"
+gpio = 21
+
+[[pins]]
+name = "D33"
+gpio = 20
+
+[[pins]]
+name = "D34"
+gpio = 19
+
+[[pins]]
+name = "D35"
+gpio = 18
+
+[[pins]]
+name = "D36"
+gpio = 17
+
+[[pins]]
+name = "D37"
+gpio = 16
+
+[[pins]]
+name = "D38"
+gpio = 31
+
+[[pins]]
+name = "D39"
+gpio = 50
+
+[[pins]]
+name = "D40"
+gpio = 49
+
+[[pins]]
+name = "D41"
+gpio = 48
+
+[[pins]]
+name = "D42"
+gpio = 87
+
+[[pins]]
+name = "D43"
+gpio = 86
+
+[[pins]]
+name = "D44"
+gpio = 85
+label = "OC5C"
+functions = ["pwm"]
+
+[[pins]]
+name = "D45"
+gpio = 84
+label = "OC5B"
+functions = ["pwm"]
+
+[[pins]]
+name = "D46"
+gpio = 83
+label = "OC5A"
+functions = ["pwm"]
+
+[[pins]]
+name = "D47"
+gpio = 82
+
+[[pins]]
+name = "D48"
+gpio = 81
+
+[[pins]]
+name = "D49"
+gpio = 80
+
+[[pins]]
+name = "D50"
+gpio = 11
+label = "MISO"
+functions = ["spi"]
+
+[[pins]]
+name = "D51"
+gpio = 10
+label = "MOSI"
+functions = ["spi"]
+
+[[pins]]
+name = "D52"
+gpio = 9
+label = "SCK"
+functions = ["spi"]
+
+[[pins]]
+name = "D53"
+gpio = 8
+label = "SS"
+functions = ["spi"]
+
+[[pins]]
+name = "A0"
+gpio = 40
+functions = ["adc"]
+
+[[pins]]
+name = "A1"
+gpio = 41
+functions = ["adc"]
+
+[[pins]]
+name = "A2"
+gpio = 42
+functions = ["adc"]
+
+[[pins]]
+name = "A3"
+gpio = 43
+functions = ["adc"]
+
+[[pins]]
+name = "A4"
+gpio = 44
+functions = ["adc"]
+
+[[pins]]
+name = "A5"
+gpio = 45
+functions = ["adc"]
+
+[[pins]]
+name = "A6"
+gpio = 46
+functions = ["adc"]
+
+[[pins]]
+name = "A7"
+gpio = 47
+functions = ["adc"]
+
+[[pins]]
+name = "A8"
+gpio = 72
+functions = ["adc"]
+
+[[pins]]
+name = "A9"
+gpio = 73
+functions = ["adc"]
+
+[[pins]]
+name = "A10"
+gpio = 74
+functions = ["adc"]
+
+[[pins]]
+name = "A11"
+gpio = 75
+functions = ["adc"]
+
+[[pins]]
+name = "A12"
+gpio = 76
+functions = ["adc"]
+
+[[pins]]
+name = "A13"
+gpio = 77
+functions = ["adc"]
+
+[[pins]]
+name = "A14"
+gpio = 78
+functions = ["adc"]
+
+[[pins]]
+name = "A15"
+gpio = 79
+functions = ["adc"]
+
+[[pins]]
+name = "5V"
+fixed = "5v"
+label = "5 V rail"
+
+[[pins]]
+name = "GND"
+fixed = "gnd"
+repeat = 3

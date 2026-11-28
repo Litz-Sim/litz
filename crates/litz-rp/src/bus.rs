@@ -95,6 +95,10 @@ pub struct Memory {
     pub sram: Vec<u8>,
     pub periph: Peripherals,
     flash_control: FlashControl,
+    /// Which core the bus is serving right now. The SIO block answers
+    /// `CPUID` and the FIFOs differently per core, and `PPB_BASE` is each
+    /// core's own NVIC, SysTick and vector table.
+    pub active_core: u8,
 }
 
 impl Default for Memory {
@@ -342,6 +346,7 @@ impl Memory {
             sram: vec![0; SRAM_SIZE],
             periph: Peripherals::new(),
             flash_control: FlashControl::default(),
+            active_core: 0,
         }
     }
 
@@ -572,10 +577,17 @@ impl Memory {
             ]));
         }
         if (SIO_BASE..SIO_BASE + 0x1000).contains(&addr) {
-            return Ok(self.periph.sio.read(addr - SIO_BASE));
+            let core = usize::from(self.active_core);
+            return Ok(self.periph.sio.read(addr - SIO_BASE, core));
         }
         if (SCS_BASE..SCS_BASE + 0x1000).contains(&addr) {
-            return Ok(self.periph.ppb.read(addr - SCS_BASE));
+            let offset = addr - SCS_BASE;
+            let ppb = if self.active_core == 1 {
+                &mut self.periph.ppb1
+            } else {
+                &mut self.periph.ppb
+            };
+            return Ok(ppb.read(offset));
         }
         if (PPB_BASE..PPB_BASE + 0x10_0000).contains(&addr) {
             // ITM, DWT and the flash patch unit: the model has none of them,
@@ -611,11 +623,18 @@ impl Memory {
             return Ok(());
         }
         if (SIO_BASE..SIO_BASE + 0x1000).contains(&addr) {
-            self.periph.sio.write(addr - SIO_BASE, value);
+            let core = usize::from(self.active_core);
+            self.periph.sio.write(addr - SIO_BASE, value, core);
             return Ok(());
         }
         if (SCS_BASE..SCS_BASE + 0x1000).contains(&addr) {
-            self.periph.ppb.write(addr - SCS_BASE, value);
+            let offset = addr - SCS_BASE;
+            let ppb = if self.active_core == 1 {
+                &mut self.periph.ppb1
+            } else {
+                &mut self.periph.ppb
+            };
+            ppb.write(offset, value);
             return Ok(());
         }
         if (PPB_BASE..PPB_BASE + 0x10_0000).contains(&addr) {
@@ -718,6 +737,10 @@ impl crate::peripherals::dma::DmaBus for Memory {
             Size::Word => <Self as Bus>::write32(self, addr, value),
         };
         result.is_ok()
+    }
+
+    fn dreq_ready(&mut self, sel: u32) -> bool {
+        self.periph.dreq_ready(sel)
     }
 }
 

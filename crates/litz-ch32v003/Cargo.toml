@@ -1,0 +1,19 @@
+[package]
+name = "litz-ch32v003"
+description = "A pure-Rust CH32V003 interpreter for Litz: the QingKe V2A RISC-V core, its PFIC, timers, USART, I2C, SPI and ADC, and a board backend."
+keywords = ["simulator", "emulator", "riscv", "ch32v003", "embedded"]
+categories = ["emulators", "embedded"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+litz-board = { workspace = true }
+litz-core = { workspace = true }
+
+[dev-dependencies]
+litz-catalog = { workspace = true }
+litz-diagram = { workspace = true }

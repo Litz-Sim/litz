@@ -67,7 +67,7 @@ Builds one chip per development board named in `diagram.json` and returns a `Ses
 
 The wrapper validates the arguments before it crosses into the module. A diagram that is not a non-empty string throws ``LitzError("createSession needs the diagram.json text as `diagram`")``. An absent or empty application image throws ``LitzError("createSession needs the application image as `app`")``. A `flashSize` that is not a positive integer throws ``LitzError("`flashSize` must be a positive whole number of bytes")``. A `mac` that is not a string throws ``LitzError("`mac` must be a string such as 24:0a:c4:12:34:56")``. A `manifests` value that is not an array of strings and `{ toml, schematic }` objects throws ``LitzError("`manifests` must be an array of TOML texts or {toml, schematic}")``. A `parts` or `boards` value that is not a function throws `LitzError("the factory for NAME must be a function")`.
 
-The module adds its own checks and returns its message through `LitzError`. A diagram with no board reports `the diagram has no development board`; a diagram whose board count differs from `boardImages` reports how many of each were supplied. A bootloader without a partition table, or the reverse, reports `bootloader and partition table must be supplied together`. An Xtensa board reports that the chip runs on Xtensa and that the browser module cannot execute its JIT, and names the RISC-V, ATmega328P and RP2040 alternatives. An application image of length zero is also rejected by the module.
+The module adds its own checks and returns its message through `LitzError`. A diagram with no board reports `the diagram has no development board`; a diagram whose board count differs from `boardImages` reports how many of each were supplied. A bootloader without a partition table, or the reverse, reports `bootloader and partition table must be supplied together`. An Xtensa board reports that the chip runs on Xtensa, that the browser module cannot execute its JIT, and suggests a RISC-V or 8/16-bit part or the CLI instead. An application image of length zero is also rejected by the module.
 
 Factories are registered for the duration of the call and restored afterward, so two sessions can use different factories for the same module name. The factory of a part is called once per part instance while the board is built. The session keeps each returned object and drops it through the bridge when the session closes. A factory that throws, returns a non-object, or is missing for a module the diagram names causes `createSession` to throw a `LitzError` that includes the module name, such as `the host has no runtime for module test-inverter.wasm`.
 
@@ -351,7 +351,7 @@ The state codes are fixed by the ABI: `0` none, `1` LED off, `2` LED on, `3` but
 
 | Field | Type | Meaning |
 |---|---|---|
-| `name` | `string` | The backend: `esp32c3`, `esp32c6`, `esp32p4`, `esp32s31`, `atmega328p`, `rp2040`, or the name a custom chip reports. |
+| `name` | `string` | The backend: `esp32c3`, `esp32c6`, `esp32p4`, `esp32s31`, `atmega328p`, `atmega2560`, `atmega32u4`, `attiny85`, `rp2040`, `stc89c52`, `ch32v003`, or the name a custom chip reports. |
 | `cpuHz` | `number` | The clock in hertz. |
 | `flash` | `ChipFlash` | Where the images sit in flash. |
 

@@ -310,12 +310,18 @@ impl Rp2040 {
     fn publish_outputs(&mut self) {
         let Some(board) = &self.board else { return };
         let outputs = self.machine.take_outputs();
+        let releases = self.machine.take_releases();
         let duties = self.machine.pwm_duties();
-        if outputs.is_empty() && duties.is_empty() && self.pwm.is_empty() {
+        if outputs.is_empty() && releases.is_empty() && duties.is_empty() && self.pwm.is_empty() {
             return;
         }
         let now = self.now_ns();
         let mut board = board.borrow_mut();
+        // A pin that stopped being driven goes high-impedance first, so a
+        // pin that changed owner settles once, into its new drive.
+        for gpio in releases {
+            board.set_chip_output_on(self.board_index, gpio, Drive::HIGH_Z, now);
+        }
         for (gpio, high) in outputs {
             let level = if high { Level::High } else { Level::Low };
             board.set_chip_output_on(self.board_index, gpio, Drive::strong(level), now);
@@ -579,6 +585,16 @@ impl Chip for Rp2040 {
             if index % 4 == 3 {
                 text.push('\n');
             }
+        }
+        if self.machine.core1_started() {
+            let second: &Core = &self.machine.cpu1;
+            text.push_str(&format!(
+                "core1 pc={:#010x} sp={:#010x} lr={:#010x} xpsr={:#010x}\n",
+                second.pc(),
+                second.sp(),
+                second.r[14],
+                second.xpsr
+            ));
         }
         text
     }

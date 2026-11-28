@@ -21,6 +21,7 @@ pub mod clocks;
 pub mod dma;
 pub mod i2c;
 pub mod io;
+pub mod pio;
 pub mod ppb;
 pub mod pwm;
 pub mod resets;
@@ -38,6 +39,7 @@ pub use clocks::Clocks;
 pub use dma::Dma;
 pub use i2c::I2c;
 pub use io::{IoBank, PadsBank};
+pub use pio::Pio;
 pub use ppb::Ppb;
 pub use pwm::Pwm;
 pub use resets::Resets;
@@ -131,12 +133,18 @@ pub struct Peripherals {
     pub spi: [Spi; 2],
     pub i2c: [I2c; 2],
     pub pwm: Pwm,
+    pub pio: [Pio; 2],
     pub adc: Adc,
     pub dma: Dma,
     pub xip_ctrl: XipCtrl,
     pub xip_ssi: XipSsi,
     pub usb: Usb,
+    /// The core-0 processor block: NVIC, SysTick, VTOR.
     pub ppb: Ppb,
+    /// Core 1's own copy of the same block. The RP2040 gives each core a
+    /// private NVIC and SysTick, and the bus routes `PPB_BASE` by the core
+    /// that is executing.
+    pub ppb1: Ppb,
     /// SYSINFO, which nothing writes.
     pub sysinfo: RegisterFile,
     /// SYSCFG: the processor sync bypasses, which are storage in this model.
@@ -190,12 +198,14 @@ impl Peripherals {
             spi: [Spi::new(), Spi::new()],
             i2c: [I2c::new(), I2c::new()],
             pwm: Pwm::new(),
+            pio: [Pio::new(), Pio::new()],
             adc: Adc::new(),
             dma: Dma::new(),
             xip_ctrl: XipCtrl::new(),
             xip_ssi: XipSsi::new(),
             usb: Usb::new(),
             ppb: Ppb::new(),
+            ppb1: Ppb::new(),
             sysinfo: RegisterFile::new(0x100 / 4),
             syscfg: RegisterFile::new(0x100 / 4),
             psm: RegisterFile::new(0x100 / 4),
@@ -208,6 +218,34 @@ impl Peripherals {
             vreg: RegisterFile::new(0x100 / 4),
             tbman: RegisterFile::new(0x100 / 4),
             unmapped: RegisterFile::new(0x1000 / 4),
+        }
+    }
+
+    /// Whether DMA trigger `sel` has an event waiting.
+    ///
+    /// The sources whose model keeps a queue answer from it: a PIO FIFO, the
+    /// UART receiver. A transmit-side trigger reads ready while the model's
+    /// byte queue has room, which for these blocks is always. The sources
+    /// whose model has no queue of its own — timer alarms, PWM wraps, the bus
+    /// controllers and the ADC — report ready, which makes a channel paced by
+    /// them transfer at the engine's rate.
+    pub fn dreq_ready(&self, sel: u32) -> bool {
+        match sel {
+            13 => !self.uart[0].rx.is_empty(),
+            15 => !self.uart[1].rx.is_empty(),
+            // Eight triggers per PIO block: transmit and receive for each of
+            // the four state machines, PIO0 first.
+            16..=31 => {
+                let block = ((sel - 16) / 8) as usize;
+                let rest = (sel - 16) % 8;
+                let sm = (rest / 2) as usize;
+                if rest % 2 == 0 {
+                    self.pio[block].tx_ready(sm)
+                } else {
+                    self.pio[block].rx_ready(sm)
+                }
+            }
+            _ => true,
         }
     }
 
@@ -308,7 +346,8 @@ impl Peripherals {
             Block::Ticks => self.ticks.read(offset),
             Block::Dma => self.dma.read(offset),
             Block::UsbCtrl => self.usb.read(offset),
-            Block::Pio0 | Block::Pio1 => self.unmapped.read(offset),
+            Block::Pio0 => self.pio[0].read(offset),
+            Block::Pio1 => self.pio[1].read(offset),
             Block::XipCtrl => self.xip_ctrl.read(offset),
             Block::XipSsi => self.xip_ssi.read(offset),
         }
@@ -367,7 +406,8 @@ impl Peripherals {
             Block::XipCtrl => self.xip_ctrl.write(offset, value),
             Block::XipSsi => self.xip_ssi.write(offset, value),
             Block::UsbCtrl => {}
-            Block::Pio0 | Block::Pio1 => self.unmapped.write(offset, value),
+            Block::Pio0 => self.pio[0].write(offset, value),
+            Block::Pio1 => self.pio[1].write(offset, value),
             // Read-only blocks: writes are dropped, which is what the chip
             // does to a write into a status register it does not implement.
             Block::Sysinfo | Block::IoQspi | Block::PadsQspi => {}
