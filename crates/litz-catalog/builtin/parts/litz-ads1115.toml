@@ -39,6 +39,22 @@ default = 0.0
 type = "float"
 default = 0.0
 
+[pins.A0]
+kind = "analog-in"
+label = "channel 0 input"
+
+[pins.A1]
+kind = "analog-in"
+label = "channel 1 input"
+
+[pins.A2]
+kind = "analog-in"
+label = "channel 2 input"
+
+[pins.A3]
+kind = "analog-in"
+label = "channel 3 input"
+
 [buses.i2c0]
 address = 0x48
 

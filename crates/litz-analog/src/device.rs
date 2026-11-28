@@ -17,6 +17,12 @@ const MAX_EXP_ARG: f64 = 60.0;
 
 const SQRT_2: f64 = std::f64::consts::SQRT_2;
 
+/// The reverse current a breakdown voltage is quoted at. A zener datasheet
+/// states `Vz` at a test current, usually 5 mA; the model puts the same
+/// convention in the junction so `DiodeModel::zener(5.1)` drops 5.1 V at
+/// 5 mA and a few tens of millivolts more or less around it.
+const ZENER_TEST_AMPS: f64 = 5e-3;
+
 /// Applies SPICE's junction voltage limiting.
 ///
 /// `v_new` is the voltage the linear solve proposed, `v_old` the value used at
@@ -54,15 +60,35 @@ pub(crate) struct Junction {
 }
 
 /// Evaluates a diode junction at `v_new`, limited from `v_old`.
+///
+/// A model with a breakdown voltage also evaluates the reverse junction: the
+/// same exponential, mirrored around `-Vz`, carries current once the anode
+/// falls that far below the cathode. The two junctions never conduct together,
+/// and summing their currents and conductances is the piecewise-linear form
+/// Newton needs.
 pub(crate) fn diode(v_new: f64, v_old: f64, model: &DiodeModel) -> Junction {
     let vt = model.emission_coefficient * THERMAL_VOLTAGE;
     let is = model.saturation_current;
     let voltage = limit_junction(v_new, v_old, vt, is);
     let e = (voltage / vt).clamp(-MAX_EXP_ARG, MAX_EXP_ARG).exp();
+    let mut current = is * (e - 1.0);
+    let mut conductance = is / vt * e;
+    if let Some(breakdown) = model.breakdown_volts {
+        // On the mirrored axis the reverse junction is an ordinary forward
+        // junction centred on `-Vz`, so it gets the same step limiting. Its
+        // saturation current is fixed so the quoted voltage is the drop at
+        // the test current, which is the convention a zener is sold by.
+        let reverse_new = -(voltage + breakdown);
+        let reverse_old = -(v_old + breakdown);
+        let reverse = limit_junction(reverse_new, reverse_old, vt, ZENER_TEST_AMPS);
+        let eb = (reverse / vt).clamp(-MAX_EXP_ARG, MAX_EXP_ARG).exp();
+        current -= ZENER_TEST_AMPS * eb;
+        conductance += ZENER_TEST_AMPS / vt * eb;
+    }
     Junction {
         voltage,
-        current: is * (e - 1.0),
-        conductance: is / vt * e,
+        current,
+        conductance,
     }
 }
 

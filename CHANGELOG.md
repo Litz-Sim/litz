@@ -6,6 +6,15 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-28
+
+### Added
+
+- Zener breakdown in the analog solver: `DiodeModel::breakdown_volts` (and `DiodeModel::zener`) adds a reverse junction whose `Vz` is quoted at a 5 mA test current. `litz-zener` now reaches the netlist with its `vz` instead of blocking like a rectifier, so a zener reference or clamp on a diagram solves to the voltage a hand calculation predicts.
+- `litz-voltage-regulator` is modelled in the netlist: a source from `VO` to `GND` at 5 V (7805), 12 V (7812), −5 V (7905) or the `voltage` attribute (LM317, also movable by a host while the board runs). A regulator whose input is within its dropout folds to `VI` minus 2 V (1.5 V for an LM317), so a 7805 on a 6 V supply reports about 4 V rather than an output its pass element cannot make.
+- A DAC on the bus drives the analog netlist: `Board::analog_sources` reads the MCP4725's latched code and stamps `code/4095 × vref` on `VOUT`, with `vref` taken from the rail on `VCC` when there is one. An I2C write to the DAC drops the cached operating point.
+- An ADC on the bus reads the netlist: ADS1115/ADS1015 (`A0..A3`, newly added pins) and MCP3008 (`CH0..CH7`) conversions take the solved voltage on the channel pin before the transaction; a channel whose pin is unwired keeps its manifest attribute. `Ads111x::set_inputs` and `Mcp3008::set_channels` are the entry points, and both devices now support mutable downcasting.
+
 ## [0.6.3] - 2026-11-25
 
 ### Added

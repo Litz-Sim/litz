@@ -806,3 +806,276 @@ fn a_multimeter_in_series_reads_the_current() {
         "the meter read {amps} A, expected about {expected} A"
     );
 }
+
+// ------------------------------------------------------------ regulators
+
+/// A 7805 from a 12 V supply holds 5 V into a 100 Ω load, and the source
+/// reports the current it delivers.
+#[test]
+fn a_7805_regulates_twelve_volts_down_to_five() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"ps","type":"litz-power-supply","attrs":{"voltage":12.0}}"#,
+            r#"{"id":"u1","type":"litz-voltage-regulator","attrs":{"variant":"7805"}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"100"}}"#,
+        ],
+        &[
+            r#"["ps:+","u1:VI","",[]]"#,
+            r#"["ps:-","esp:GND.1","",[]]"#,
+            r#"["u1:GND","esp:GND.1","",[]]"#,
+            r#"["u1:VO","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let out = board
+        .node_voltage("u1", "VO")
+        .expect("the output is solved");
+    assert!((out - 5.0).abs() < 1e-6, "the regulator held {out} V");
+    let amps = board
+        .node_current("u1")
+        .expect("the pass element has a current");
+    assert!(
+        (amps + 0.05).abs() < 1e-6,
+        "the regulator delivered {} A into 100 ohms",
+        -amps
+    );
+}
+
+/// With only 6 V in, a 7805 cannot hold 5 V: the output sits one dropout
+/// below the input instead of floating to 5 V that no pass element can make.
+#[test]
+fn a_7805_in_dropout_follows_its_input() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"ps","type":"litz-power-supply","attrs":{"voltage":6.0}}"#,
+            r#"{"id":"u1","type":"litz-voltage-regulator","attrs":{"variant":"7805"}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"100"}}"#,
+        ],
+        &[
+            r#"["ps:+","u1:VI","",[]]"#,
+            r#"["ps:-","esp:GND.1","",[]]"#,
+            r#"["u1:GND","esp:GND.1","",[]]"#,
+            r#"["u1:VO","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let out = board
+        .node_voltage("u1", "VO")
+        .expect("the output is solved");
+    assert!(
+        (out - 4.0).abs() < 0.05,
+        "a 7805 with 6 V in should drop out to about 4 V, held {out} V"
+    );
+    assert!(
+        out < 4.9,
+        "the regulator claimed {out} V out of a 6 V input"
+    );
+}
+
+/// An LM317 follows its dial, and a host can move the dial while the board
+/// runs.
+#[test]
+fn an_lm317_regulates_to_its_setting_and_can_be_redialled() {
+    let mut under_test = board(
+        &[
+            BOARD,
+            r#"{"id":"ps","type":"litz-power-supply","attrs":{"voltage":12.0}}"#,
+            r#"{"id":"u1","type":"litz-voltage-regulator","attrs":{"variant":"LM317","voltage":7.5}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"100"}}"#,
+        ],
+        &[
+            r#"["ps:+","u1:VI","",[]]"#,
+            r#"["ps:-","esp:GND.1","",[]]"#,
+            r#"["u1:GND","esp:GND.1","",[]]"#,
+            r#"["u1:VO","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    under_test.set_analog(true);
+
+    let out = under_test
+        .node_voltage("u1", "VO")
+        .expect("the output is solved");
+    assert!((out - 7.5).abs() < 1e-6, "the LM317 held {out} V");
+
+    assert!(under_test.set_named_control("u1", "voltage", "9.0", 0));
+    let redialled = under_test
+        .node_voltage("u1", "VO")
+        .expect("the output is solved");
+    assert!(
+        (redialled - 9.0).abs() < 1e-6,
+        "after dialling 9 V the regulator held {redialled} V"
+    );
+    // The fixed variants do not have that dial.
+    let mut fixed = board(
+        &[
+            BOARD,
+            r#"{"id":"ps","type":"litz-power-supply","attrs":{"voltage":12.0}}"#,
+            r#"{"id":"u1","type":"litz-voltage-regulator","attrs":{"variant":"7805"}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"100"}}"#,
+        ],
+        &[
+            r#"["ps:+","u1:VI","",[]]"#,
+            r#"["ps:-","esp:GND.1","",[]]"#,
+            r#"["u1:GND","esp:GND.1","",[]]"#,
+            r#"["u1:VO","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    assert!(!fixed.set_named_control("u1", "voltage", "9.0", 0));
+}
+
+/// A 5.1 V zener across a 10 V source behind 1 kΩ sets the node at its
+/// breakdown instead of leaving it at the supply.
+#[test]
+fn a_zener_sets_a_reference_on_the_board() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"ps","type":"litz-power-supply","attrs":{"voltage":10.0}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"1k"}}"#,
+            r#"{"id":"z1","type":"litz-zener","attrs":{"vz":5.1}}"#,
+        ],
+        &[
+            r#"["ps:+","r1:1","",[]]"#,
+            r#"["ps:-","esp:GND.1","",[]]"#,
+            r#"["r1:2","z1:C","",[]]"#,
+            r#"["z1:A","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let clamped = board.node_voltage("z1", "C").expect("the node is solved");
+    assert!(
+        (5.0..5.2).contains(&clamped),
+        "the zener held {clamped} V, expected about 5.1 V"
+    );
+    let through = board.node_current("z1").expect("the zener carries current");
+    assert!(
+        (-5.0e-3..-4.0e-3).contains(&through),
+        "the zener carried {through:e} A"
+    );
+}
+
+// ------------------------------------------------------------ DAC and ADC
+
+/// The DAC's output pin is a source in the analog view at the code the
+/// firmware wrote, scaled to the rail its VCC is on.
+#[test]
+fn a_dac_on_the_bus_sources_its_code() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"dac","type":"litz-mcp4725","attrs":{"value":0}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"1k"}}"#,
+        ],
+        &[
+            r#"["esp:3V3","dac:VCC","",[]]"#,
+            r#"["esp:GND.1","dac:GND","",[]]"#,
+            r#"["esp:GPIO8","dac:SDA","",[]]"#,
+            r#"["esp:GPIO9","dac:SCL","",[]]"#,
+            r#"["dac:VOUT","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    // Fast write of 2048: half of the 12-bit range.
+    assert_eq!(
+        board.i2c_write_read(0, 0, 0x60, &[0x08, 0x00], 0),
+        Some(vec![])
+    );
+    let out = board
+        .node_voltage("dac", "VOUT")
+        .expect("the output is solved");
+    assert!(
+        (out - 1.65).abs() < 0.01,
+        "code 2048 on a 3.3 V reference gave {out} V"
+    );
+    // Halving the code halves the output.
+    assert_eq!(
+        board.i2c_write_read(0, 0, 0x60, &[0x04, 0x00], 0),
+        Some(vec![])
+    );
+    let out = board
+        .node_voltage("dac", "VOUT")
+        .expect("the output is solved");
+    assert!(
+        (out - 0.825).abs() < 0.01,
+        "code 1024 on a 3.3 V reference gave {out} V"
+    );
+}
+
+/// An ADS1115 conversion reads the voltage on its channel pin, not a manifest
+/// number: the same diagram that would report `a0` reports the divider.
+#[test]
+fn an_ads1115_converts_the_voltage_its_input_pin_carries() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"10k"}}"#,
+            r#"{"id":"r2","type":"litz-resistor","attrs":{"value":"10k"}}"#,
+            r#"{"id":"adc","type":"litz-ads1115","attrs":{}}"#,
+        ],
+        &[
+            r#"["esp:3V3","r1:1","",[]]"#,
+            r#"["r1:2","r2:1","",[]]"#,
+            r#"["r2:2","esp:GND.1","",[]]"#,
+            r#"["r1:2","adc:A0","",[]]"#,
+            r#"["esp:3V3","adc:VDD","",[]]"#,
+            r#"["esp:GND.1","adc:GND","",[]]"#,
+            r#"["esp:GPIO8","adc:SDA","",[]]"#,
+            r#"["esp:GPIO9","adc:SCL","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    // AIN0 single-ended, ±4.096 V, single shot, 128 SPS.
+    board.i2c_write_read(0, 0, 0x48, &[0x01, 0xC3, 0x83], 0);
+    let raw = board
+        .i2c_write_read(0, 0, 0x48, &[0x00], 2)
+        .expect("the ADC answers");
+    let code = i16::from_be_bytes([raw[0], raw[1]]);
+    let expected = (32767.0_f64 * 1.65 / 4.096).round() as i16;
+    assert!(
+        (code - expected).abs() <= 1,
+        "the ADC converted {code}, expected {expected}"
+    );
+}
+
+/// The SPI counterpart: an MCP3008 conversion reads its `CHn` pin.
+#[test]
+fn an_mcp3008_converts_the_voltage_its_channel_pin_carries() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"10k"}}"#,
+            r#"{"id":"r2","type":"litz-resistor","attrs":{"value":"10k"}}"#,
+            r#"{"id":"adc","type":"litz-mcp3008","attrs":{}}"#,
+        ],
+        &[
+            r#"["esp:GPIO7","adc:CS","",[]]"#,
+            r#"["esp:GPIO8","adc:CLK","",[]]"#,
+            r#"["esp:GPIO9","adc:DOUT","",[]]"#,
+            r#"["esp:GPIO10","adc:DIN","",[]]"#,
+            r#"["esp:3V3","adc:VDD","",[]]"#,
+            r#"["esp:3V3","adc:VREF","",[]]"#,
+            r#"["esp:GND.1","adc:DGND","",[]]"#,
+            r#"["esp:3V3","r1:1","",[]]"#,
+            r#"["r1:2","r2:1","",[]]"#,
+            r#"["r2:2","esp:GND.1","",[]]"#,
+            r#"["r1:2","adc:CH1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let rx = board.spi_transfer(0, 0, 7, &[0x01, 0x90, 0x00], 3);
+    let raw = (u16::from(rx[1] & 0x03) << 8) | u16::from(rx[2]);
+    assert_eq!(raw, 512, "the divider midpoint on a 3.3 V reference");
+}

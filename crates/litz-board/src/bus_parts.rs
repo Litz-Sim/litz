@@ -787,6 +787,12 @@ impl Mcp3008 {
         self.channels.get(channel).copied()
     }
 
+    /// Replace the channel voltages the next conversion reads. The runtime
+    /// feeds these from the analog solve when a conversion starts.
+    pub fn set_channels(&mut self, channels: [f32; 8]) {
+        self.channels = channels;
+    }
+
     /// The 10-bit conversion result for one channel.
     pub fn channel_raw(&self, channel: usize) -> u16 {
         let volts = self.channels.get(channel).copied().unwrap_or(0.0);
@@ -846,6 +852,10 @@ impl SpiDevice for Mcp3008 {
     }
 
     fn as_any(&self) -> Option<&dyn Any> {
+        Some(self)
+    }
+
+    fn as_any_mut(&mut self) -> Option<&mut dyn Any> {
         Some(self)
     }
 }

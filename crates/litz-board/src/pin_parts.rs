@@ -2046,16 +2046,19 @@ impl Part for PowerSupply {
 
 /// A three-terminal linear regulator (7805, 7812, 7905, LM317).
 ///
-/// The shell carries the part's nominal output voltage as read-back; the
-/// analog view does not model the regulator's pass transistor.
+/// The shell carries the part's nominal output voltage, which is also what the
+/// analog view regulates to; the drop-out behaviour lives in
+/// [`crate::analog`]. An LM317's output is adjustable, so its shell keeps the
+/// setting a host dials and the fixed variants ignore that control.
 pub struct VoltageRegulator {
     variant: String,
+    output: u16,
     output_volts: f32,
 }
 
 impl VoltageRegulator {
     pub fn build(part: &FlatPart) -> Result<Box<dyn Part>, BuildError> {
-        let _ = pins(part, ["VI", "GND", "VO"])?;
+        let [_, _, output] = pins(part, ["VI", "GND", "VO"])?;
         let variant = part
             .attrs
             .get("variant")
@@ -2064,11 +2067,12 @@ impl VoltageRegulator {
         let output_volts = match variant.trim() {
             "7812" => 12.0,
             "7905" => -5.0,
-            "LM317" => attr_f32(&part.attrs, "voltage", 5.0),
+            "LM317" => attr_f32(&part.attrs, "voltage", 5.0).clamp(1.25, 24.0),
             _ => 5.0,
         };
         Ok(Box::new(Self {
             variant,
+            output,
             output_volts,
         }))
     }
@@ -2081,6 +2085,10 @@ impl VoltageRegulator {
     pub fn output_volts(&self) -> f32 {
         self.output_volts
     }
+
+    fn adjustable(&self) -> bool {
+        self.variant.trim() == "LM317"
+    }
 }
 
 impl Part for VoltageRegulator {
@@ -2092,6 +2100,29 @@ impl Part for VoltageRegulator {
 
     fn state(&self) -> PartState {
         PartState::None
+    }
+
+    fn analog(&self, pin: PinId) -> Option<f32> {
+        (pin.0 == self.output).then_some(self.output_volts)
+    }
+
+    fn set_named_control(&mut self, name: &str, value: &str) -> bool {
+        if !self.adjustable() {
+            return false;
+        }
+        let Ok(value) = value.trim().parse::<f32>() else {
+            return false;
+        };
+        if !value.is_finite() {
+            return false;
+        }
+        match name {
+            "voltage" | "volts" => {
+                self.output_volts = value.clamp(1.25, 24.0);
+                true
+            }
+            _ => false,
+        }
     }
 }
 

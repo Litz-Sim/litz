@@ -29,4 +29,4 @@ default = 5.0
 
 [simulation]
 backend = "builtin"
-engine = "analog"
+engine = "voltage-regulator"

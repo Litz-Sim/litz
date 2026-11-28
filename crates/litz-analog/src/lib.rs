@@ -205,11 +205,18 @@ pub enum Error {
 
 /// A diode model.
 ///
-/// The junction follows the Shockley equation
+/// The forward junction follows the Shockley equation
 /// `I = Is·(exp(V/(n·Vt)) - 1)` with `Vt` = [`THERMAL_VOLTAGE`]. At `300 K` a
 /// silicon diode with `Is = 1e-14 A`, `n = 1` drops about 0.65 V at 1 mA; a
 /// visible LED is better modelled with a larger `n` and a much smaller `Is`
 /// (for example `Is = 1e-17`, `n = 2`, about 1.8 V at 20 mA).
+///
+/// [`DiodeModel::breakdown_volts`] adds a second, reverse junction so the same
+/// element can be a zener: once the cathode sits `Vz` above the anode, the
+/// diode conducts backwards with the same exponential knee instead of blocking
+/// forever. Without it the reverse current is the forward saturation current,
+/// which is what an ordinary rectifier does until it avalanches at a voltage
+/// far outside a board run.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DiodeModel {
     /// Saturation current `Is`, in amperes. Must be positive.
@@ -217,14 +224,19 @@ pub struct DiodeModel {
     /// Emission coefficient `n` (ideality factor). Must be positive; `1.0` is
     /// ideal silicon, `~2.0` fits an LED.
     pub emission_coefficient: f64,
+    /// Reverse breakdown voltage `Vz`, in volts, as a positive magnitude, at
+    /// a test current of 5 mA — the way a zener datasheet quotes it. The diode
+    /// conducts in reverse at this drop; `None` means no breakdown.
+    pub breakdown_volts: Option<f64>,
 }
 
 impl DiodeModel {
-    /// A small-signal silicon diode: `Is = 1e-14 A`, `n = 1`.
+    /// A small-signal silicon diode: `Is = 1e-14 A`, `n = 1`, no breakdown.
     pub const fn silicon() -> Self {
         Self {
             saturation_current: 1e-14,
             emission_coefficient: 1.0,
+            breakdown_volts: None,
         }
     }
 
@@ -233,6 +245,25 @@ impl DiodeModel {
         Self {
             saturation_current,
             emission_coefficient,
+            breakdown_volts: None,
+        }
+    }
+
+    /// A zener with the given breakdown voltage and `Is = 1e-14 A`, `n = 1`.
+    /// The reverse drop is `Vz` at a 5 mA test current.
+    pub const fn zener(breakdown_volts: f64) -> Self {
+        Self {
+            saturation_current: 1e-14,
+            emission_coefficient: 1.0,
+            breakdown_volts: Some(breakdown_volts),
+        }
+    }
+
+    /// The same diode with a reverse breakdown voltage `Vz`, in volts.
+    pub const fn with_breakdown(self, breakdown_volts: f64) -> Self {
+        Self {
+            breakdown_volts: Some(breakdown_volts),
+            ..self
         }
     }
 
@@ -242,6 +273,11 @@ impl DiodeModel {
         }
         if !positive_finite(self.emission_coefficient) {
             return Err("diode emission_coefficient must be positive and finite");
+        }
+        if let Some(breakdown) = self.breakdown_volts
+            && !positive_finite(breakdown)
+        {
+            return Err("diode breakdown_volts must be positive and finite when given");
         }
         Ok(())
     }

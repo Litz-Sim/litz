@@ -236,6 +236,13 @@ impl Ads111x {
         device
     }
 
+    /// Replace the channel voltages the next conversion reads. The runtime
+    /// feeds these from the analog solve when a conversion starts; a channel
+    /// with no wired pin keeps whatever the manifest gave it.
+    pub fn set_inputs(&mut self, inputs: [f32; 4]) {
+        self.inputs = inputs;
+    }
+
     pub fn conversion_raw(&self) -> u16 {
         self.conversion
     }
@@ -334,6 +341,9 @@ impl I2cDevice for Ads111x {
     }
 
     fn as_any(&self) -> Option<&dyn Any> {
+        Some(self)
+    }
+    fn as_any_mut(&mut self) -> Option<&mut dyn Any> {
         Some(self)
     }
 }

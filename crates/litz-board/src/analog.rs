@@ -82,6 +82,21 @@ const VOLTMETER_OHMS: f64 = 10_000_000.0;
 /// within a percent of a short against the loads a board run sees.
 const AMMETER_OHMS: f64 = 0.01;
 
+/// The input-to-output voltage a fixed 78xx/79xx regulator needs to hold its
+/// output, in volts. Below it the pass transistor is fully on and the output
+/// follows the input down.
+const REGULATOR_DROPOUT_VOLTS: f64 = 2.0;
+
+/// The same figure for an LM317 at a modest load, in volts. Its dropout is
+/// lower than a fixed regulator's Darlington pass stage.
+const LM317_DROPOUT_VOLTS: f64 = 1.5;
+
+/// The smallest output an LM317 can regulate to, in volts.
+const LM317_MIN_VOLTS: f64 = 1.25;
+
+/// The largest output a host may dial from an LM317, in volts.
+const LM317_MAX_VOLTS: f64 = 24.0;
+
 /// Voltages and resistances used to turn board parts into elements.
 ///
 /// The defaults describe the dev boards in the built-in catalog: a 3.3 V logic
@@ -239,17 +254,23 @@ pub(crate) fn solve(
     parts: &[Box<dyn Part>],
     config: &AnalogConfig,
     powered: &[bool],
+    driven: &BTreeMap<u16, f64>,
 ) -> Result<AnalogSolution, String> {
-    build_operating(flat, drives, parts, config, false, powered)?.solve_dc(config)
+    build_operating(flat, drives, parts, config, false, powered, driven)?.solve_dc(config)
 }
 
 /// Build the circuit at its operating point, with every regulated source that
-/// is over its current limit folded back to that limit.
+/// is over its current limit folded back to that limit and every regulator
+/// that cannot hold its setpoint reduced to what its input allows.
 ///
 /// The first build assumes constant voltage. If the load then draws more than
 /// a supply allows, that supply is modelled as a current source and the circuit
 /// is built again; folding one supply back can push another over, so the set
 /// only grows and the loop ends after at most one build per limiting supply.
+/// A regulator whose input is too close to its output is handled the same way:
+/// it is rebuilt as a source that tracks the input at the dropout, and the
+/// rebuilt circuit may droop another regulator in turn.
+///
 /// The mode is fixed for the lifetime of the returned circuit, which is what a
 /// transient run wants: a load change rebuilds the circuit anyway.
 pub(crate) fn build_operating(
@@ -259,18 +280,113 @@ pub(crate) fn build_operating(
     config: &AnalogConfig,
     transient: bool,
     powered: &[bool],
+    driven: &BTreeMap<u16, f64>,
 ) -> Result<Circuit, String> {
     let mut limited = BTreeSet::new();
-    loop {
-        let circuit = build(flat, drives, parts, config, transient, &limited, powered)?;
+    let mut drooped: BTreeMap<u16, f64> = BTreeMap::new();
+    // One build per folded supply plus one per drooped regulator; the cap is a
+    // backstop against a droop target that keeps moving with the input it
+    // depends on.
+    for _ in 0..16 {
+        let circuit = build(
+            flat, drives, parts, config, transient, &limited, &drooped, powered, driven,
+        )?;
         let solution = circuit.solve_dc(config)?;
         let folded = folded_sources(flat, parts, &solution);
         let grown: BTreeSet<u16> = limited.union(&folded).copied().collect();
-        if grown == limited {
+        let next = droop_targets(flat, parts, &solution, &drooped);
+        if grown == limited && next == drooped {
             return Ok(circuit);
         }
         limited = grown;
+        drooped = next;
     }
+    build(
+        flat, drives, parts, config, transient, &limited, &drooped, powered, driven,
+    )
+}
+
+/// The output voltage each regulator that cannot hold its setpoint must show,
+/// given the circuit just solved.
+///
+/// A regulator already in the map keeps its entry: it is a state of the
+/// operating point, not a per-iteration judgement, so a load change cannot
+/// make the fold oscillate. A regulator becomes drooped the first time its
+/// input is closer to the output than the dropout, and its target is then the
+/// input minus that dropout (or minus zero when the input is below it).
+fn droop_targets(
+    flat: &FlatBoard,
+    parts: &[Box<dyn Part>],
+    solution: &AnalogSolution,
+    drooped: &BTreeMap<u16, f64>,
+) -> BTreeMap<u16, f64> {
+    let mut out = drooped.clone();
+    for (index, part) in flat.parts.iter().enumerate() {
+        let Engine::Builtin(engine) = &part.engine else {
+            continue;
+        };
+        if engine != "voltage-regulator" {
+            continue;
+        }
+        let index = index as u16;
+        let Some((setpoint, negative, dropout)) = regulator_spec(part, Some(index), parts) else {
+            continue;
+        };
+        let Some(vin) = solution.node_voltage(&part.id, "VI") else {
+            continue;
+        };
+        // The absolute input the pass element sees, on the regulator's side.
+        let magnitude = if negative { -vin } else { vin };
+        let in_droop = magnitude - setpoint.abs() < dropout - 1e-9;
+        if !out.contains_key(&index) && !in_droop {
+            continue;
+        }
+        let target = (magnitude - dropout).max(0.0);
+        out.insert(index, if negative { -target } else { target });
+    }
+    out
+}
+
+/// A regulator's setpoint, polarity and dropout, or `None` when the part is
+/// not wired as one.
+fn regulator_spec(
+    part: &FlatPart,
+    index: Option<u16>,
+    parts: &[Box<dyn Part>],
+) -> Option<(f64, bool, f64)> {
+    let variant = part.attrs.get("variant").map_or("7805", String::as_str);
+    let (setpoint, negative, dropout) = match variant.trim() {
+        "7812" => (12.0, false, REGULATOR_DROPOUT_VOLTS),
+        "7905" => (5.0, true, REGULATOR_DROPOUT_VOLTS),
+        "LM317" => {
+            // A host can dial the adjustable part while the board runs; the
+            // attribute is where it starts.
+            let live = index
+                .and_then(|index| {
+                    let pin = part
+                        .pins
+                        .iter()
+                        .position(|name| name == "VO")
+                        .map(|pin| pin as u16)?;
+                    parts.get(index as usize)?.analog(PinId(pin))
+                })
+                .map(f64::from);
+            let volts = live
+                .or_else(|| {
+                    part.attrs
+                        .get("voltage")
+                        .and_then(|text| text.trim().parse::<f64>().ok())
+                })
+                .unwrap_or(5.0);
+            (
+                volts.clamp(LM317_MIN_VOLTS, LM317_MAX_VOLTS),
+                false,
+                LM317_DROPOUT_VOLTS,
+            )
+        }
+        _ => (5.0, false, REGULATOR_DROPOUT_VOLTS),
+    };
+    Some((setpoint, negative, dropout))
 }
 
 /// Supplies whose load draws more than their current limit.
@@ -429,6 +545,7 @@ impl Circuit {
 /// left floating in a DC solve, while a transient needs it as a node. Element
 /// set and node numbering are otherwise identical, so a DC solve and the first
 /// transient step describe the same circuit.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build(
     flat: &FlatBoard,
     drives: &BTreeMap<(u16, u8), Drive>,
@@ -436,7 +553,9 @@ pub(crate) fn build(
     config: &AnalogConfig,
     transient: bool,
     limited: &BTreeSet<u16>,
+    drooped: &BTreeMap<u16, f64>,
     powered: &[bool],
+    driven: &BTreeMap<u16, f64>,
 ) -> Result<Circuit, String> {
     let net_count = flat.nets.len();
     let ground = net_count;
@@ -509,6 +628,8 @@ pub(crate) fn build(
                 v33: v33_fallback,
             },
             limited,
+            drooped,
+            driven,
         ) {
             model.union(&mut sets, transient);
             models.push(model);
@@ -737,6 +858,16 @@ enum Model {
         n: Option<usize>,
         volts: f64,
     },
+    /// A three-terminal linear regulator: `volts` at `out` referred to
+    /// `ground`, until its input is closer than `dropout`, at which point it
+    /// is the source in `drooped` (the input minus the dropout).
+    Regulator {
+        part: u16,
+        out: Option<usize>,
+        ground: Option<usize>,
+        volts: f64,
+        drooped: Option<f64>,
+    },
     CurrentSource {
         part: u16,
         p: Option<usize>,
@@ -837,6 +968,13 @@ impl Model {
                 n: Some(n),
                 ..
             } => sets.union(*p, *n),
+            // A regulator holds its output against its own ground pin, drooped
+            // or not: the reference is the same terminal either way.
+            Model::Regulator {
+                out: Some(out),
+                ground: Some(ground),
+                ..
+            } => sets.union(*out, *ground),
             // A capacitor is a connection only when time is part of the
             // analysis; at DC it is an open circuit.
             Model::Capacitor {
@@ -1058,6 +1196,35 @@ impl Model {
                     )?;
                     currents.push((*part, id));
                 }
+            }
+            Model::Regulator {
+                part,
+                out,
+                ground,
+                volts,
+                drooped,
+                ..
+            } => {
+                let Some(out) = node(*out) else {
+                    return Ok(());
+                };
+                // Drooped: the output tracks the input, so the setpoint no
+                // longer reaches; the caller's current reading is the current
+                // the pass element delivers.
+                let target = drooped.unwrap_or(*volts);
+                let Some(ground) = node(*ground) else {
+                    return Ok(());
+                };
+                let id = add(
+                    netlist,
+                    Element::VoltageSource {
+                        p: out,
+                        n: ground,
+                        volts: target,
+                    },
+                    "regulator",
+                )?;
+                currents.push((*part, id));
             }
             Model::CurrentSource { part, p, n, amps } => {
                 if let (Some(p), Some(n)) = (node(*p), node(*n)) {
@@ -1304,6 +1471,7 @@ struct Rails<'a> {
     v33: Option<usize>,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn part_model(
     flat: &FlatBoard,
     parts: &[Box<dyn Part>],
@@ -1312,6 +1480,8 @@ fn part_model(
     config: &AnalogConfig,
     rails: &Rails<'_>,
     limited: &BTreeSet<u16>,
+    drooped: &BTreeMap<u16, f64>,
+    driven: &BTreeMap<u16, f64>,
 ) -> Option<Model> {
     let Engine::Builtin(engine) = &part.engine else {
         return None;
@@ -1380,16 +1550,57 @@ fn part_model(
             })
         }
         "diode" => {
-            let model = attr("vf")
+            // A zener is the same junction with a reverse breakdown: its `vz`
+            // is the drop in reverse, so the forward half stays the plain
+            // silicon knee rather than an LED curve.
+            let breakdown = attr("vz")
+                .or_else(|| attr("breakdown"))
+                .or_else(|| attr("breakdown_voltage"))
+                .and_then(parse_volts)
+                .filter(|volts| *volts > 0.0);
+            let vf = attr("vf")
                 .or_else(|| attr("forward_voltage"))
                 .or_else(|| attr("forward-voltage"))
-                .and_then(parse_volts)
-                .map_or_else(DiodeModel::silicon, diode_at_forward_volts);
+                .and_then(parse_volts);
+            let model = if breakdown.is_some() {
+                // A zener's forward direction is a plain silicon junction, not
+                // the softer curve an LED's ideality gives.
+                diode_at(vf.unwrap_or(0.7), 1.0)
+            } else {
+                vf.map_or_else(DiodeModel::silicon, diode_at_forward_volts)
+            };
+            let model = breakdown.map_or(model, |vz| model.with_breakdown(vz));
             Some(Model::Diode {
                 part: index,
                 anode: net(pin(&["A", "anode"])),
                 cathode: net(pin(&["C", "cathode"])),
                 model,
+            })
+        }
+        "voltage-regulator" => {
+            // The regulator is a source referred to its ground pin. Whether it
+            // can hold that setpoint is the fold in `build_operating`: one it
+            // can hold is a source, one it cannot is the input minus the
+            // dropout.
+            let (setpoint, negative, _dropout) = regulator_spec(part, Some(index), parts)?;
+            Some(Model::Regulator {
+                part: index,
+                out: net(pin(&["VO"])),
+                ground: net(pin(&["GND"])),
+                volts: if negative { -setpoint } else { setpoint },
+                drooped: drooped.get(&index).copied(),
+            })
+        }
+        // A DAC on the bus is a source on its output pin. Its latched value is
+        // read off the device by the runtime and handed in: the pin shell a
+        // bus part gets has no state of its own.
+        "mcp4725" => {
+            let volts = driven.get(&index).copied().unwrap_or(0.0);
+            Some(Model::VoltageSource {
+                part: index,
+                p: net(pin(&["VOUT"])),
+                n: net(pin(&["GND"])),
+                volts,
             })
         }
         "voltage-source" | "dc-source" | "vsource" | "battery" => {
@@ -1649,15 +1860,20 @@ fn led_model(color: &str) -> DiodeModel {
 }
 
 fn diode_at_forward_volts(vf: f64) -> DiodeModel {
+    diode_at(vf, 2.0)
+}
+
+/// A Shockley diode that drops `vf` at 20 mA with the given ideality. An LED
+/// is fitted with `n = 2`; a zener's forward knee is a silicon junction, `n = 1`.
+fn diode_at(vf: f64, ideality: f64) -> DiodeModel {
     const NOMINAL_AMPS: f64 = 0.02;
-    const IDEALITY: f64 = 2.0;
-    let scale = (vf / (IDEALITY * THERMAL_VOLTAGE)).exp() - 1.0;
+    let scale = (vf / (ideality * THERMAL_VOLTAGE)).exp() - 1.0;
     let saturation_current = if scale > 0.0 {
         NOMINAL_AMPS / scale
     } else {
         1e-14
     };
-    DiodeModel::led(saturation_current, IDEALITY)
+    DiodeModel::led(saturation_current, ideality)
 }
 
 /// Parse a resistance as a diagram writes it: `220`, `10k`, `4k7`, `1M`,

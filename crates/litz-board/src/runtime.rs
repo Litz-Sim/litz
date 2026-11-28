@@ -9,7 +9,7 @@ use crate::BuildError;
 use crate::analog::{self, AnalogConfig, AnalogSolution};
 use crate::bus::Buses;
 use crate::bus_parts::W25Q32;
-use crate::flatten::{Device, Endpoint, Engine, FlatBoard};
+use crate::flatten::{Device, Endpoint, Engine, FlatBoard, Rail};
 use crate::pixels::Framebuffer;
 use crate::probe::{self, Channel, Probe};
 use crate::storage::MicroSd;
@@ -1037,6 +1037,7 @@ impl Board {
 
     /// Build a fresh zero-state transient from the current wiring and drives.
     fn start_transient(&mut self, dt_ns: u64) -> Result<(), String> {
+        let driven = self.analog_sources();
         let circuit = analog::build_operating(
             &self.flat,
             &self.chip_drive,
@@ -1044,6 +1045,7 @@ impl Board {
             &self.analog_config,
             true,
             &self.powered,
+            &driven,
         )?;
         let run = litz_analog::Transient::with_zero_state(circuit.netlist())
             .map_err(|e| format!("analog: the transient could not start: {e}"))?;
@@ -1157,15 +1159,86 @@ impl Board {
         if let Some(cached) = (*self.analog_cache.borrow()).clone() {
             return Ok(cached);
         }
+        let driven = self.analog_sources();
         let solution = analog::solve(
             &self.flat,
             &self.chip_drive,
             &self.parts,
             &self.analog_config,
             &self.powered,
+            &driven,
         )?;
         *self.analog_cache.borrow_mut() = Some(solution.clone());
         Ok(solution)
+    }
+
+    /// Volts the bus devices source into the analog view, by flat part index.
+    ///
+    /// Only a DAC has one today: its output pin holds the code the firmware
+    /// last wrote over I2C, referenced to the supply the manifest names.
+    fn analog_sources(&self) -> BTreeMap<u16, f64> {
+        let mut sources = BTreeMap::new();
+        for (index, part) in self.flat.parts.iter().enumerate() {
+            let Some(Device::I2c {
+                board,
+                controller,
+                address,
+            }) = part.device
+            else {
+                continue;
+            };
+            if !matches!(&part.engine, Engine::Builtin(engine) if engine == "mcp4725") {
+                continue;
+            }
+            let vref = self.dac_reference(index, part).unwrap_or_else(|| {
+                part.attrs
+                    .get("vref")
+                    .and_then(|text| text.trim().parse::<f32>().ok())
+                    .unwrap_or(5.0)
+            });
+            if let Some(dac) = self
+                .buses
+                .i2c
+                .get(&(board, controller))
+                .and_then(|bus| bus.device_as::<crate::sensor_ics::Mcp4725>(address))
+            {
+                sources.insert(index as u16, f64::from(dac.volts(vref)));
+            }
+        }
+        sources
+    }
+
+    /// The supply a DAC's output is referenced to: its VCC pin's rail when
+    /// that pin is on one, so a board wired to 3V3 scales to 3.3 V and one on
+    /// 5 V to 5 V. `None` when VCC is not on a rail; the manifest's `vref`
+    /// then applies.
+    fn dac_reference(&self, index: usize, part: &crate::flatten::FlatPart) -> Option<f32> {
+        let pin = part.pins.iter().position(|name| name == "VCC")? as u16;
+        let net = *self.flat.endpoint_net.get(&Endpoint::Part {
+            part: index as u16,
+            pin,
+        })?;
+        for endpoint in self.flat.nets.get(net as usize)? {
+            match endpoint {
+                Endpoint::Rail(Rail::V33)
+                | Endpoint::BoardRail {
+                    rail: Rail::V33, ..
+                } => {
+                    return Some(self.analog_config.v33 as f32);
+                }
+                Endpoint::Rail(Rail::V5) | Endpoint::BoardRail { rail: Rail::V5, .. } => {
+                    return Some(self.analog_config.v5 as f32);
+                }
+                Endpoint::Rail(Rail::Vin)
+                | Endpoint::BoardRail {
+                    rail: Rail::Vin, ..
+                } => {
+                    return Some(self.analog_config.vin as f32);
+                }
+                _ => {}
+            }
+        }
+        None
     }
 
     /// The tick the board last settled at. A backend that drives a device
@@ -1792,12 +1865,20 @@ impl Board {
         len: usize,
         at: Tick,
     ) -> Option<Vec<u8>> {
+        if self.analog {
+            self.feed_i2c_inputs(board, controller, address);
+        }
         let wiring = self.flat.buses.i2c.get(&(board, controller)).cloned()?;
         let read = self
             .buses
             .i2c
             .get_mut(&(board, controller))?
             .write_read(address, write, len)?;
+        // A DAC just changed the voltage the analog view sources, so the
+        // cached operating point no longer describes the circuit.
+        if self.analog && self.engine_at_i2c(board, controller, address) == Some("mcp4725") {
+            self.analog_cache.get_mut().take();
+        }
         if self.trace.is_some() {
             let hz = self.i2c_hz(board, controller);
             let edges = waveform::i2c(wiring.sda, wiring.scl, at, hz, address, write, &read);
@@ -1811,6 +1892,120 @@ impl Board {
             );
         }
         Some(read)
+    }
+
+    /// The builtin engine of the part at one I2C address, when a part is there.
+    fn engine_at_i2c(&self, board: u16, controller: u8, address: u8) -> Option<&str> {
+        let part = self.flat.parts.iter().find(|part| {
+            matches!(
+                part.device,
+                Some(Device::I2c {
+                    board: b,
+                    controller: c,
+                    address: a,
+                }) if b == board && c == controller && a == address
+            )
+        })?;
+        match &part.engine {
+            Engine::Builtin(engine) => Some(engine.as_str()),
+            Engine::Wasm(_) => None,
+        }
+    }
+
+    /// Hand the ADC at one I2C address the voltages its channel pins carry.
+    ///
+    /// The analog view is pulled when an ADC reads, not pushed at every step,
+    /// because a conversion is the only moment the result matters. A channel
+    /// whose pin is unwired or floating keeps the manifest attribute, so a
+    /// diagram that only sets `a0` behaves as it did before the pins existed.
+    fn feed_i2c_inputs(&mut self, board: u16, controller: u8, address: u8) {
+        if self.engine_at_i2c(board, controller, address) != Some("ads111x") {
+            return;
+        }
+        let Some(index) = self.flat.parts.iter().position(|part| {
+            matches!(
+                part.device,
+                Some(Device::I2c {
+                    board: b,
+                    controller: c,
+                    address: a,
+                }) if b == board && c == controller && a == address
+            )
+        }) else {
+            return;
+        };
+        let Ok(solution) = self.analog_dc_solution() else {
+            return;
+        };
+        let part = &self.flat.parts[index];
+        let mut inputs = [0.0f32; 4];
+        for (channel, input) in inputs.iter_mut().enumerate() {
+            let pin = part
+                .pins
+                .iter()
+                .position(|name| *name == format!("A{channel}"));
+            let solved = pin.and_then(|pin| solution.node_voltage_pin(index as u16, pin as u16));
+            *input = match solved {
+                Some(volts) => volts as f32,
+                None => part
+                    .attrs
+                    .get(&format!("a{channel}"))
+                    .and_then(|text| text.trim().parse::<f32>().ok())
+                    .unwrap_or(0.0),
+            };
+        }
+        if let Some(device) = self
+            .buses
+            .i2c
+            .get_mut(&(board, controller))
+            .and_then(|bus| bus.device_as_mut::<crate::sensor_ics::Ads111x>(address))
+        {
+            device.set_inputs(inputs);
+        }
+    }
+
+    /// The same pull for an SPI ADC: the channels are its `CHn` pins.
+    fn feed_spi_inputs(&mut self, board: u16, controller: u8, chip_select: u8) {
+        let Some(index) = self.flat.parts.iter().position(|part| {
+            matches!(
+                part.device,
+                Some(Device::Spi {
+                    board: b,
+                    controller: c,
+                    chip_select: s,
+                }) if b == board && c == controller && s == chip_select
+            ) && matches!(&part.engine, Engine::Builtin(engine) if engine == "mcp3008")
+        }) else {
+            return;
+        };
+        let Ok(solution) = self.analog_dc_solution() else {
+            return;
+        };
+        let part = &self.flat.parts[index];
+        let mut channels = [0.0f32; 8];
+        for (channel, input) in channels.iter_mut().enumerate() {
+            let pin = part
+                .pins
+                .iter()
+                .position(|name| *name == format!("CH{channel}"));
+            let solved = pin.and_then(|pin| solution.node_voltage_pin(index as u16, pin as u16));
+            *input = match solved {
+                Some(volts) => volts as f32,
+                None => part
+                    .attrs
+                    .get(&format!("v{channel}"))
+                    .and_then(|text| text.trim().parse::<f32>().ok())
+                    .unwrap_or(0.0),
+            };
+        }
+        if let Some(device) = self
+            .buses
+            .spi
+            .get_mut(&(board, controller))
+            .and_then(|spi| spi.device_as_mut::<crate::bus_parts::Mcp3008>(chip_select))
+        {
+            device.set_channels(channels);
+        }
     }
 
     /// A full SPI transaction on one chip select of `board`. An unpopulated
@@ -1837,6 +2032,9 @@ impl Board {
         rx_len: usize,
         at: Tick,
     ) -> Vec<u8> {
+        if self.analog {
+            self.feed_spi_inputs(board, controller, chip_select);
+        }
         let wiring = self.flat.buses.spi.get(&(board, controller)).cloned();
         let rx = match self.buses.spi.get_mut(&(board, controller)) {
             Some(spi) => spi.transfer(chip_select, tx, rx_len),

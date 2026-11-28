@@ -24,6 +24,12 @@ kind = "analog-out"
 type = "int"
 default = 0
 
+# Supply the output is referenced to, in volts. The analog view sources
+# `value / 4095 × vref` on VOUT.
+[attrs.vref]
+type = "float"
+default = 5.0
+
 [buses.i2c0]
 address = 0x60
 

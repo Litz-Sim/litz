@@ -538,6 +538,10 @@ An optional DC solve, or a backward-Euler transient, turns the same flat nets in
 | generic transistor (`mosfet`) | `vth`, `k`, `lambda` | enhancement NMOS level 1: threshold (default 2 V), transconductance parameter in A/V² (default 10 mA/V²; `beta` is accepted as another name), channel-length modulation (default 0). Pins `D`, `G`, `S`. |
 | generic op-amp (`opamp`) | `gain`, `rail_low`, `rail_high` | finite-gain voltage-mode amplifier (default gain 1e5) clamping to its rails; rails default to 0 V and `$v33`. Pins `+`, `-`, `OUT`, `V+`, `V-`. |
 | generic diode (`diode`) | `vf` | forward voltage used to derive the diode model. Omit it for a small-signal silicon diode. |
+| `litz-zener` (`diode`) | `vz` | reverse breakdown voltage at a 5 mA test current; the diode conducts in reverse there instead of blocking, and forward it drops a silicon knee. |
+| `litz-voltage-regulator` (`voltage-regulator`) | `variant`, `voltage` | a source from `VO` to `GND`: 7805 at 5 V, 7812 at 12 V, 7905 at −5 V, LM317 at `voltage`. A setpoint within the dropout of `VI` folds to `VI` minus 2 V (fixed) or 1.5 V (LM317). |
+| `litz-mcp4725` (`mcp4725`) | `value`, `vref` | the output pin is a source at `value/4095 × vref`, with `vref` taken from the rail on `VCC` when there is one. Firmware writes over I2C move it. |
+| `litz-ads1115`, `litz-ads1015` (`ads111x`), `litz-mcp3008` (`mcp3008`) | `a0..a3`, `v0..v7` | the channel voltage, used when the matching analog input pin (`A0..A3`, `CH0..CH7`) is unwired; a wired pin is read from the solve instead. |
 | generic voltage source (`voltage-source`, `battery`) | `voltage` or `value` | ideal voltage from the positive pin to the negative pin. |
 
 Mapping rules:
