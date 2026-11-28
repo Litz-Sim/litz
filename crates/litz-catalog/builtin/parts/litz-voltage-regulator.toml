@@ -17,6 +17,13 @@ label = "ground"
 kind = "power"
 label = "output"
 
+# The LM317's feedback pin. Wire a divider from VO to this pin and GND and the
+# output is 1.25 V times (1 + R2/R1); leave it unwired to use the `voltage`
+# attribute (or the host's dial) instead.
+[pins.ADJ]
+kind = "analog-in"
+label = "adjust"
+
 [attrs.variant]
 type = "enum"
 values = ["7805", "7812", "7905", "LM317"]

@@ -212,6 +212,34 @@ impl Pwm {
         (self.intr & self.inte) != 0
     }
 
+    /// The fraction of its period channel `channel` spends high, or `None`
+    /// when the slice is stopped. The counter runs 0..=TOP, so a compare value
+    /// of `TOP + 1` is all high and 0 is all low; an inverted channel swaps
+    /// the two.
+    pub fn duty(&self, channel: usize) -> Option<f64> {
+        if channel >= CHANNELS {
+            return None;
+        }
+        let slice = &self.slices[channel / 2];
+        if slice.csr & csr::EN == 0 {
+            return None;
+        }
+        let is_b = channel % 2 == 1;
+        let cc = if is_b {
+            slice.cc >> 16
+        } else {
+            slice.cc & 0xffff
+        };
+        let invert = if is_b {
+            slice.csr & csr::B_INV != 0
+        } else {
+            slice.csr & csr::A_INV != 0
+        };
+        let period = f64::from(slice.top) + 1.0;
+        let high = (f64::from(cc) / period).clamp(0.0, 1.0);
+        Some(if invert { 1.0 - high } else { high })
+    }
+
     /// The level channel `channel` drives: channel 0 is slice 0's A output,
     /// channel 1 slice 0's B output, and so on. `None` when the slice is
     /// stopped, which lets the machine stop driving the pin.
@@ -287,6 +315,23 @@ mod tests {
         assert_eq!(pwm.level(1), Some(false));
         assert_eq!(pwm.level(2), None, "slice 1 is stopped");
         assert_eq!(pwm.level(16), None);
+    }
+
+    #[test]
+    fn a_channel_reports_the_duty_its_compare_holds() {
+        let mut pwm = Pwm::new();
+        let base = run(0);
+        pwm.write(base + reg::TOP, 99);
+        pwm.write(base + reg::CC, (75 << 16) | 25);
+        pwm.write(base + reg::CSR, csr::EN);
+        assert_eq!(pwm.duty(0), Some(0.25));
+        assert_eq!(pwm.duty(1), Some(0.75));
+        assert_eq!(pwm.duty(2), None, "slice 1 is stopped");
+
+        // An inverted channel spends the complement high.
+        pwm.write(base + reg::CSR, csr::EN | csr::A_INV | csr::B_INV);
+        assert_eq!(pwm.duty(0), Some(0.75));
+        assert_eq!(pwm.duty(1), Some(0.25));
     }
 
     #[test]

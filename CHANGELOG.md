@@ -6,6 +6,15 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-28
+
+### Added
+
+- A running PWM output is its duty average in the analog view: the ESP32 LEDC (`SocBus::pwm_output`), the RP2040 PWM block and the ATmega328P compare outputs publish their duty through `Board::set_chip_pwm_on`, and the netlist treats that pad as `duty × 3.3 V` behind the driver instead of sampling one half-cycle. A PWM pin, an inductor and a load solve to `D × Vin`.
+- The LM317's `ADJ` pin: wire a divider from `VO` through `ADJ` to ground and the regulator holds 1.25 V across it, so 240 Ω over 720 Ω gives 5 V. The output is an op-amp with the reference on an internal node, so the divider's current passes through R1 and R2 rather than being shorted around by the source; dropout is measured against the output the feedback achieves. An unwired `ADJ` keeps the `voltage` attribute (or a host's dial).
+- `litz-dc-dc`, a buck or boost converter module: a source at `voltage` from `VO` to `GND`, capped at `VI` for a buck and floored at `VI` for a boost, with `max_amps` folded like a supply's current limit and `voltage` live under `set_named_control`.
+- A PCF8591 on the bus is in the netlist both ways: `AOUT` sources `code/255 × vref` from the register the firmware wrote (written over I2C or not), and `AIN0..AIN3` are read from the solved node before a conversion, falling back to the `ainN` attributes on an unwired pin.
+
 ## [0.8.0] - 2026-11-28
 
 ### Added

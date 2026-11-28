@@ -2126,6 +2126,65 @@ impl Part for VoltageRegulator {
     }
 }
 
+/// A step-down or step-up switching converter module.
+///
+/// It regulates its output to `voltage` from whatever its input holds: a buck
+/// can only come down, so a setpoint above the input sags to the input; a
+/// boost can only go up, so a setpoint below the input passes it through.
+/// `max_amps` caps the output current the module can deliver.
+pub struct DcDc {
+    output: u16,
+    output_volts: f32,
+    max_amps: f32,
+}
+
+impl DcDc {
+    pub fn build(part: &FlatPart) -> Result<Box<dyn Part>, BuildError> {
+        let [_, _, output] = pins(part, ["VI", "GND", "VO"])?;
+        Ok(Box::new(Self {
+            output,
+            output_volts: attr_f32(&part.attrs, "voltage", 5.0).clamp(0.0, 48.0),
+            max_amps: attr_f32(&part.attrs, "max_amps", 2.0).max(0.0),
+        }))
+    }
+}
+
+impl Part for DcDc {
+    fn drive(&self, _pin: PinId) -> Drive {
+        Drive::HIGH_Z
+    }
+
+    fn set_pin(&mut self, _pin: PinId, _level: Level, _now: Tick) {}
+
+    fn state(&self) -> PartState {
+        PartState::None
+    }
+
+    fn analog(&self, pin: PinId) -> Option<f32> {
+        (pin.0 == self.output).then_some(self.output_volts)
+    }
+
+    fn current_limit(&self) -> Option<f32> {
+        (self.max_amps > 0.0).then_some(self.max_amps)
+    }
+
+    fn set_named_control(&mut self, name: &str, value: &str) -> bool {
+        let Ok(value) = value.trim().parse::<f32>() else {
+            return false;
+        };
+        if !value.is_finite() {
+            return false;
+        }
+        match name {
+            "voltage" | "volts" => {
+                self.output_volts = value.clamp(0.0, 48.0);
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
 /// A generic analog-only part with no modelled terminal behaviour.
 ///
 /// It exists so the catalog can offer a part (a zener in reverse, an

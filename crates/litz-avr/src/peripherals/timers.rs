@@ -288,6 +288,33 @@ macro_rules! eight_bit_timer {
             pub fn oc_b_level(&self) -> Option<bool> {
                 self.oc_level((self.tccr_a >> 4) & 0x03, self.ocr_b, self.output_b)
             }
+
+            /// The high-time fraction `OCxA` is programmed to, or `None` when
+            /// the compare output is disconnected or the timer is stopped. A
+            /// toggle-mode output spends half its time high; an inverted one
+            /// (COM = 3) spends the complement.
+            pub fn oc_a_duty(&self) -> Option<f64> {
+                self.oc_duty((self.tccr_a >> 6) & 0x03, self.ocr_a)
+            }
+
+            /// The high-time fraction `OCxB` is programmed to.
+            pub fn oc_b_duty(&self) -> Option<f64> {
+                self.oc_duty((self.tccr_a >> 4) & 0x03, self.ocr_b)
+            }
+
+            fn oc_duty(&self, com: u8, ocr: u8) -> Option<f64> {
+                if com == 0 || !self.running() {
+                    return None;
+                }
+                let duty = match self.mode() {
+                    Mode::Normal | Mode::Ctc => 0.5,
+                    Mode::Fast | Mode::Phase => {
+                        let period = f64::from(self.top()) + 1.0;
+                        (f64::from(ocr) / period).clamp(0.0, 1.0)
+                    }
+                };
+                Some(if com == 3 { 1.0 - duty } else { duty })
+            }
         }
     };
 }
@@ -536,5 +563,30 @@ impl Timer1 {
 
     pub fn oc_b_level(&self) -> Option<bool> {
         self.oc_level((self.tccr_a >> 4) & 0x03, self.ocr_b, self.output_b)
+    }
+
+    /// The high-time fraction `OC1A` is programmed to, or `None` when the
+    /// compare output is disconnected or the timer is stopped.
+    pub fn oc_a_duty(&self) -> Option<f64> {
+        self.oc_duty((self.tccr_a >> 6) & 0x03, self.ocr_a)
+    }
+
+    /// The high-time fraction `OC1B` is programmed to.
+    pub fn oc_b_duty(&self) -> Option<f64> {
+        self.oc_duty((self.tccr_a >> 4) & 0x03, self.ocr_b)
+    }
+
+    fn oc_duty(&self, com: u8, ocr: u16) -> Option<f64> {
+        if com == 0 || !self.running() {
+            return None;
+        }
+        let duty = match self.mode() {
+            Mode::Normal | Mode::Ctc => 0.5,
+            Mode::Fast | Mode::Phase => {
+                let period = f64::from(self.top()) + 1.0;
+                (f64::from(ocr) / period).clamp(0.0, 1.0)
+            }
+        };
+        Some(if com == 3 { 1.0 - duty } else { duty })
     }
 }

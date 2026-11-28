@@ -1,0 +1,37 @@
+[part]
+id = "litz-dc-dc"
+name = "DC-DC converter"
+version = "1.0.0"
+description = "Step-down or step-up switching converter module"
+license = "MIT"
+
+[pins.VI]
+kind = "power"
+label = "input"
+
+[pins.GND]
+kind = "ground"
+label = "ground"
+
+[pins.VO]
+kind = "power"
+label = "output"
+
+[attrs.topology]
+type = "enum"
+values = ["buck", "boost"]
+default = "buck"
+
+# Output voltage the module regulates to.
+[attrs.voltage]
+type = "float"
+default = 5.0
+
+# Output current the module can deliver before it sags.
+[attrs.max_amps]
+type = "float"
+default = 2.0
+
+[simulation]
+backend = "builtin"
+engine = "dc-dc"

@@ -54,6 +54,7 @@
 //! always has its edge ready when the chip next polls.
 
 use core::cell::RefCell;
+use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use crate::cpu::{FLASH_SIZE, FLASH_WORDS};
@@ -102,6 +103,9 @@ pub struct Atmega328p {
     board: Option<Rc<RefCell<Board>>>,
     /// Which development-board instance on the diagram these pads belong to.
     board_index: u16,
+    /// The duty last published per compare-output pin, so a slice that did
+    /// not touch a timer does not re-stamp the analog view.
+    pwm: BTreeMap<u8, f64>,
 }
 
 impl Default for Atmega328p {
@@ -128,6 +132,7 @@ impl Atmega328p {
             break_at: None,
             board: None,
             board_index: 0,
+            pwm: BTreeMap::new(),
         }
     }
 
@@ -312,7 +317,8 @@ impl Atmega328p {
     fn publish_outputs(&mut self) {
         let Some(board) = &self.board else { return };
         let outputs = self.machine.take_outputs();
-        if outputs.is_empty() {
+        let duties = self.machine.pwm_duties();
+        if outputs.is_empty() && duties.is_empty() && self.pwm.is_empty() {
             return;
         }
         let now = self.now_ns();
@@ -321,6 +327,15 @@ impl Atmega328p {
             let level = if high { Level::High } else { Level::Low };
             board.set_chip_output_on(self.board_index, gpio, Drive::strong(level), now);
         }
+        for &gpio in self.pwm.keys() {
+            if !duties.iter().any(|&(pin, _)| pin == gpio) {
+                board.set_chip_pwm_on(self.board_index, gpio, None, now);
+            }
+        }
+        for &(gpio, duty) in &duties {
+            board.set_chip_pwm_on(self.board_index, gpio, Some(duty), now);
+        }
+        self.pwm = duties.into_iter().collect();
     }
 
     /// How many cycles the machine may run before the next scheduled host

@@ -465,3 +465,37 @@ fn a_usart_rx_byte_sets_rxc_and_interrupts() {
         "UCSR0A no longer reports a waiting byte"
     );
 }
+
+/// The duty the pin is switching at is reported alongside its edges, so the
+/// analog view can average a PWM output instead of sampling one half-cycle.
+#[test]
+fn a_timer_reports_the_duty_it_switches_at() {
+    let mut machine = Machine::new();
+    let mut program = vec![sbi(addr::DDRD, 6)]; // pinMode(6, OUTPUT)
+    program.push(ldi(16, 64)); // 25% of the 8-bit range
+    program.extend_from_slice(&sts(16, addr::OCR0A));
+    program.push(ldi(16, 0x83)); // COM0A = clear on match, WGM = fast PWM
+    program.extend_from_slice(&sts(16, addr::TCCR0A));
+    program.push(ldi(16, 0x03)); // prescaler 64
+    program.extend_from_slice(&sts(16, addr::TCCR0B));
+    program.push(RJMP_SELF);
+    load_words(&mut machine, 0, &program);
+
+    machine.boot();
+    machine.run(40);
+
+    let duties = machine.pwm_duties();
+    let duty = duties
+        .iter()
+        .find(|&&(gpio, _)| gpio == 6)
+        .map(|&(_, duty)| duty)
+        .unwrap_or_else(|| panic!("OC0A is not reported as PWM: {duties:?}"));
+    assert!(
+        (duty - 64.0 / 256.0).abs() < 1e-9,
+        "OCR0A = 64 reports {duty}, expected 0.25"
+    );
+    assert!(
+        !duties.iter().any(|&(gpio, _)| gpio == 5),
+        "OC0B is disconnected and must not report a duty"
+    );
+}

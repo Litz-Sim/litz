@@ -457,6 +457,10 @@ impl Registry {
                 include_str!("../builtin/parts/litz-voltage-regulator.toml"),
             ),
             (
+                "litz-dc-dc",
+                include_str!("../builtin/parts/litz-dc-dc.toml"),
+            ),
+            (
                 "litz-battery",
                 include_str!("../builtin/parts/litz-battery.toml"),
             ),

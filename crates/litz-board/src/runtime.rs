@@ -171,6 +171,10 @@ pub struct Board {
     /// same GPIO number is a separate entry because the board index is part
     /// of the key.
     chip_drive: BTreeMap<(u16, u8), Drive>,
+    /// The average a pad holds from a running PWM, as the fraction of its
+    /// high level. A pad absent from the map is not switching, so its drive
+    /// is the level.
+    chip_pwm: BTreeMap<(u16, u8), f64>,
     /// The resolved level on each `(board, GPIO)` pad.
     chip_level: BTreeMap<(u16, u8), Level>,
     /// Levels waiting to be reported to a chip, as `(board, GPIO, level)`.
@@ -289,6 +293,7 @@ impl Board {
             radio_ids: RefCell::new(BTreeMap::new()),
             radio_clock: RefCell::new(0),
             chip_drive: BTreeMap::new(),
+            chip_pwm: BTreeMap::new(),
             chip_level: BTreeMap::new(),
             pending_inputs: Vec::new(),
             conflicts: Vec::new(),
@@ -1041,6 +1046,7 @@ impl Board {
         let circuit = analog::build_operating(
             &self.flat,
             &self.chip_drive,
+            &self.chip_pwm,
             &self.parts,
             &self.analog_config,
             true,
@@ -1163,6 +1169,7 @@ impl Board {
         let solution = analog::solve(
             &self.flat,
             &self.chip_drive,
+            &self.chip_pwm,
             &self.parts,
             &self.analog_config,
             &self.powered,
@@ -1187,20 +1194,29 @@ impl Board {
             else {
                 continue;
             };
-            if !matches!(&part.engine, Engine::Builtin(engine) if engine == "mcp4725") {
+            let Engine::Builtin(engine) = &part.engine else {
+                continue;
+            };
+            if !matches!(engine.as_str(), "mcp4725" | "pcf8591") {
                 continue;
             }
+            let fallback = if engine == "pcf8591" { 3.3 } else { 5.0 };
             let vref = self.dac_reference(index, part).unwrap_or_else(|| {
                 part.attrs
                     .get("vref")
                     .and_then(|text| text.trim().parse::<f32>().ok())
-                    .unwrap_or(5.0)
+                    .unwrap_or(fallback)
             });
-            if let Some(dac) = self
-                .buses
-                .i2c
-                .get(&(board, controller))
-                .and_then(|bus| bus.device_as::<crate::sensor_ics::Mcp4725>(address))
+            let bus = self.buses.i2c.get(&(board, controller));
+            if engine == "pcf8591" {
+                if let Some(dac) =
+                    bus.and_then(|bus| bus.device_as::<crate::sensor_ics::Pcf8591>(address))
+                {
+                    let volts = f64::from(dac.dac()) / 255.0 * f64::from(vref);
+                    sources.insert(index as u16, volts);
+                }
+            } else if let Some(dac) =
+                bus.and_then(|bus| bus.device_as::<crate::sensor_ics::Mcp4725>(address))
             {
                 sources.insert(index as u16, f64::from(dac.volts(vref)));
             }
@@ -1309,6 +1325,7 @@ impl Board {
                 *drive = Drive::HIGH_Z;
             }
         }
+        self.chip_pwm.retain(|(owner, _), _| *owner != board);
         self.clear_analog();
         self.settle(now);
     }
@@ -1876,7 +1893,12 @@ impl Board {
             .write_read(address, write, len)?;
         // A DAC just changed the voltage the analog view sources, so the
         // cached operating point no longer describes the circuit.
-        if self.analog && self.engine_at_i2c(board, controller, address) == Some("mcp4725") {
+        if self.analog
+            && matches!(
+                self.engine_at_i2c(board, controller, address),
+                Some("mcp4725" | "pcf8591")
+            )
+        {
             self.analog_cache.get_mut().take();
         }
         if self.trace.is_some() {
@@ -1919,7 +1941,8 @@ impl Board {
     /// whose pin is unwired or floating keeps the manifest attribute, so a
     /// diagram that only sets `a0` behaves as it did before the pins existed.
     fn feed_i2c_inputs(&mut self, board: u16, controller: u8, address: u8) {
-        if self.engine_at_i2c(board, controller, address) != Some("ads111x") {
+        let engine = self.engine_at_i2c(board, controller, address);
+        if !matches!(engine, Some("ads111x" | "pcf8591")) {
             return;
         }
         let Some(index) = self.flat.parts.iter().position(|part| {
@@ -1938,23 +1961,39 @@ impl Board {
             return;
         };
         let part = &self.flat.parts[index];
+        // The ADS111x names its inputs `A0..A3` and its fallback attributes
+        // `a0..a3`; the PCF8591 names them `AIN0..AIN3` and `ain0..ain3`.
+        let (pin_prefix, attr_prefix) = if engine == Some("pcf8591") {
+            ("AIN", "ain")
+        } else {
+            ("A", "a")
+        };
         let mut inputs = [0.0f32; 4];
         for (channel, input) in inputs.iter_mut().enumerate() {
             let pin = part
                 .pins
                 .iter()
-                .position(|name| *name == format!("A{channel}"));
+                .position(|name| *name == format!("{pin_prefix}{channel}"));
             let solved = pin.and_then(|pin| solution.node_voltage_pin(index as u16, pin as u16));
             *input = match solved {
                 Some(volts) => volts as f32,
                 None => part
                     .attrs
-                    .get(&format!("a{channel}"))
+                    .get(&format!("{attr_prefix}{channel}"))
                     .and_then(|text| text.trim().parse::<f32>().ok())
                     .unwrap_or(0.0),
             };
         }
-        if let Some(device) = self
+        if engine == Some("pcf8591") {
+            if let Some(device) = self
+                .buses
+                .i2c
+                .get_mut(&(board, controller))
+                .and_then(|bus| bus.device_as_mut::<crate::sensor_ics::Pcf8591>(address))
+            {
+                device.set_inputs(inputs);
+            }
+        } else if let Some(device) = self
             .buses
             .i2c
             .get_mut(&(board, controller))
@@ -2271,6 +2310,38 @@ impl Board {
             return;
         }
         self.chip_drive.insert((board, gpio), drive);
+        self.clear_analog();
+        self.settle(now);
+    }
+
+    /// A pad of board 0 started, changed or stopped a PWM output. This is
+    /// [`Board::set_chip_pwm_on`] for the single-board backends.
+    pub fn set_chip_pwm(&mut self, gpio: u8, duty: Option<f64>, now: Tick) {
+        self.set_chip_pwm_on(0, gpio, duty, now);
+    }
+
+    /// A pad of board `board` started, changed or stopped a PWM output.
+    ///
+    /// `duty` is the fraction of each switching period the pin spends high —
+    /// 0.05 at 5% — and `None` when the peripheral stopped switching. The
+    /// analog view reads the pad as its average, `duty × 3.3 V`, instead of
+    /// whichever level the digital side happened to hold last; a meter on a
+    /// 30% PWM pin reads 0.99 V, which is what a load integrating that pin
+    /// sees.
+    pub fn set_chip_pwm_on(&mut self, board: u16, gpio: u8, duty: Option<f64>, now: Tick) {
+        let duty = duty
+            .filter(|value| value.is_finite())
+            .map(|value| value.clamp(0.0, 1.0));
+        match (self.chip_pwm.get(&(board, gpio)).copied(), duty) {
+            (None, None) => return,
+            (Some(old), Some(new)) if (old - new).abs() <= 1e-9 => return,
+            (_, Some(value)) => {
+                self.chip_pwm.insert((board, gpio), value);
+            }
+            (_, None) => {
+                self.chip_pwm.remove(&(board, gpio));
+            }
+        }
         self.clear_analog();
         self.settle(now);
     }

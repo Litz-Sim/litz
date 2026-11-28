@@ -120,6 +120,13 @@ impl Pcf8591 {
         self.channels.get(channel).copied()
     }
 
+    /// Replace the four input voltages the converter samples. The runtime
+    /// calls this on each conversion with the analog solve's node voltages,
+    /// so a divider wired to `AINn` reads as the volts it holds.
+    pub fn set_inputs(&mut self, inputs: [f32; 4]) {
+        self.channels = inputs;
+    }
+
     pub fn channel_raw(&self, channel: usize) -> u8 {
         let volts = self.channels.get(channel).copied().unwrap_or(0.0);
         let scale = if self.reference > 0.0 {
@@ -179,6 +186,10 @@ impl I2cDevice for Pcf8591 {
     }
 
     fn as_any(&self) -> Option<&dyn Any> {
+        Some(self)
+    }
+
+    fn as_any_mut(&mut self) -> Option<&mut dyn Any> {
         Some(self)
     }
 }

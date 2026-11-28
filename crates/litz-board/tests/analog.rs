@@ -1079,3 +1079,233 @@ fn an_mcp3008_converts_the_voltage_its_channel_pin_carries() {
     let raw = (u16::from(rx[1] & 0x03) << 8) | u16::from(rx[2]);
     assert_eq!(raw, 512, "the divider midpoint on a 3.3 V reference");
 }
+
+// ------------------------------------------------------- PWM and feedback
+
+/// A pad a backend reports as a running PWM holds its average voltage in the
+/// analog view, so a filter or a load that integrates the pin sees the duty's
+/// worth of the rail instead of whichever half-cycle the sample fell in.
+#[test]
+fn a_pwm_pad_supplies_its_average_voltage() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"l1","type":"litz-inductor","attrs":{"value":"100uH"}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"1k"}}"#,
+        ],
+        &[
+            r#"["esp:GPIO0","l1:1","",[]]"#,
+            r#"["l1:2","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    board.set_chip_pwm(0, Some(0.3), 0);
+    let low = board.node_voltage_gpio(0).expect("the pad is solved");
+    // 30% of 3.3 V behind the 50 Ω driver into 1 kΩ.
+    let expected = 0.3 * 3.3 * 1_000.0 / 1_050.0;
+    assert!(
+        (low - expected).abs() < 0.01,
+        "30% PWM gave {low} V, expected {expected}"
+    );
+
+    board.set_chip_pwm(0, Some(0.6), 0);
+    let high = board.node_voltage_gpio(0).expect("the pad is solved");
+    assert!(
+        (high - 2.0 * low).abs() < 1e-6,
+        "60% PWM gave {high} V against {low} V at 30%"
+    );
+
+    // The peripheral stopped: the pad is only its drive, and a pin the chip
+    // is not driving has no source.
+    board.set_chip_pwm(0, None, 0);
+    assert_eq!(
+        board.node_voltage_gpio(0),
+        Some(0.0),
+        "with the PWM stopped the load holds 0 V"
+    );
+}
+
+/// An LM317 with its adjust pin on a divider regulates 1.25 V across the
+/// upper resistor, so the output follows the divider and not the dial.
+#[test]
+fn an_lm317_with_a_wired_adjust_pin_follows_its_divider() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"ps","type":"litz-power-supply","attrs":{"voltage":12.0}}"#,
+            r#"{"id":"u1","type":"litz-voltage-regulator","attrs":{"variant":"LM317","voltage":20.0}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"240"}}"#,
+            r#"{"id":"r2","type":"litz-resistor","attrs":{"value":"720"}}"#,
+        ],
+        &[
+            r#"["ps:+","u1:VI","",[]]"#,
+            r#"["ps:-","esp:GND.1","",[]]"#,
+            r#"["u1:GND","esp:GND.1","",[]]"#,
+            r#"["u1:VO","r1:1","",[]]"#,
+            r#"["r1:2","u1:ADJ","",[]]"#,
+            r#"["u1:ADJ","r2:1","",[]]"#,
+            r#"["r2:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let out = board
+        .node_voltage("u1", "VO")
+        .expect("the output is solved");
+    assert!(
+        (out - 5.0).abs() < 1e-4,
+        "1.25 V across 240 Ω with 720 Ω below gave {out} V, expected 5 V"
+    );
+    let adjust = board
+        .node_voltage("u1", "ADJ")
+        .expect("the adjust pin is solved");
+    assert!(
+        (adjust - 3.75).abs() < 1e-4,
+        "the adjust pin held {adjust} V, expected 3.75 V"
+    );
+}
+
+/// The PCF8591 reads its `AINn` pins through the same solve and sources
+/// `AOUT` from the byte the firmware wrote.
+#[test]
+fn a_pcf8591_reads_its_inputs_and_sources_its_dac() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"10k"}}"#,
+            r#"{"id":"r2","type":"litz-resistor","attrs":{"value":"10k"}}"#,
+            r#"{"id":"r3","type":"litz-resistor","attrs":{"value":"1k"}}"#,
+            r#"{"id":"u1","type":"litz-pcf8591","attrs":{}}"#,
+        ],
+        &[
+            r#"["esp:3V3","r1:1","",[]]"#,
+            r#"["r1:2","r2:1","",[]]"#,
+            r#"["r2:2","esp:GND.1","",[]]"#,
+            r#"["r1:2","u1:AIN0","",[]]"#,
+            r#"["esp:3V3","u1:VCC","",[]]"#,
+            r#"["esp:GND.1","u1:GND","",[]]"#,
+            r#"["esp:GPIO8","u1:SDA","",[]]"#,
+            r#"["esp:GPIO9","u1:SCL","",[]]"#,
+            r#"["u1:AOUT","r3:1","",[]]"#,
+            r#"["r3:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    // Select channel 0; the first conversion returned is the previous latch.
+    board.i2c_write_read(0, 0, 0x48, &[0x00], 1);
+    let raw = board
+        .i2c_write_read(0, 0, 0x48, &[0x00], 1)
+        .expect("the converter answers");
+    let expected = (1.65_f64 / 3.3 * 255.0).round() as u8;
+    assert!(
+        raw[0].abs_diff(expected) <= 1,
+        "AIN0 converted {}, expected {expected}",
+        raw[0]
+    );
+
+    // The second byte of a write is the DAC register.
+    board.i2c_write_read(0, 0, 0x48, &[0x00, 0xff], 0);
+    let out = board
+        .node_voltage("u1", "AOUT")
+        .expect("the output is solved");
+    assert!(
+        (out - 3.3).abs() < 0.01,
+        "code 255 on a 3.3 V reference gave {out} V"
+    );
+}
+
+/// A buck module regulates down to its setpoint, but cannot make more than
+/// its input; a boost is the mirror, never below its input.
+#[test]
+fn a_dc_dc_module_respects_its_topology() {
+    let circuit = |topology: &str, vin: f64, setpoint: f64, load: &str| {
+        board(
+            &[
+                BOARD,
+                &format!(r#"{{"id":"ps","type":"litz-power-supply","attrs":{{"voltage":{vin}}}}}"#),
+                &format!(
+                    r#"{{"id":"u1","type":"litz-dc-dc","attrs":{{"topology":"{topology}","voltage":{setpoint}}}}}"#
+                ),
+                &format!(r#"{{"id":"r1","type":"litz-resistor","attrs":{{"value":"{load}"}}}}"#),
+            ],
+            &[
+                r#"["ps:+","u1:VI","",[]]"#,
+                r#"["ps:-","esp:GND.1","",[]]"#,
+                r#"["u1:GND","esp:GND.1","",[]]"#,
+                r#"["u1:VO","r1:1","",[]]"#,
+                r#"["r1:2","esp:GND.1","",[]]"#,
+            ],
+        )
+    };
+
+    let mut buck = circuit("buck", 12.0, 5.0, "100");
+    buck.set_analog(true);
+    let out = buck.node_voltage("u1", "VO").expect("the output is solved");
+    assert!((out - 5.0).abs() < 1e-6, "a 12→5 buck gave {out} V");
+
+    // Asked for more than it has, a buck passes its input.
+    let mut starved = circuit("buck", 12.0, 20.0, "100");
+    starved.set_analog(true);
+    let out = starved
+        .node_voltage("u1", "VO")
+        .expect("the output is solved");
+    assert!((out - 12.0).abs() < 1e-6, "a starved buck gave {out} V");
+
+    let mut boost = circuit("boost", 5.0, 12.0, "1k");
+    boost.set_analog(true);
+    let out = boost
+        .node_voltage("u1", "VO")
+        .expect("the output is solved");
+    assert!((out - 12.0).abs() < 1e-6, "a 5→12 boost gave {out} V");
+
+    // Asked for less than its input, a boost passes the input through.
+    let mut below = circuit("boost", 5.0, 3.0, "1k");
+    below.set_analog(true);
+    let out = below
+        .node_voltage("u1", "VO")
+        .expect("the output is solved");
+    assert!(
+        (out - 5.0).abs() < 1e-6,
+        "a boost below its input gave {out} V"
+    );
+}
+
+/// A module with a 0.2 A cap delivers that much into a load that would draw
+/// more, so its output sags instead of the source inventing current.
+#[test]
+fn a_dc_dc_module_folds_at_its_current_limit() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"ps","type":"litz-power-supply","attrs":{"voltage":12.0}}"#,
+            r#"{"id":"u1","type":"litz-dc-dc","attrs":{"topology":"buck","voltage":5.0,"max_amps":0.2}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"10"}}"#,
+        ],
+        &[
+            r#"["ps:+","u1:VI","",[]]"#,
+            r#"["ps:-","esp:GND.1","",[]]"#,
+            r#"["u1:GND","esp:GND.1","",[]]"#,
+            r#"["u1:VO","r1:1","",[]]"#,
+            r#"["r1:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    let out = board
+        .node_voltage("u1", "VO")
+        .expect("the output is solved");
+    assert!(
+        (out - 2.0).abs() < 1e-3,
+        "0.2 A into 10 Ω gave {out} V, expected 2 V"
+    );
+    let current = board
+        .node_current("u1")
+        .expect("the converter carries current");
+    assert!(
+        (current.abs() - 0.2).abs() < 1e-6,
+        "the converter delivered {current} A"
+    );
+}

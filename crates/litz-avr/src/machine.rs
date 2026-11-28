@@ -381,6 +381,12 @@ impl Machine {
         self.data.periph.take_outputs()
     }
 
+    /// The duty each compare-output pin is programmed to, as the fraction of
+    /// its period it spends high.
+    pub fn pwm_duties(&self) -> Vec<(u8, f64)> {
+        self.data.periph.pwm_duties()
+    }
+
     /// Install a callback for GPIO output edges.
     pub fn set_gpio_callback(&mut self, callback: Box<dyn FnMut(u8, bool)>) {
         self.data.periph.set_gpio_callback(callback);

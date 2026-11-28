@@ -17,7 +17,7 @@ Litz is an open-source electronics and firmware simulator. A `diagram.json` file
 | Parts | Builtin catalog from TOML manifests: LEDs, displays, buttons, switches, sensors, EEPROM and flash, I/O expanders, real-time clocks, motor drivers, relays, IR parts and passives. |
 | Buses | I2C by 7-bit address, SPI by chip select and UART by port, as transfers rather than pin wiggles, with device-side implementations in the parts. |
 | Instruments | Probes on `<board>:<GPIO>` or `<part>:<pin>`, edges, frequency, duty, pulse widths and voltage range; `--scope` CSV, `--vcd` traces and `--decode` for UART, I2C and SPI. |
-| Analog | MNA co-simulation with `--analog` or `[sim] analog = true`; an ADC reads the solved node voltage, a DAC sets one, zener breakdown and linear regulators (7805/7812/7905/LM317, with dropout) are in the netlist. |
+| Analog | MNA co-simulation with `--analog` or `[sim] analog = true`; an ADC reads the solved node voltage, a DAC sets one, a running PWM pin is its duty average, zener breakdown, linear regulators (7805/7812/7905/LM317 with dropout and LM317 adjust feedback) and buck/boost converter modules are in the netlist. |
 | Wireless | A Wi-Fi router (DNS, TCP, UDP, TLS, WebSocket, MQTT), BLE beacons with optional GATT tables, nRF24L01/SX1276/AT86RF233 peers and IEEE 802.15.4 decoding. |
 | Multi-board | Several boards per diagram, each with its own firmware, pins and buses; a wire between boards is one net. |
 | CLI | `run`, `test`, `check`/`lint`, `build`, `serve`, `catalog`, `heap`, `board check`, `toolchain`/`doctor`, `editor` and `mcp`, with fixed exit codes, JSON/JUnit reports, GDB, screenshots and coverage. |

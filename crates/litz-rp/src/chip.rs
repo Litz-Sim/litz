@@ -6,7 +6,7 @@
 //! outputs. Nothing in the board knows which core is behind the pads.
 
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::rc::Rc;
 
 use litz_board::{
@@ -61,6 +61,9 @@ pub struct Rp2040 {
     /// Whether the core is running. The board's supply decides it; a chip
     /// with no board is always powered.
     powered: bool,
+    /// The PWM duty last handed to the board per pin, so a run that did not
+    /// touch the block does not re-stamp the analog view.
+    pwm: BTreeMap<u8, f64>,
 }
 
 impl Default for Rp2040 {
@@ -80,6 +83,7 @@ impl Rp2040 {
             pending_rx: [VecDeque::new(), VecDeque::new()],
             elapsed_before: 0,
             powered: true,
+            pwm: BTreeMap::new(),
         }
     }
 
@@ -198,6 +202,7 @@ impl Rp2040 {
         self.elapsed_before = self.clock_cycles();
         self.machine.reset();
         self.powered = false;
+        self.pwm.clear();
         if let Some(board) = &self.board {
             let now = self.now_ns();
             board
@@ -305,7 +310,8 @@ impl Rp2040 {
     fn publish_outputs(&mut self) {
         let Some(board) = &self.board else { return };
         let outputs = self.machine.take_outputs();
-        if outputs.is_empty() {
+        let duties = self.machine.pwm_duties();
+        if outputs.is_empty() && duties.is_empty() && self.pwm.is_empty() {
             return;
         }
         let now = self.now_ns();
@@ -314,6 +320,15 @@ impl Rp2040 {
             let level = if high { Level::High } else { Level::Low };
             board.set_chip_output_on(self.board_index, gpio, Drive::strong(level), now);
         }
+        for &gpio in self.pwm.keys() {
+            if !duties.iter().any(|&(pin, _)| pin == gpio) {
+                board.set_chip_pwm_on(self.board_index, gpio, None, now);
+            }
+        }
+        for &(gpio, duty) in &duties {
+            board.set_chip_pwm_on(self.board_index, gpio, Some(duty), now);
+        }
+        self.pwm = duties.into_iter().collect();
     }
 
     fn apply_due_inputs(&mut self) {

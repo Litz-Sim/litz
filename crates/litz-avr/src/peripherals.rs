@@ -889,6 +889,24 @@ impl Peripherals {
         self.gpio.take_events()
     }
 
+    /// The high-time fraction each compare-output pin is programmed to, in
+    /// board (Arduino header) numbering: `OC0A` D6, `OC0B` D5, `OC1A` D9,
+    /// `OC1B` D10, `OC2A` D11, `OC2B` D3. A timer whose compare output is
+    /// disconnected or stopped contributes nothing.
+    pub fn pwm_duties(&self) -> Vec<(u8, f64)> {
+        [
+            (6, self.timer0.oc_a_duty()),
+            (5, self.timer0.oc_b_duty()),
+            (9, self.timer1.oc_a_duty()),
+            (10, self.timer1.oc_b_duty()),
+            (11, self.timer2.oc_a_duty()),
+            (3, self.timer2.oc_b_duty()),
+        ]
+        .into_iter()
+        .filter_map(|(gpio, duty)| duty.map(|duty| (gpio, duty)))
+        .collect()
+    }
+
     /// Drive an Arduino digital pin from the host.
     pub fn set_input(&mut self, pin: u8, high: bool) {
         self.gpio.set_input(pin, high);

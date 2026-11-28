@@ -168,6 +168,9 @@ pub mod backend {
         /// The analog values last written to the pads, so a run that changes
         /// nothing does not reprogram the ADC every step.
         analog: Vec<(u8, f32)>,
+        /// The PWM duty last handed to the board per pad, so a run that did
+        /// not touch a timer does not re-stamp the analog view.
+        pwm: BTreeMap<u8, f64>,
         /// The firmware's ELF, when the project supplies one. esp32sim's HCI
         /// Bluetooth controller is started by patching the guest's controller
         /// task, so it needs the symbol table; the same symbols name addresses
@@ -250,6 +253,7 @@ pub mod backend {
                 bus_for,
                 bootloader_loaded: false,
                 analog: Vec::new(),
+                pwm: BTreeMap::new(),
                 elf: None,
                 gdb: None,
                 guest_call: None,
@@ -481,6 +485,35 @@ pub mod backend {
                 }
             }
             self.analog = now;
+        }
+
+        /// Hand the board each pad's LEDC duty, so the analog view can read a
+        /// PWM pin as the average a load sees rather than as the level of the
+        /// half-cycle the sample fell in.
+        fn publish_pwm(&mut self) {
+            let Some(board) = self.board.clone() else {
+                return;
+            };
+            let mut next = BTreeMap::new();
+            for pin in 0..=48u8 {
+                if let Some((_, count)) = self.machine.bus.pwm_output(pin) {
+                    next.insert(pin, f64::from(count) / 65535.0);
+                }
+            }
+            if next == self.pwm {
+                return;
+            }
+            let now = (self.seconds() * 1e9) as u64;
+            let mut board = board.borrow_mut();
+            for &pin in self.pwm.keys() {
+                if !next.contains_key(&pin) {
+                    board.set_chip_pwm_on(self.board_index, pin, None, now);
+                }
+            }
+            for (&pin, &duty) in &next {
+                board.set_chip_pwm_on(self.board_index, pin, Some(duty), now);
+            }
+            self.pwm = next;
         }
 
         /// The level on one pin of a named part. With no pin name, the level
@@ -924,6 +957,7 @@ pub mod backend {
         /// The chip lost power: stop driving the board's lines.
         fn power_off(&mut self) {
             self.powered = false;
+            self.pwm.clear();
             if let Some(board) = &self.board {
                 let now = (self.seconds() * 1e9) as u64;
                 board
@@ -2059,6 +2093,7 @@ pub mod backend {
                 esp_soc::Stop::Breakpoint(pc) => litz_board::Stop::Breakpoint(pc),
                 _ => litz_board::Stop::Idle,
             };
+            self.publish_pwm();
             litz_board::RunResult {
                 cycles: budget_cycles,
                 stop,

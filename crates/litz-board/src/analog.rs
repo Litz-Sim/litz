@@ -91,11 +91,26 @@ const REGULATOR_DROPOUT_VOLTS: f64 = 2.0;
 /// lower than a fixed regulator's Darlington pass stage.
 const LM317_DROPOUT_VOLTS: f64 = 1.5;
 
+/// The voltage an LM317 holds between its output and its adjust pin, in
+/// volts. The datasheet's 1.25 V reference is what makes a divider set the
+/// output: `Vout = 1.25 × (1 + R2/R1)`.
+const LM317_REFERENCE_VOLTS: f64 = 1.25;
+
 /// The smallest output an LM317 can regulate to, in volts.
 const LM317_MIN_VOLTS: f64 = 1.25;
 
 /// The largest output a host may dial from an LM317, in volts.
 const LM317_MAX_VOLTS: f64 = 24.0;
+
+/// Open-loop gain of the op-amp that models the LM317's error amplifier. The
+/// finite gain leaves a few microvolts of setpoint error, which is far below
+/// what a board solves to.
+const LM317_OPAMP_GAIN: f64 = 1e7;
+
+/// The upper rail of that error amplifier, in volts. A regulator cannot make
+/// more than its input allows, which the dropout fold enforces; this rail
+/// only keeps the op-amp from being clamped by the passive network.
+const LM317_RAIL_VOLTS: f64 = 60.0;
 
 /// Voltages and resistances used to turn board parts into elements.
 ///
@@ -251,12 +266,13 @@ impl AnalogSolution {
 pub(crate) fn solve(
     flat: &FlatBoard,
     drives: &BTreeMap<(u16, u8), Drive>,
+    pwm: &BTreeMap<(u16, u8), f64>,
     parts: &[Box<dyn Part>],
     config: &AnalogConfig,
     powered: &[bool],
     driven: &BTreeMap<u16, f64>,
 ) -> Result<AnalogSolution, String> {
-    build_operating(flat, drives, parts, config, false, powered, driven)?.solve_dc(config)
+    build_operating(flat, drives, pwm, parts, config, false, powered, driven)?.solve_dc(config)
 }
 
 /// Build the circuit at its operating point, with every regulated source that
@@ -273,9 +289,11 @@ pub(crate) fn solve(
 ///
 /// The mode is fixed for the lifetime of the returned circuit, which is what a
 /// transient run wants: a load change rebuilds the circuit anyway.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_operating(
     flat: &FlatBoard,
     drives: &BTreeMap<(u16, u8), Drive>,
+    pwm: &BTreeMap<(u16, u8), f64>,
     parts: &[Box<dyn Part>],
     config: &AnalogConfig,
     transient: bool,
@@ -284,26 +302,83 @@ pub(crate) fn build_operating(
 ) -> Result<Circuit, String> {
     let mut limited = BTreeSet::new();
     let mut drooped: BTreeMap<u16, f64> = BTreeMap::new();
-    // One build per folded supply plus one per drooped regulator; the cap is a
-    // backstop against a droop target that keeps moving with the input it
-    // depends on.
+    let mut converted: BTreeMap<u16, f64> = BTreeMap::new();
+    // One build per folded supply plus one per drooped regulator or converter
+    // whose target follows its input; the cap is a backstop against a target
+    // that keeps moving with the input it depends on.
     for _ in 0..16 {
         let circuit = build(
-            flat, drives, parts, config, transient, &limited, &drooped, powered, driven,
+            flat, drives, pwm, parts, config, transient, &limited, &drooped, &converted, powered,
+            driven,
         )?;
         let solution = circuit.solve_dc(config)?;
         let folded = folded_sources(flat, parts, &solution);
         let grown: BTreeSet<u16> = limited.union(&folded).copied().collect();
         let next = droop_targets(flat, parts, &solution, &drooped);
-        if grown == limited && next == drooped {
+        let next_converted = converter_targets(flat, parts, &solution, &converted);
+        if grown == limited && next == drooped && next_converted == converted {
             return Ok(circuit);
         }
         limited = grown;
         drooped = next;
+        converted = next_converted;
     }
     build(
-        flat, drives, parts, config, transient, &limited, &drooped, powered, driven,
+        flat, drives, pwm, parts, config, transient, &limited, &drooped, &converted, powered,
+        driven,
     )
+}
+
+/// The output each switching converter actually reaches, given the input the
+/// circuit just solved it with: a buck can only come down, a boost only up.
+fn converter_targets(
+    flat: &FlatBoard,
+    parts: &[Box<dyn Part>],
+    solution: &AnalogSolution,
+    converted: &BTreeMap<u16, f64>,
+) -> BTreeMap<u16, f64> {
+    let mut out = converted.clone();
+    for (index, part) in flat.parts.iter().enumerate() {
+        if !matches!(&part.engine, Engine::Builtin(engine) if engine == "dc-dc") {
+            continue;
+        }
+        let Some(vin) = solution.node_voltage(&part.id, "VI") else {
+            continue;
+        };
+        let boost = part
+            .attrs
+            .get("topology")
+            .is_some_and(|topology| topology.trim() == "boost");
+        // The host can dial the module while the board runs, so the part's
+        // live reading wins over the attribute it started with.
+        let setpoint = parts
+            .get(index)
+            .and_then(|part| {
+                let pin = flat
+                    .parts
+                    .get(index)?
+                    .pins
+                    .iter()
+                    .position(|name| name == "VO")? as u16;
+                part.analog(PinId(pin))
+            })
+            .map_or_else(
+                || {
+                    part.attrs
+                        .get("voltage")
+                        .and_then(|text| text.trim().parse::<f64>().ok())
+                        .unwrap_or(5.0)
+                },
+                f64::from,
+            );
+        let target = if boost {
+            setpoint.max(vin)
+        } else {
+            setpoint.min(vin)
+        };
+        out.insert(index as u16, target.max(0.0));
+    }
+    out
 }
 
 /// The output voltage each regulator that cannot hold its setpoint must show,
@@ -335,6 +410,21 @@ fn droop_targets(
         let Some(vin) = solution.node_voltage(&part.id, "VI") else {
             continue;
         };
+        // An adjustable part whose feedback pin is wired sets its own output:
+        // the divider decides the setpoint, so the solved VO is what the
+        // dropout has to be measured against, not what the host dialed.
+        let setpoint = if part
+            .attrs
+            .get("variant")
+            .is_some_and(|variant| variant.trim() == "LM317")
+            && adjust_net(flat, index).is_some()
+        {
+            solution
+                .node_voltage(&part.id, "VO")
+                .map_or(setpoint, f64::abs)
+        } else {
+            setpoint
+        };
         // The absolute input the pass element sees, on the regulator's side.
         let magnitude = if negative { -vin } else { vin };
         let in_droop = magnitude - setpoint.abs() < dropout - 1e-9;
@@ -345,6 +435,16 @@ fn droop_targets(
         out.insert(index, if negative { -target } else { target });
     }
     out
+}
+
+/// The net a part's `ADJ` pin is wired to, `None` when the pin is unwired or
+/// the part has no such pin.
+fn adjust_net(flat: &FlatBoard, index: u16) -> Option<usize> {
+    let part = flat.parts.get(usize::from(index))?;
+    let pin = part.pins.iter().position(|name| name == "ADJ")? as u16;
+    flat.endpoint_net
+        .get(&Endpoint::Part { part: index, pin })
+        .map(|net| *net as usize)
 }
 
 /// A regulator's setpoint, polarity and dropout, or `None` when the part is
@@ -549,11 +649,13 @@ impl Circuit {
 pub(crate) fn build(
     flat: &FlatBoard,
     drives: &BTreeMap<(u16, u8), Drive>,
+    pwm: &BTreeMap<(u16, u8), f64>,
     parts: &[Box<dyn Part>],
     config: &AnalogConfig,
     transient: bool,
     limited: &BTreeSet<u16>,
     drooped: &BTreeMap<u16, f64>,
+    converted: &BTreeMap<u16, f64>,
     powered: &[bool],
     driven: &BTreeMap<u16, f64>,
 ) -> Result<Circuit, String> {
@@ -598,7 +700,9 @@ pub(crate) fn build(
 
     // Chip drivers are Thevenin sources to ground; a high-impedance pin adds
     // no path at all. `chip_drive` is keyed by `(board, GPIO)`, and a board
-    // that is switched off has no driver at all.
+    // that is switched off has no driver at all. A pin a backend reports as a
+    // running PWM holds the duty-weighted average of its two levels, which is
+    // the voltage a meter or a load sees over a switching period.
     let board_on = |board: u16| powered.get(usize::from(board)).copied().unwrap_or(true);
     for (net, members) in flat.nets.iter().enumerate() {
         for endpoint in members {
@@ -606,6 +710,7 @@ pub(crate) fn build(
                 && board_on(board)
                 && chip_volts(
                     drives.get(&(board, gpio)).copied().unwrap_or(Drive::HIGH_Z),
+                    pwm.get(&(board, gpio)).copied(),
                     config,
                 )
                 .is_some()
@@ -629,6 +734,7 @@ pub(crate) fn build(
             },
             limited,
             drooped,
+            converted,
             driven,
         ) {
             model.union(&mut sets, transient);
@@ -672,6 +778,7 @@ pub(crate) fn build(
                 && board_on(board)
                 && chip_volts(
                     drives.get(&(board, gpio)).copied().unwrap_or(Drive::HIGH_Z),
+                    pwm.get(&(board, gpio)).copied(),
                     config,
                 )
                 .is_some()
@@ -744,6 +851,7 @@ pub(crate) fn build(
             }
             let Some(volts) = chip_volts(
                 drives.get(&(board, gpio)).copied().unwrap_or(Drive::HIGH_Z),
+                pwm.get(&(board, gpio)).copied(),
                 config,
             ) else {
                 continue;
@@ -792,8 +900,13 @@ pub(crate) fn build(
 }
 
 /// The voltage a chip pin holds as a Thevenin source. High-Z and weak drives
-/// return `None`: an input is not a source.
-fn chip_volts(drive: Drive, config: &AnalogConfig) -> Option<f64> {
+/// return `None`: an input is not a source. A running PWM replaces the level
+/// with its average, `duty × v33`, because a DC solve asks what the pin
+/// delivers over time rather than which half of the cycle it is in.
+fn chip_volts(drive: Drive, pwm_duty: Option<f64>, config: &AnalogConfig) -> Option<f64> {
+    if let Some(duty) = pwm_duty {
+        return Some(config.v33 * duty.clamp(0.0, 1.0));
+    }
     if drive.strength != Strength::Strong {
         return None;
     }
@@ -861,12 +974,27 @@ enum Model {
     /// A three-terminal linear regulator: `volts` at `out` referred to
     /// `ground`, until its input is closer than `dropout`, at which point it
     /// is the source in `drooped` (the input minus the dropout).
+    ///
+    /// An adjustable part whose `adjust` pin is wired regulates 1.25 V
+    /// between `out` and that pin instead, so the resistor divider the
+    /// firmware or the board put there sets the output. `volts` then only
+    /// describes what the host dialed for an unwired part.
     Regulator {
         part: u16,
         out: Option<usize>,
         ground: Option<usize>,
+        adjust: Option<usize>,
         volts: f64,
         drooped: Option<f64>,
+    },
+    /// A switching converter module: a source at `volts` from `out` to
+    /// `ground`. A buck's setpoint is capped at its input, a boost's is
+    /// floored at it.
+    Converter {
+        part: u16,
+        out: Option<usize>,
+        ground: Option<usize>,
+        volts: f64,
     },
     CurrentSource {
         part: u16,
@@ -975,6 +1103,11 @@ impl Model {
                 ground: Some(ground),
                 ..
             } => sets.union(*out, *ground),
+            Model::Converter {
+                out: Some(out),
+                ground: Some(ground),
+                ..
+            } => sets.union(*out, *ground),
             // A capacitor is a connection only when time is part of the
             // analysis; at DC it is an open circuit.
             Model::Capacitor {
@@ -1058,6 +1191,17 @@ impl Model {
             } => usize::from(
                 node_of_net.get(*a).copied().flatten().is_some()
                     && node_of_net.get(*c).copied().flatten().is_some(),
+            ),
+            // The LM317's error amplifier needs one node the 1.25 V reference
+            // source holds below its output.
+            Model::Regulator {
+                out: Some(out),
+                adjust: Some(adjust),
+                drooped: None,
+                ..
+            } => usize::from(
+                node_of_net.get(*out).copied().flatten().is_some()
+                    && node_of_net.get(*adjust).copied().flatten().is_some(),
             ),
             _ => 0,
         }
@@ -1201,16 +1345,51 @@ impl Model {
                 part,
                 out,
                 ground,
+                adjust,
                 volts,
                 drooped,
-                ..
             } => {
                 let Some(out) = node(*out) else {
                     return Ok(());
                 };
-                // Drooped: the output tracks the input, so the setpoint no
-                // longer reaches; the caller's current reading is the current
-                // the pass element delivers.
+                // An adjustable regulator with its adjust pin wired holds
+                // 1.25 V between OUT and ADJ and drives OUT to whatever the
+                // network on that pin asks for. That is an op-amp with the
+                // reference offset: its non-inverting input is ADJ, its
+                // inverting input is a node the 1.25 V source holds below
+                // OUT. The reference node carries no other current, so the
+                // divider's current flows through R1 and R2 as on the
+                // datasheet instead of being shorted around by the source.
+                if drooped.is_none()
+                    && let Some(adjust) = (*adjust).and_then(|net| node(Some(net)))
+                {
+                    let reference = alloc();
+                    let id = add(
+                        netlist,
+                        Element::VoltageSource {
+                            p: out,
+                            n: reference,
+                            volts: LM317_REFERENCE_VOLTS,
+                        },
+                        "regulator reference",
+                    )?;
+                    currents.push((*part, id));
+                    add(
+                        netlist,
+                        Element::OpAmp {
+                            plus: adjust,
+                            minus: reference,
+                            out,
+                            model: OpAmpModel {
+                                gain: LM317_OPAMP_GAIN,
+                                rail_low: 0.0,
+                                rail_high: LM317_RAIL_VOLTS,
+                            },
+                        },
+                        "regulator",
+                    )?;
+                    return Ok(());
+                }
                 let target = drooped.unwrap_or(*volts);
                 let Some(ground) = node(*ground) else {
                     return Ok(());
@@ -1225,6 +1404,25 @@ impl Model {
                     "regulator",
                 )?;
                 currents.push((*part, id));
+            }
+            Model::Converter {
+                part,
+                out,
+                ground,
+                volts,
+            } => {
+                if let (Some(out), Some(ground)) = (node(*out), node(*ground)) {
+                    let id = add(
+                        netlist,
+                        Element::VoltageSource {
+                            p: out,
+                            n: ground,
+                            volts: *volts,
+                        },
+                        "converter",
+                    )?;
+                    currents.push((*part, id));
+                }
             }
             Model::CurrentSource { part, p, n, amps } => {
                 if let (Some(p), Some(n)) = (node(*p), node(*n)) {
@@ -1481,6 +1679,7 @@ fn part_model(
     rails: &Rails<'_>,
     limited: &BTreeSet<u16>,
     drooped: &BTreeMap<u16, f64>,
+    converted: &BTreeMap<u16, f64>,
     driven: &BTreeMap<u16, f64>,
 ) -> Option<Model> {
     let Engine::Builtin(engine) = &part.engine else {
@@ -1583,22 +1782,68 @@ fn part_model(
             // can hold is a source, one it cannot is the input minus the
             // dropout.
             let (setpoint, negative, _dropout) = regulator_spec(part, Some(index), parts)?;
+            // Only the adjustable part has a feedback pin: a fixed regulator
+            // with a wire on that name is a wiring mistake, not a divider.
+            let adjustable = part
+                .attrs
+                .get("variant")
+                .is_some_and(|variant| variant.trim() == "LM317");
             Some(Model::Regulator {
                 part: index,
                 out: net(pin(&["VO"])),
                 ground: net(pin(&["GND"])),
+                adjust: if adjustable { net(pin(&["ADJ"])) } else { None },
                 volts: if negative { -setpoint } else { setpoint },
                 drooped: drooped.get(&index).copied(),
+            })
+        }
+        // A converter module is a source that its topology caps: the fold in
+        // `build_operating` measures VI and hands in the output it can reach.
+        "dc-dc" => {
+            let out = net(pin(&["VO"]));
+            let ground = net(pin(&["GND"]));
+            if limited.contains(&index) {
+                let amps = parts
+                    .get(index as usize)
+                    .and_then(|part| part.current_limit())
+                    .map_or(0.0, |limit| -f64::from(limit));
+                return Some(Model::CurrentSource {
+                    part: index,
+                    p: out,
+                    n: ground,
+                    amps,
+                });
+            }
+            let setpoint = parts
+                .get(index as usize)
+                .and_then(|runtime| {
+                    let pin = part.pins.iter().position(|name| name == "VO")? as u16;
+                    runtime.analog(PinId(pin))
+                })
+                .map_or_else(
+                    || {
+                        attr("voltage")
+                            .and_then(|text| text.trim().parse::<f64>().ok())
+                            .unwrap_or(5.0)
+                    },
+                    f64::from,
+                );
+            Some(Model::Converter {
+                part: index,
+                out,
+                ground,
+                volts: converted.get(&index).copied().unwrap_or(setpoint),
             })
         }
         // A DAC on the bus is a source on its output pin. Its latched value is
         // read off the device by the runtime and handed in: the pin shell a
         // bus part gets has no state of its own.
-        "mcp4725" => {
+        "mcp4725" | "pcf8591" => {
             let volts = driven.get(&index).copied().unwrap_or(0.0);
+            let out = if engine == "pcf8591" { "AOUT" } else { "VOUT" };
             Some(Model::VoltageSource {
                 part: index,
-                p: net(pin(&["VOUT"])),
+                p: net(pin(&[out])),
                 n: net(pin(&["GND"])),
                 volts,
             })

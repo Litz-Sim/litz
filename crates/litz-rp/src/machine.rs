@@ -78,6 +78,8 @@ pub const BOOT_STACK: u32 = 0x2004_0000;
 /// IO_BANK0's function select for the UART: a pin with this value carries a
 /// UART signal. Which signal depends on the pin, per the datasheet's table.
 pub const FUNCSEL_UART: u8 = 2;
+/// IO_BANK0's function select for the PWM block.
+pub const FUNCSEL_PWM: u8 = 4;
 
 pub struct Machine {
     pub cpu: Core,
@@ -486,6 +488,27 @@ impl Machine {
         for (irq, level) in irqs {
             set(irq, level, &mut periph.ppb);
         }
+    }
+
+    /// The duty each GPIO routed to the PWM block is programmed to, as the
+    /// fraction of its period it spends high.
+    ///
+    /// The block's channel mapping is fixed in silicon: GPIO `n` is slice
+    /// `(n >> 1) & 7`, channel A for an even pin and B for an odd one, so
+    /// GP0/GP16 are PWM0A, GP1/GP17 are PWM0B, and so on. A pin counts only
+    /// while IO_BANK0 selects the PWM function for it.
+    pub fn pwm_duties(&self) -> Vec<(u8, f64)> {
+        let mut duties = Vec::new();
+        for gpio in 0..32u8 {
+            if self.mem.periph.io.funcsel(gpio) != FUNCSEL_PWM {
+                continue;
+            }
+            let channel = (usize::from(gpio >> 1) & 7) * 2 + usize::from(gpio & 1);
+            if let Some(duty) = self.mem.periph.pwm.duty(channel) {
+                duties.push((gpio, duty));
+            }
+        }
+        duties
     }
 
     fn drain_uart(&mut self) {
