@@ -1049,6 +1049,70 @@ fn an_ads1115_converts_the_voltage_its_input_pin_carries() {
     );
 }
 
+/// A DAC trimming a regulator's ADJ pin and an ADC watching the output: the
+/// code the firmware latches moves the output, and the conversion that follows
+/// reads the moved output rather than the one from before the write.
+#[test]
+fn a_dac_trims_the_regulator_and_the_adc_reads_the_output() {
+    let mut board = board(
+        &[
+            BOARD,
+            r#"{"id":"ps","type":"litz-power-supply","attrs":{"voltage":9}}"#,
+            r#"{"id":"dac","type":"litz-mcp4725","attrs":{}}"#,
+            r#"{"id":"reg","type":"litz-voltage-regulator","attrs":{"variant":"LM317"}}"#,
+            r#"{"id":"adc","type":"litz-ads1115","attrs":{}}"#,
+            r#"{"id":"r1","type":"litz-resistor","attrs":{"value":"10k"}}"#,
+            r#"{"id":"r2","type":"litz-resistor","attrs":{"value":"10k"}}"#,
+            r#"{"id":"load","type":"litz-resistor","attrs":{"value":"220"}}"#,
+        ],
+        &[
+            r#"["ps:+","reg:VI","",[]]"#,
+            r#"["ps:-","esp:GND.1","",[]]"#,
+            r#"["reg:GND","esp:GND.1","",[]]"#,
+            r#"["dac:VOUT","reg:ADJ","",[]]"#,
+            r#"["dac:VCC","esp:3V3","",[]]"#,
+            r#"["dac:GND","esp:GND.1","",[]]"#,
+            r#"["dac:SDA","esp:GPIO8","",[]]"#,
+            r#"["dac:SCL","esp:GPIO9","",[]]"#,
+            r#"["adc:VDD","esp:3V3","",[]]"#,
+            r#"["adc:GND","esp:GND.1","",[]]"#,
+            r#"["adc:SDA","esp:GPIO8","",[]]"#,
+            r#"["adc:SCL","esp:GPIO9","",[]]"#,
+            r#"["reg:VO","r1:1","",[]]"#,
+            r#"["r1:2","adc:A0","",[]]"#,
+            r#"["adc:A0","r2:1","",[]]"#,
+            r#"["r2:2","esp:GND.1","",[]]"#,
+            r#"["reg:VO","load:1","",[]]"#,
+            r#"["load:2","esp:GND.1","",[]]"#,
+        ],
+    );
+    board.set_analog(true);
+
+    // With no code written the ADJ pin is pulled to ground and the regulator
+    // sits at its 1.25 V floor.
+    let idle = board.node_voltage("reg", "VO").expect("the output solves");
+    assert!((idle - 1.25).abs() < 0.01, "the idle output is {idle} V");
+
+    // Fast write of 0x0fc0 = 4032, which is 3.249 V against the DAC's 3.3 V
+    // rail, so the output goes to 4.499 V.
+    board.i2c_write_read(0, 0, 0x60, &[0x0f, 0xc0], 0);
+    let out = board.node_voltage("reg", "VO").expect("the output solves");
+    assert!((out - 4.499).abs() < 0.02, "the trimmed output is {out} V");
+
+    // AIN0 single-ended, ±4.096 V, single shot, 128 SPS: the divider halves
+    // the output, which is 2.2496 V on the channel.
+    board.i2c_write_read(0, 0, 0x48, &[0x01, 0xC3, 0x83], 0);
+    let raw = board
+        .i2c_write_read(0, 0, 0x48, &[0x00], 2)
+        .expect("the ADC answers");
+    let code = i16::from_be_bytes([raw[0], raw[1]]);
+    let expected = (32767.0_f64 * (out / 2.0) / 4.096).round() as i16;
+    assert!(
+        (code - expected).abs() <= 1,
+        "the ADC converted {code}, expected {expected}"
+    );
+}
+
 /// The SPI counterpart: an MCP3008 conversion reads its `CHn` pin.
 #[test]
 fn an_mcp3008_converts_the_voltage_its_channel_pin_carries() {

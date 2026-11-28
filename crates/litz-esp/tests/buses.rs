@@ -208,3 +208,103 @@ fn a_display_on_the_board_becomes_a_capture_the_png_writer_can_read() {
     assert!(bytes.len() > 100, "the frame is in it");
     let _ = std::fs::remove_file(path);
 }
+
+const SUPPLY_DIAGRAM: &str = r#"{
+  "version": 1,
+  "parts": [
+    {"id": "esp", "type": "board-esp32-c3-devkitm-1", "attrs": {}},
+    {"id": "ps", "type": "litz-power-supply", "attrs": {"voltage": 9}},
+    {"id": "dac", "type": "litz-mcp4725", "attrs": {}},
+    {"id": "reg", "type": "litz-voltage-regulator", "attrs": {"variant": "LM317"}},
+    {"id": "adc", "type": "litz-ads1115", "attrs": {}},
+    {"id": "r1", "type": "litz-resistor", "attrs": {"value": "10k"}},
+    {"id": "r2", "type": "litz-resistor", "attrs": {"value": "10k"}},
+    {"id": "load", "type": "litz-resistor", "attrs": {"value": "220"}}
+  ],
+  "connections": [
+    ["ps:+", "reg:VI", "", []],
+    ["ps:-", "esp:GND.1", "", []],
+    ["reg:GND", "esp:GND.1", "", []],
+    ["dac:VOUT", "reg:ADJ", "", []],
+    ["dac:VCC", "esp:3V3", "", []],
+    ["dac:GND", "esp:GND.1", "", []],
+    ["dac:SDA", "esp:GPIO8", "", []],
+    ["dac:SCL", "esp:GPIO9", "", []],
+    ["adc:VDD", "esp:3V3", "", []],
+    ["adc:GND", "esp:GND.1", "", []],
+    ["adc:SDA", "esp:GPIO8", "", []],
+    ["adc:SCL", "esp:GPIO9", "", []],
+    ["reg:VO", "r1:1", "", []],
+    ["r1:2", "adc:A0", "", []],
+    ["adc:A0", "r2:1", "", []],
+    ["r2:2", "esp:GND.1", "", []],
+    ["reg:VO", "load:1", "", []],
+    ["load:2", "esp:GND.1", "", []]
+  ]
+}"#;
+
+/// Traffic the chip drives itself — the DAC's registers and the ADC's
+/// conversion — keeps the analog view in step: a code the firmware latches
+/// moves the regulator, and the ADC's channel pin is read from the solve.
+#[test]
+fn a_firmware_dac_write_moves_the_regulator_and_the_adc_reads_it() {
+    let mut board = board(SUPPLY_DIAGRAM);
+    board.set_analog(true);
+    let mut mcu = C3::new(MAC, FLASH).with_board(board);
+    let shared = mcu.board().unwrap().clone();
+    let devices = mcu.board_model().i2c_devices();
+    let mut dac = devices
+        .into_iter()
+        .find(|(_, address, _)| *address == 0x60)
+        .map(|(_, _, device)| device)
+        .expect("the MCP4725 is attached at 0x60");
+
+    // Fast write of 0x0fc0 = 4032, which is 3.249 V on the 3.3 V rail.
+    assert!(dac.start_address(0x60, 0x60, false));
+    assert!(dac.write(0x0f));
+    assert!(dac.write(0xc0));
+    dac.stop();
+
+    let adj = shared
+        .borrow()
+        .node_voltage("reg", "ADJ")
+        .expect("the ADJ pin is solved");
+    assert!(
+        (adj - 3.249).abs() < 0.01,
+        "the regulator's ADJ pin sees {adj} V"
+    );
+    let vo = shared
+        .borrow()
+        .node_voltage("reg", "VO")
+        .expect("the output is solved");
+    assert!(
+        (vo - 4.499).abs() < 0.02,
+        "the output follows ADJ + 1.25 V, but sits at {vo} V"
+    );
+
+    // AIN0 single-ended, ±4.096 V, single shot: the divider halves the output.
+    let devices = mcu.board_model().i2c_devices();
+    let mut adc = devices
+        .into_iter()
+        .find(|(_, address, _)| *address == 0x48)
+        .map(|(_, _, device)| device)
+        .expect("the ADS1115 is attached at 0x48");
+    assert!(adc.start_address(0x48, 0x48, false));
+    assert!(adc.write(0x01));
+    assert!(adc.write(0xc3));
+    assert!(adc.write(0x83));
+    adc.stop();
+    assert!(adc.start_address(0x48, 0x48, false));
+    assert!(adc.write(0x00));
+    assert!(adc.start_address(0x48, 0x48, true));
+    let high = adc.read();
+    let low = adc.read();
+    adc.stop();
+
+    let code = i16::from_be_bytes([high, low]);
+    let expected = (32767.0_f64 * (vo / 2.0) / 4.096).round() as i16;
+    assert!(
+        (code - expected).abs() <= 2,
+        "the ADC converted {code}, expected {expected} from {vo} V through the divider"
+    );
+}

@@ -6,6 +6,12 @@ Every crate in the workspace and the npm package carry the same version. Release
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-28
+
+### Fixed
+
+- I2C traffic the chip drives itself keeps the analog view in step. The builtin ESP, RP and AVR controllers write the bus byte by byte, so they never reached `Board::i2c_write_read_at` and the two analog hooks that live there: an ADS1115 or PCF8591 conversion saw 0 V on its channel pins instead of the solved node, and an MCP4725 write left the cached operating point describing the code from before it. `Board::i2c_begin` / `Board::i2c_end` now hold those hooks, and every controller calls them — the ESP around a transaction, the AVR around each write and read callback, and `i2c_write_read_at` for the controllers that hand the board a whole transaction.
+
 ## [0.9.0] - 2026-11-28
 
 ### Added

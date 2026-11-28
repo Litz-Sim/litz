@@ -1298,7 +1298,8 @@ pub mod backend {
         }
 
         fn start(&mut self, read: bool) -> bool {
-            if !self.open {
+            let opening = !self.open;
+            if opening {
                 self.written.clear();
                 self.received.clear();
                 self.open = true;
@@ -1306,6 +1307,9 @@ pub mod backend {
             }
             self.reading = read;
             let mut board = self.board.borrow_mut();
+            if opening {
+                board.i2c_begin(self.board_index, self.controller, self.address);
+            }
             let Some(bus) = board
                 .buses_mut()
                 .i2c
@@ -1373,6 +1377,7 @@ pub mod backend {
             }
             if self.open {
                 let mut board = self.board.borrow_mut();
+                board.i2c_end(self.board_index, self.controller, self.address);
                 let end = board.now();
                 let at = self.started_at.max(self.last_at);
                 let phases = 1

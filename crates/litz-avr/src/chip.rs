@@ -196,10 +196,12 @@ impl Atmega328p {
                     pending.bytes.extend_from_slice(bytes);
                 }
                 let mut board = write_board.borrow_mut();
+                board.i2c_begin(index, I2C_CONTROLLER, address);
                 board
                     .buses_mut()
                     .i2c_mut(index, I2C_CONTROLLER)
                     .write(address, bytes);
+                board.i2c_end(index, I2C_CONTROLLER, address);
                 let at = board.now();
                 board.observe_i2c(index, I2C_CONTROLLER, address, bytes, &[], at);
             }),
@@ -213,6 +215,7 @@ impl Atmega328p {
                     }
                 };
                 let mut board = read_board.borrow_mut();
+                board.i2c_begin(index, I2C_CONTROLLER, address);
                 let (written, outcome) = {
                     let bus = board.buses_mut().i2c_mut(index, I2C_CONTROLLER);
                     match register_write {
@@ -223,6 +226,7 @@ impl Atmega328p {
                         _ => (Vec::new(), bus.read(address, 1)),
                     }
                 };
+                board.i2c_end(index, I2C_CONTROLLER, address);
                 let at = board.now();
                 if let Some(bytes) = &outcome {
                     board.observe_i2c(index, I2C_CONTROLLER, address, &written, bytes, at);

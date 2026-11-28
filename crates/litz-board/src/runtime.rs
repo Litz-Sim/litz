@@ -1882,25 +1882,14 @@ impl Board {
         len: usize,
         at: Tick,
     ) -> Option<Vec<u8>> {
-        if self.analog {
-            self.feed_i2c_inputs(board, controller, address);
-        }
+        self.i2c_begin(board, controller, address);
         let wiring = self.flat.buses.i2c.get(&(board, controller)).cloned()?;
         let read = self
             .buses
             .i2c
             .get_mut(&(board, controller))?
             .write_read(address, write, len)?;
-        // A DAC just changed the voltage the analog view sources, so the
-        // cached operating point no longer describes the circuit.
-        if self.analog
-            && matches!(
-                self.engine_at_i2c(board, controller, address),
-                Some("mcp4725" | "pcf8591")
-            )
-        {
-            self.analog_cache.get_mut().take();
-        }
+        self.i2c_end(board, controller, address);
         if self.trace.is_some() {
             let hz = self.i2c_hz(board, controller);
             let edges = waveform::i2c(wiring.sda, wiring.scl, at, hz, address, write, &read);
@@ -1914,6 +1903,36 @@ impl Board {
             );
         }
         Some(read)
+    }
+
+    /// Bring one I2C transaction up to date with the analog view before the
+    /// addressed device answers.
+    ///
+    /// A controller that drives the bus itself — the builtin ESP, RP and AVR
+    /// chips all do, byte by byte — calls this when it opens a transaction, so
+    /// an ADC converts the voltage its channel pin carries rather than a
+    /// stale one. [`Board::i2c_write_read_at`] calls it for the controllers
+    /// that go through the board in one call.
+    pub fn i2c_begin(&mut self, board: u16, controller: u8, address: u8) {
+        if self.analog {
+            self.feed_i2c_inputs(board, controller, address);
+        }
+    }
+
+    /// Settle one I2C transaction.
+    ///
+    /// A DAC's registers are a source in the analog view, so a write to one
+    /// makes the cached operating point stale; dropping it here is what makes
+    /// the next read of the circuit see the code the firmware just latched.
+    pub fn i2c_end(&mut self, board: u16, controller: u8, address: u8) {
+        if self.analog
+            && matches!(
+                self.engine_at_i2c(board, controller, address),
+                Some("mcp4725" | "pcf8591")
+            )
+        {
+            self.analog_cache.get_mut().take();
+        }
     }
 
     /// The builtin engine of the part at one I2C address, when a part is there.
